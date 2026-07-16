@@ -2156,11 +2156,14 @@ h2 {
 }
 
 .guide-visual {
-  min-height: 520px;
+  min-height: 480px;
 }
 
 .guide-visual img {
-  width: min(330px, 88%);
+  width: min(285px, 80%);
+  height: auto;
+  max-height: 440px;
+  object-fit: contain;
   box-shadow: 0 22px 45px rgba(0, 0, 0, 0.25);
 }
 
@@ -2524,7 +2527,8 @@ h2 {
   }
 
   .guide-visual img {
-    width: min(310px, 82%);
+    width: min(250px, 72%);
+    max-height: 380px;
   }
 
   .guide-pages {
