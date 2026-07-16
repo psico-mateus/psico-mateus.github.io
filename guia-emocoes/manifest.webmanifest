@@ -3,8 +3,8 @@
   "short_name": "Guia de Emoções",
   "description": "Material de apoio para perceber sinais no corpo, pensamentos, sensações internas e vontades de agir.",
   "lang": "pt-BR",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/guia-emocoes/",
+  "scope": "/guia-emocoes/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f7f3ed",
@@ -16,7 +16,7 @@
   ],
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/guia-emocoes/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

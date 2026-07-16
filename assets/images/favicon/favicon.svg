@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Monograma MRM">
+  <rect width="64" height="64" rx="15" fill="#242423"/>
+  <path d="M12 43V20h6.2l6.9 12.7L32 20h6.1v23h-5.4V29l-5.4 10h-4.5l-5.4-10v14H12Zm31.2 0V20h8.4c6.5 0 10.4 3.2 10.4 8.8 0 3.7-1.8 6.4-5.1 7.7L62 43h-6.4l-4.2-5.7h-2.8V43h-5.4Zm5.4-10.6h2.7c3.4 0 5.2-1.1 5.2-3.5 0-2.5-1.8-3.6-5.2-3.6h-2.7v7.1Z" fill="#D3AF67"/>
+</svg>
