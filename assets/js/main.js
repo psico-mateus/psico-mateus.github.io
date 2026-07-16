@@ -150,25 +150,40 @@
   });
 
   const mobileCta = document.querySelector("[data-mobile-cta]");
-  const nearbyActions = [
+  const ctaSuppressionTargets = [
     document.querySelector(".hero .button-dark"),
+    document.querySelector(".guide-section"),
     document.querySelector(".contact-section"),
     document.querySelector(".appointment-section"),
   ].filter(Boolean);
 
   if (mobileCta && "IntersectionObserver" in window) {
+    const visibilityThreshold = 0.18;
     const visibleTargets = new Set();
+    const setMobileCtaHidden = (isHidden) => {
+      mobileCta.dataset.hidden = String(isHidden);
+      if (isHidden) {
+        mobileCta.setAttribute("aria-hidden", "true");
+        mobileCta.setAttribute("tabindex", "-1");
+      } else {
+        mobileCta.removeAttribute("aria-hidden");
+        mobileCta.removeAttribute("tabindex");
+      }
+    };
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) visibleTargets.add(entry.target);
-          else visibleTargets.delete(entry.target);
+          if (entry.isIntersecting && entry.intersectionRatio >= visibilityThreshold) {
+            visibleTargets.add(entry.target);
+          } else {
+            visibleTargets.delete(entry.target);
+          }
         });
-        mobileCta.dataset.hidden = visibleTargets.size ? "true" : "false";
+        setMobileCtaHidden(visibleTargets.size > 0);
       },
-      { threshold: 0.18 },
+      { threshold: visibilityThreshold },
     );
-    nearbyActions.forEach((element) => observer.observe(element));
+    ctaSuppressionTargets.forEach((element) => observer.observe(element));
   }
 
   if ("serviceWorker" in navigator) {
