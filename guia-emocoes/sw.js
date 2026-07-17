@@ -10,6 +10,7 @@ const GUIDE_ASSET_PATHS = new Set([
   "/assets/index-BBQ5DOp1.css",
   "/assets/css/guide-brand.css",
   "/assets/images/favicon/logo-mateus-192.png",
+  "/assets/images/logo-mateus.svg",
 ]);
 const CORE_ASSETS = [
   GUIDE_PATH,
