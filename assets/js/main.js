@@ -56,7 +56,20 @@
     });
 
     menu.addEventListener("click", (event) => {
-      if (event.target.closest("a")) closeMenu({ restoreFocus: false });
+      const link = event.target.closest("a");
+      if (!link) return;
+
+      const hash = link.getAttribute("href");
+      const target = hash?.startsWith("#")
+        ? document.getElementById(decodeURIComponent(hash.slice(1)))
+        : null;
+
+      closeMenu({ restoreFocus: false });
+      if (!target) return;
+
+      event.preventDefault();
+      window.history.pushState(null, "", hash);
+      target.scrollIntoView({ block: "start" });
     });
 
     document.addEventListener("keydown", (event) => {
