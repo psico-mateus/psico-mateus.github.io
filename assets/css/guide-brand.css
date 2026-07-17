@@ -1,0 +1,21 @@
+/* Integra a identidade profissional ao guia sem alterar sua aplicação. */
+.site-header .brand-mark,
+.author-card .author-initials {
+  overflow: hidden;
+  color: transparent;
+  background-color: #171715;
+  background-image: url("/assets/images/favicon/logo-mateus-192.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px rgba(234, 210, 170, 0.18);
+  text-indent: -9999px;
+}
+
+.site-header .brand-mark {
+  border-radius: 10px;
+}
+
+.author-card .author-initials {
+  border-radius: 17px;
+}
