@@ -152,9 +152,24 @@
   const mobileCta = document.querySelector("[data-mobile-cta]");
   const nearbyActions = [
     document.querySelector(".hero .button-dark"),
+    document.querySelector(".services-section"),
+    document.querySelector(".guide-section"),
     document.querySelector(".contact-section"),
     document.querySelector(".appointment-section"),
+    document.querySelector(".site-footer"),
   ].filter(Boolean);
+
+  const setMobileCtaHidden = (hidden) => {
+    if (!mobileCta) return;
+    mobileCta.dataset.hidden = hidden ? "true" : "false";
+    if (hidden) {
+      mobileCta.setAttribute("aria-hidden", "true");
+      mobileCta.setAttribute("tabindex", "-1");
+    } else {
+      mobileCta.removeAttribute("aria-hidden");
+      mobileCta.removeAttribute("tabindex");
+    }
+  };
 
   if (mobileCta && "IntersectionObserver" in window) {
     const visibleTargets = new Set();
@@ -164,9 +179,9 @@
           if (entry.isIntersecting) visibleTargets.add(entry.target);
           else visibleTargets.delete(entry.target);
         });
-        mobileCta.dataset.hidden = visibleTargets.size ? "true" : "false";
+        setMobileCtaHidden(visibleTargets.size > 0);
       },
-      { threshold: 0.18 },
+      { threshold: 0.06 },
     );
     nearbyActions.forEach((element) => observer.observe(element));
   }
