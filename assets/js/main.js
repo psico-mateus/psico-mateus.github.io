@@ -16,6 +16,7 @@
   const menuToggle = document.querySelector("[data-menu-toggle]");
   const menu = document.querySelector("[data-menu]");
   let menuTrigger = null;
+  let menuFocusTimer;
 
   const menuFocusable = () =>
     menu
@@ -32,6 +33,8 @@
     menuToggle.setAttribute("aria-expanded", "false");
     menuToggle.setAttribute("aria-label", "Abrir menu");
     document.body.classList.remove("menu-open");
+    window.clearTimeout(menuFocusTimer);
+    menuFocusTimer = undefined;
     if (restoreFocus && menuTrigger) menuTrigger.focus();
   };
 
@@ -42,7 +45,7 @@
     menuToggle.setAttribute("aria-expanded", "true");
     menuToggle.setAttribute("aria-label", "Fechar menu");
     document.body.classList.add("menu-open");
-    menuFocusable()[0]?.focus();
+    menuFocusTimer = window.setTimeout(() => menuFocusable()[0]?.focus(), 180);
   };
 
   if (menuToggle && menu) {

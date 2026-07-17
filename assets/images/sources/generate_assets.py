@@ -86,15 +86,11 @@ def generate_guide_preview() -> None:
 
 
 def generate_apple_icon() -> None:
-    icon = Image.new("RGB", (180, 180), "#242423")
-    draw = ImageDraw.Draw(icon)
-    draw.rounded_rectangle((0, 0, 179, 179), radius=40, fill="#242423")
-    label_font = font(SERIF_BOLD, 48)
-    bbox = draw.textbbox((0, 0), "MRM", font=label_font)
-    x = (180 - (bbox[2] - bbox[0])) / 2
-    y = (180 - (bbox[3] - bbox[1])) / 2 - bbox[1]
-    draw.text((x, y), "MRM", font=label_font, fill="#D3AF67")
-    icon.save(ROOT / "favicon" / "apple-touch-icon.png", optimize=True)
+    logo = Image.open(ROOT / "logo-mateus-transparent.png").convert("RGBA")
+    logo = logo.resize((180, 180), Image.Resampling.LANCZOS)
+    icon = Image.new("RGBA", (180, 180), "#000000")
+    icon.alpha_composite(logo)
+    icon.convert("RGB").save(ROOT / "favicon" / "apple-touch-icon.png", optimize=True)
 
 
 def main() -> None:
