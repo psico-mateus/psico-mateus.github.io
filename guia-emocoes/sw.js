@@ -1,4 +1,4 @@
-const CACHE_NAME = "guia-emocoes-scoped-v9";
+const CACHE_NAME = "guia-emocoes-scoped-v10";
 const CACHE_PREFIX = "guia-emocoes-scoped-";
 const GUIDE_PATH = "/guia-emocoes/";
 const GUIDE_ASSET_PATHS = new Set([

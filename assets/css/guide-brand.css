@@ -19,3 +19,28 @@
 .author-card .author-initials {
   border-radius: 17px;
 }
+
+/* Mantém a saída para o site profissional clara, sem competir com o Guia. */
+.hero-actions > a[href="/"] {
+  border-color: #a97832;
+  background: #ead2aa;
+  color: #4b3518;
+  box-shadow: 0 8px 22px rgba(117, 79, 27, 0.14);
+  font-weight: 800;
+}
+
+.hero-actions > a[href="/"]:hover {
+  border-color: #8d6125;
+  background: #dfbf88;
+}
+
+.hero-actions > a[href="/"]:focus-visible {
+  outline: 3px solid rgba(169, 120, 50, 0.34);
+  outline-offset: 3px;
+}
+
+@media (width <= 680px) {
+  .hero-actions > a[href="/"] {
+    order: -1;
+  }
+}

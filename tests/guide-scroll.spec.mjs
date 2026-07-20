@@ -36,6 +36,31 @@ async function expectPageStillScrolls(page) {
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(afterDown);
 }
 
+async function waitForScrollToSettle(page) {
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let previous = window.scrollY;
+        let stableFrames = 0;
+
+        const check = () => {
+          const current = window.scrollY;
+          stableFrames = Math.abs(current - previous) < 1 ? stableFrames + 1 : 0;
+          previous = current;
+
+          if (stableFrames >= 5) {
+            resolve();
+            return;
+          }
+
+          window.requestAnimationFrame(check);
+        };
+
+        window.requestAnimationFrame(check);
+      }),
+  );
+}
+
 for (const flow of [
   { label: "Explorar emoções", target: "#explorar" },
   { label: "Ainda não sei o que sinto", target: "#registrar" },
@@ -96,6 +121,7 @@ test("sequência completa mantém âncoras, teclado e navegação liberados", as
   const beforePageDown = await page.evaluate(() => window.scrollY);
   await page.keyboard.press("PageDown");
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(beforePageDown);
+  await waitForScrollToSettle(page);
   const afterPageDown = await page.evaluate(() => window.scrollY);
   await page.keyboard.press("PageUp");
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(afterPageDown);
@@ -166,6 +192,10 @@ test("a abertura do guia também identifica o site profissional", async ({ page 
 
   await expect(professionalSite).toBeVisible();
   await expect(professionalSite).toHaveAttribute("href", "/");
+  await expect(professionalSite).toHaveCSS("background-color", "rgb(234, 210, 170)");
+
+  const size = await professionalSite.boundingBox();
+  expect(size?.height).toBeGreaterThanOrEqual(44);
 });
 
 test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", async () => {
@@ -180,6 +210,6 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(bundle).toContain("focus({preventScroll:!0})");
   expect(bundle).toContain("updateViaCache:`none`");
   expect(css).toContain("html{scroll-behavior:auto");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v9"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v10"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
 });
