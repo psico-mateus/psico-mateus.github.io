@@ -1,4 +1,4 @@
-const CACHE_NAME = "guia-emocoes-scoped-v6";
+const CACHE_NAME = "guia-emocoes-scoped-v8";
 const CACHE_PREFIX = "guia-emocoes-scoped-";
 const GUIDE_PATH = "/guia-emocoes/";
 const GUIDE_ASSET_PATHS = new Set([
@@ -9,6 +9,7 @@ const GUIDE_ASSET_PATHS = new Set([
   "/assets/rolldown-runtime-S-ySWqyJ.js",
   "/assets/index-BBQ5DOp1.css",
   "/assets/css/guide-brand.css",
+  "/assets/js/guide-navigation.js",
   "/assets/images/favicon/logo-mateus-192.png",
   "/assets/images/favicon/logo-mateus-512.png",
   "/assets/images/favicon/apple-touch-icon.png",
