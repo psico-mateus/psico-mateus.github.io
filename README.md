@@ -39,9 +39,10 @@ Depois, abra `http://127.0.0.1:4173/`. Um servidor HTTP é necessário para test
 
 ## Testes automatizados
 
-Os testes de regressão usam Playwright e cobrem a navegação por marcadores do guia,
-rolagem após os saltos, modais, atualização do PWA, o vínculo com o site profissional e
-larguras críticas entre 320 e 1920 pixels.
+Os testes de regressão usam Playwright e cobrem a navegação por marcadores do Guia,
+rolagem após os saltos, foco dos modais, menu móvel, contatos, persistência local,
+compartilhamento, PDF, páginas auxiliares, PWA, links internos e larguras críticas entre
+320 e 1920 pixels.
 
 ```bash
 pnpm install

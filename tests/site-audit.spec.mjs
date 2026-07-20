@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const widths = [320, 360, 390, 430, 768, 1024, 1366, 1440, 1920];
+const widths = [320, 360, 390, 430, 640, 683, 768, 1024, 1366, 1440, 1920];
 
 test("site principal e guia não criam rolagem horizontal nos tamanhos críticos", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Matriz executada uma vez com viewports explícitos.");
