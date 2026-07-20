@@ -18,6 +18,7 @@ O projeto também preserva o **Guia Prático para Reconhecer Emoções**, uma fe
 │   ├── css/styles.css                 Estilos compartilhados do novo site
 │   ├── js/config.js                   Links e mensagens reutilizados
 │   ├── js/main.js                     Menu, compartilhamento e comportamento do site
+│   ├── js/guide-navigation.js         Marcadores estáveis do guia estático
 │   ├── downloads/                     PDF original do guia
 │   └── images/                        Foto, capa, favicons e previews sociais
 ├── guia/index.html                    Redirecionamento legado
@@ -35,6 +36,18 @@ python3 -m http.server 4173
 ```
 
 Depois, abra `http://127.0.0.1:4173/`. Um servidor HTTP é necessário para testar corretamente URLs absolutas, service workers, cache e comportamento off-line; abrir os arquivos diretamente com `file://` não é suficiente.
+
+## Testes automatizados
+
+Os testes de regressão usam Playwright e cobrem a navegação por marcadores do guia,
+rolagem após os saltos, modais, atualização do PWA, o vínculo com o site profissional e
+larguras críticas entre 320 e 1920 pixels.
+
+```bash
+pnpm install
+pnpm exec playwright install chromium webkit
+pnpm test
+```
 
 ## Atualizar dados e links
 
