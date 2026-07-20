@@ -136,6 +136,27 @@ test("fechar detalhes remove o único bloqueio intencional de rolagem", async ({
   await expectPageStillScrolls(page);
 });
 
+test("modal mantém o foco contido e o devolve ao cartão", async ({ page }) => {
+  await page.goto(guidePath);
+  const trigger = page.getByRole("button", { name: "Abrir detalhes de Ansiedade" });
+  await trigger.click();
+
+  const dialog = page.getByRole("dialog", { name: "Ansiedade" });
+  const closeButton = page.getByRole("button", { name: "Fechar detalhes" });
+  await expect(dialog).toBeVisible();
+  await expect(closeButton).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.getByRole("button", { name: "Voltar ao guia" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(closeButton).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expectUnlocked(await pageScrollState(page));
+});
+
 test("a abertura do guia também identifica o site profissional", async ({ page }) => {
   await page.goto(guidePath);
   const professionalSite = page.getByRole("link", {
@@ -159,6 +180,6 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(bundle).toContain("focus({preventScroll:!0})");
   expect(bundle).toContain("updateViaCache:`none`");
   expect(css).toContain("html{scroll-behavior:auto");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v8"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v9"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
 });
