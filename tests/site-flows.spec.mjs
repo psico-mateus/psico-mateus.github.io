@@ -28,7 +28,8 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page).toHaveTitle(/Mateus Ribeiro Marcos/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Mateus Ribeiro Marcos/);
   await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
-  await expect(page.getByText("Recurso gratuito", { exact: true })).toBeVisible();
+  await expect(page.getByText("Recursos para pacientes", { exact: true })).toBeVisible();
+  await expect(page.getByText("Guia de emoções · gratuito", { exact: true })).toBeVisible();
 
   const portrait = page.getByRole("img", { name: "Retrato profissional de Mateus Ribeiro Marcos" });
   await expect.poll(() => portrait.evaluate((image) => image.naturalWidth)).toBeGreaterThanOrEqual(1600);
