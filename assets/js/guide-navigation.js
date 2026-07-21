@@ -52,6 +52,7 @@
     const header = document.querySelector("main > header");
     const footer = document.querySelector("main > footer");
     const target = document.getElementById("inicio");
+    const guidedExploration = document.getElementById("registrar");
 
     if (main) {
       main.setAttribute("aria-label", "Conteúdo principal do Guia de Emoções");
@@ -59,6 +60,28 @@
     if (header) header.setAttribute("role", "banner");
     if (footer) footer.setAttribute("role", "contentinfo");
     if (target) target.setAttribute("tabindex", "-1");
+
+    const guidedExplorationLink = header?.querySelector('nav a[href="#registrar"]');
+    if (guidedExplorationLink?.textContent !== "Exploração guiada") {
+      guidedExplorationLink.textContent = "Exploração guiada";
+    }
+
+    const guidedExplorationEyebrow = guidedExploration?.querySelector(".eyebrow");
+    if (guidedExplorationEyebrow?.textContent !== "EXPLORAÇÃO GUIADA") {
+      guidedExplorationEyebrow.textContent = "EXPLORAÇÃO GUIADA";
+    }
+
+    const privacyCopy = document.querySelector(".privacy-note p");
+    if (privacyCopy?.textContent.includes("O que você escreve no registro")) {
+      Array.from(privacyCopy.childNodes).forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          node.textContent = node.textContent.replace(
+            "O que você escreve no registro",
+            "O que você escreve nesta exploração",
+          );
+        }
+      });
+    }
 
     if (!document.querySelector(".guide-skip-link")) {
       const skipLink = document.createElement("a");
