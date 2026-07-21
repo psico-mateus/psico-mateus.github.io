@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
@@ -118,7 +118,7 @@ function initializeDatabase() {
     {
       id: "therapist-demo",
       name: "Mateus Ribeiro Marcos",
-      email: "profissional@exemplo.local",
+      email: "psico.mateus@outlook.com",
       role: "therapist",
       password: "TesteProfissional!2026",
     },
@@ -205,6 +205,11 @@ function initializeDatabase() {
 }
 
 initializeDatabase();
+
+// Atualiza somente a conta profissional criada por versões anteriores do protótipo.
+database
+  .prepare("UPDATE users SET email = ? WHERE id = ? AND email = ?")
+  .run("psico.mateus@outlook.com", "therapist-demo", "profissional@exemplo.local");
 
 function securityHeaders(contentType = "application/json; charset=utf-8") {
   return {
@@ -305,8 +310,51 @@ function publicUser(session) {
   return { id: session.user_id, name: session.name, email: session.email, role: session.role };
 }
 
+function userPayload(user) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role };
+}
+
+function createSessionFor(user) {
+  const sessionToken = token();
+  const csrfToken = token();
+  const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1_000).toISOString();
+  database
+    .prepare(`
+      INSERT INTO sessions (token_hash, user_id, csrf_token, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    .run(tokenHash(sessionToken), user.id, csrfToken, expiresAt, now());
+  return {
+    payload: { user: userPayload(user), csrf: csrfToken },
+    cookie: `portal_session=${encodeURIComponent(sessionToken)}; HttpOnly; SameSite=Strict; Path=/espaco/; Max-Age=28800`,
+  };
+}
+
 function cleanText(value, maximum) {
   return String(value || "").trim().slice(0, maximum);
+}
+
+function validateAccount(input) {
+  const name = cleanText(input.name, 100).replace(/\s+/g, " ");
+  const email = cleanText(input.email, 180).toLowerCase();
+  const password = String(input.password || "");
+  if (name.length < 2) return { error: "Informe seu nome." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Informe um e-mail válido." };
+  if (password.length > 200 || password.length < 12 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
+    return { error: "Use uma senha com pelo menos 12 caracteres, incluindo letras e números." };
+  }
+  if (input.adult_confirmation !== true) {
+    return { error: "Confirme que você tem 18 anos ou mais para criar a conta nesta etapa." };
+  }
+  return { account: { name, email, password } };
+}
+
+function validateNewPassword(value) {
+  const password = String(value || "");
+  if (password.length > 200 || password.length < 12 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) {
+    return "Use uma senha nova com pelo menos 12 caracteres, incluindo letras e números.";
+  }
+  return null;
 }
 
 function validateEntry(input) {
@@ -372,22 +420,61 @@ async function handleApi(request, response, url) {
     const email = cleanText(input.email, 180).toLowerCase();
     const user = database.prepare("SELECT * FROM users WHERE email = ?").get(email);
     if (!user || !passwordMatches(String(input.password || ""), user.password_salt, user.password_hash)) {
-      sendJson(response, 401, { error: "E-mail ou senha de teste inválidos." });
+      sendJson(response, 401, { error: "E-mail ou senha inválidos." });
       return;
     }
-    const sessionToken = token();
-    const csrfToken = token();
-    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1_000).toISOString();
-    database
-      .prepare(`
-        INSERT INTO sessions (token_hash, user_id, csrf_token, expires_at, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `)
-      .run(tokenHash(sessionToken), user.id, csrfToken, expiresAt, now());
+    const session = createSessionFor(user);
     logAccess(user.id, "login", "session");
-    sendJson(response, 200, { user: { id: user.id, name: user.name, email: user.email, role: user.role }, csrf: csrfToken }, {
-      "Set-Cookie": `portal_session=${encodeURIComponent(sessionToken)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`,
-    });
+    sendJson(response, 200, session.payload, { "Set-Cookie": session.cookie });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/register") {
+    const validation = validateAccount(await readJson(request));
+    if (validation.error) {
+      sendJson(response, 400, { error: validation.error });
+      return;
+    }
+    const account = validation.account;
+    if (database.prepare("SELECT id FROM users WHERE email = ?").get(account.email)) {
+      sendJson(response, 409, { error: "Este e-mail já está cadastrado." });
+      return;
+    }
+    const therapist = database
+      .prepare("SELECT id FROM users WHERE role = 'therapist' ORDER BY created_at LIMIT 1")
+      .get();
+    if (!therapist) {
+      sendJson(response, 503, { error: "O cadastro está temporariamente indisponível." });
+      return;
+    }
+    const patientId = `patient-${identifier()}`;
+    const createdAt = now();
+    const password = passwordRecord(account.password);
+    try {
+      database.exec("BEGIN IMMEDIATE");
+      database
+        .prepare(`
+          INSERT INTO users (id, name, email, role, password_salt, password_hash, created_at)
+          VALUES (?, ?, ?, 'patient', ?, ?, ?)
+        `)
+        .run(patientId, account.name, account.email, password.salt, password.hash, createdAt);
+      database
+        .prepare(`
+          INSERT INTO therapist_patient_links
+            (id, therapist_id, patient_id, status, created_at)
+          VALUES (?, ?, ?, 'active', ?)
+        `)
+        .run(identifier(), therapist.id, patientId, createdAt);
+      database.exec("COMMIT");
+    } catch {
+      database.exec("ROLLBACK");
+      sendJson(response, 409, { error: "Não foi possível criar a conta com estes dados." });
+      return;
+    }
+    const user = database.prepare("SELECT * FROM users WHERE id = ?").get(patientId);
+    const session = createSessionFor(user);
+    logAccess(user.id, "register", "account");
+    sendJson(response, 201, session.payload, { "Set-Cookie": session.cookie });
     return;
   }
 
@@ -396,7 +483,37 @@ async function handleApi(request, response, url) {
     if (!session || !requireCsrf(request, response, session)) return;
     logAccess(session.user_id, "logout", "session");
     database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(session.token_hash);
-    sendJson(response, 200, { ok: true }, { "Set-Cookie": "portal_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0" });
+    sendJson(response, 200, { ok: true }, { "Set-Cookie": "portal_session=; HttpOnly; SameSite=Strict; Path=/espaco/; Max-Age=0" });
+    return;
+  }
+
+  if (request.method === "PATCH" && url.pathname === "/api/account/password") {
+    const session = requireSession(request, response);
+    if (!session || !requireCsrf(request, response, session)) return;
+    const input = await readJson(request);
+    const user = database.prepare("SELECT * FROM users WHERE id = ?").get(session.user_id);
+    if (!passwordMatches(String(input.current_password || ""), user.password_salt, user.password_hash)) {
+      sendJson(response, 400, { error: "A senha atual não confere." });
+      return;
+    }
+    const passwordError = validateNewPassword(input.new_password);
+    if (passwordError) {
+      sendJson(response, 400, { error: passwordError });
+      return;
+    }
+    if (String(input.current_password) === String(input.new_password)) {
+      sendJson(response, 400, { error: "Escolha uma senha diferente da atual." });
+      return;
+    }
+    const password = passwordRecord(String(input.new_password));
+    database
+      .prepare("UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ?")
+      .run(password.salt, password.hash, user.id);
+    database
+      .prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?")
+      .run(user.id, session.token_hash);
+    logAccess(user.id, "change_password", "account");
+    sendJson(response, 200, { ok: true });
     return;
   }
 
@@ -501,29 +618,105 @@ async function handleApi(request, response, url) {
   sendJson(response, 404, { error: "Recurso não encontrado." });
 }
 
-const staticFiles = new Map([
-  ["/", [join(publicDirectory, "index.html"), "text/html; charset=utf-8"]],
-  ["/styles.css", [join(publicDirectory, "styles.css"), "text/css; charset=utf-8"]],
-  ["/app.js", [join(publicDirectory, "app.js"), "text/javascript; charset=utf-8"]],
-  ["/brand-logo.svg", [join(repositoryRoot, "assets/images/logo-mateus.svg"), "image/svg+xml"]],
+const portalFiles = new Map([
+  ["/espaco/", [join(publicDirectory, "index.html"), "text/html; charset=utf-8"]],
+  ["/espaco/styles.css", [join(publicDirectory, "styles.css"), "text/css; charset=utf-8"]],
+  ["/espaco/app.js", [join(publicDirectory, "app.js"), "text/javascript; charset=utf-8"]],
+  ["/espaco/brand-logo.svg", [join(repositoryRoot, "assets/images/logo-mateus.svg"), "image/svg+xml"]],
 ]);
 
-function serveStatic(response, pathname) {
-  const file = staticFiles.get(pathname);
-  if (!file) {
-    response.writeHead(404, securityHeaders("text/plain; charset=utf-8"));
+function servePortalStatic(response, pathname) {
+  const file = portalFiles.get(pathname);
+  response.writeHead(200, securityHeaders(file[1]));
+  response.end(readFileSync(file[0]));
+}
+
+const mimeTypes = new Map([
+  [".css", "text/css; charset=utf-8"],
+  [".html", "text/html; charset=utf-8"],
+  [".ico", "image/x-icon"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".pdf", "application/pdf"],
+  [".png", "image/png"],
+  [".svg", "image/svg+xml"],
+  [".txt", "text/plain; charset=utf-8"],
+  [".webmanifest", "application/manifest+json; charset=utf-8"],
+  [".webp", "image/webp"],
+  [".xml", "application/xml; charset=utf-8"],
+]);
+
+const publicRootFiles = new Set([
+  "/",
+  "/index.html",
+  "/404.html",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/sw.js",
+]);
+const publicDirectories = [
+  "/assets/",
+  "/cuidados/",
+  "/guia/",
+  "/guia-emocoes/",
+  "/privacidade/",
+];
+
+function serveRepositoryStatic(response, pathname) {
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(pathname);
+  } catch {
+    response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Endereço inválido.");
+    return;
+  }
+  const isPublicPath =
+    publicRootFiles.has(decodedPath) ||
+    publicDirectories.some(
+      (prefix) => decodedPath === prefix.slice(0, -1) || decodedPath.startsWith(prefix),
+    );
+  if (!isPublicPath) {
+    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     response.end("Página não encontrada.");
     return;
   }
-  response.writeHead(200, securityHeaders(file[1]));
-  response.end(readFileSync(file[0]));
+  const requested = resolve(repositoryRoot, `.${decodedPath}`);
+  if (requested !== repositoryRoot && !requested.startsWith(`${repositoryRoot}${sep}`)) {
+    response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Acesso negado.");
+    return;
+  }
+  const filePath = existsSync(requested) && statSync(requested).isDirectory()
+    ? join(requested, "index.html")
+    : requested;
+  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    response.end("Página não encontrada.");
+    return;
+  }
+  response.writeHead(200, {
+    "Content-Type": mimeTypes.get(extname(filePath)) || "application/octet-stream",
+    "X-Content-Type-Options": "nosniff",
+  });
+  response.end(readFileSync(filePath));
 }
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || `${host}:${port}`}`);
   try {
-    if (url.pathname.startsWith("/api/")) await handleApi(request, response, url);
-    else if (request.method === "GET") serveStatic(response, url.pathname);
+    if (url.pathname === "/espaco") {
+      response.writeHead(308, { Location: "/espaco/" });
+      response.end();
+    } else if (url.pathname.startsWith("/espaco/api/")) {
+      const apiUrl = new URL(url);
+      apiUrl.pathname = apiUrl.pathname.slice("/espaco".length);
+      await handleApi(request, response, apiUrl);
+    } else if (url.pathname.startsWith("/api/")) {
+      await handleApi(request, response, url);
+    } else if (request.method === "GET" && portalFiles.has(url.pathname)) {
+      servePortalStatic(response, url.pathname);
+    } else if (request.method === "GET") serveRepositoryStatic(response, url.pathname);
     else sendJson(response, 405, { error: "Método não permitido." }, { Allow: "GET" });
   } catch (error) {
     const status = error.message === "PAYLOAD_TOO_LARGE" ? 413 : 400;
@@ -532,8 +725,9 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Portal de teste disponível em http://${host}:${port}`);
-  console.log("Use somente as contas de demonstração indicadas na tela.");
+  console.log(`Site e portal de teste disponíveis em http://${host}:${port}`);
+  console.log(`Espaço entre sessões: http://${host}:${port}/espaco/`);
+  console.log("Ainda não use informações clínicas reais.");
 });
 
 function shutdown() {

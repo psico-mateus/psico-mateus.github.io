@@ -2,6 +2,7 @@
   "use strict";
 
   const PDF_PATH = "/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf";
+  const PORTAL_PATH = "/espaco/";
 
   const hashTarget = (hash) => {
     if (!hash || hash === "#") return document.documentElement;
@@ -82,6 +83,23 @@
       pdfLink.download = "Guia_Pratico_para_Reconhecer_Emocoes.pdf";
       pdfLink.textContent = "Baixar versão em PDF";
       footerLinks.append(pdfLink);
+    }
+
+    const heroActions = document.querySelector(".hero-actions");
+    if (heroActions && !heroActions.querySelector(`a[href="${PORTAL_PATH}"]`)) {
+      const portalLink = document.createElement("a");
+      portalLink.className = "button guide-portal-link";
+      portalLink.href = PORTAL_PATH;
+      portalLink.textContent = "Espaço entre sessões";
+      const professionalSiteLink = heroActions.querySelector('a[href="/"]');
+      heroActions.insertBefore(portalLink, professionalSiteLink || null);
+    }
+
+    if (footerLinks && !footerLinks.querySelector(`a[href="${PORTAL_PATH}"]`)) {
+      const portalLink = document.createElement("a");
+      portalLink.href = PORTAL_PATH;
+      portalLink.textContent = "Acessar o Espaço entre sessões";
+      footerLinks.append(portalLink);
     }
   };
 

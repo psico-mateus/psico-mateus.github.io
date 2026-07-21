@@ -19,6 +19,9 @@ O diferencial não é vigiar o paciente nem automatizar a clínica. É oferecer 
 - autenticação e sessão reais no ambiente local;
 - persistência em banco SQLite;
 - separação de perfis;
+- criação de contas de pacientes sem possibilidade de escolher privilégios;
+- conta profissional provisionada separadamente;
+- troca de senha e revogação das outras sessões da conta;
 - isolamento entre pacientes;
 - autorização no servidor;
 - registro privado, compartilhamento e revogação;
@@ -44,7 +47,7 @@ O portal deve ficar em um serviço separado do GitHub Pages, porque páginas est
 
 1. Manter a interface e os fluxos já testados.
 2. Substituir o banco SQLite local por PostgreSQL gerenciado.
-3. Substituir as contas de demonstração por autenticação gerenciada.
+3. Substituir a autenticação local por autenticação gerenciada, mantendo cadastro público somente para pacientes.
 4. Aplicar políticas de acesso por linha no banco.
 5. Adicionar confirmação de e-mail, recuperação de conta, expiração e revogação de sessões.
 6. Exigir MFA para a conta profissional.
@@ -62,6 +65,7 @@ Nenhum registro local de demonstração será enviado automaticamente ao futuro 
 - revisar finalidade, base legal, transparência, retenção e exclusão;
 - criar política de privacidade específica para o portal;
 - implementar HTTPS, MFA, limitação de tentativas e recuperação segura;
+- provisionar contas profissionais por um fluxo administrativo fechado, nunca pelo cadastro público;
 - testar acessos negados e isolamento entre contas;
 - revisar logs, backups, restauração e plano de incidentes;
 - definir regras próprias antes de incluir menores de idade;
@@ -70,4 +74,3 @@ Nenhum registro local de demonstração será enviado automaticamente ao futuro 
 ## Custo
 
 O protótipo local tem custo zero. Um teste futuro em ambiente gerenciado pode começar em uma faixa gratuita, mas uso clínico real não deve depender da promessa de gratuidade permanente. Segurança, backups, disponibilidade e suporte precisam ser avaliados antes da produção.
-

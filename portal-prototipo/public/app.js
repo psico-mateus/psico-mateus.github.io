@@ -1,6 +1,7 @@
 (() => {
   "use strict";
 
+  const API_BASE = "/espaco/api";
   const state = { user: null, csrf: null, entries: [], pendingAction: null };
   const elements = {
     loginView: document.getElementById("login-view"),
@@ -8,6 +9,10 @@
     patientPanel: document.getElementById("patient-panel"),
     therapistPanel: document.getElementById("therapist-panel"),
     loginForm: document.getElementById("login-form"),
+    registerForm: document.getElementById("register-form"),
+    passwordForm: document.getElementById("password-form"),
+    accountSummary: document.getElementById("account-summary"),
+    accountSettings: document.querySelector(".account-settings"),
     entryForm: document.getElementById("entry-form"),
     logoutButton: document.getElementById("logout-button"),
     patientRecords: document.getElementById("patient-records"),
@@ -35,7 +40,7 @@
   async function api(path, options = {}) {
     const headers = { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers };
     if (state.csrf && options.method && options.method !== "GET") headers["X-CSRF-Token"] = state.csrf;
-    const response = await fetch(path, { ...options, headers });
+    const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "Não foi possível concluir a ação.");
     return payload;
@@ -56,7 +61,11 @@
     elements.logoutButton.hidden = !user;
     elements.patientPanel.hidden = user?.role !== "patient";
     elements.therapistPanel.hidden = user?.role !== "therapist";
-    if (!user) return;
+    if (!user) {
+      elements.accountSettings.open = false;
+      elements.accountSummary.textContent = "";
+      return;
+    }
 
     const patient = user.role === "patient";
     document.getElementById("dashboard-eyebrow").textContent = patient ? "SEU ESPAÇO PARTICULAR" : "VISÃO PROFISSIONAL";
@@ -69,6 +78,22 @@
     document.getElementById("privacy-summary").innerHTML = patient
       ? "<strong>Privacidade por padrão</strong><p>Novo registro: privado · Compartilhamento: manual · Revogação: disponível</p>"
       : "<strong>Limite de acesso ativo</strong><p>Somente pacientes vinculados e registros compartilhados aparecem aqui.</p>";
+    elements.accountSummary.textContent = `${user.email} · ${patient ? "Paciente" : "Profissional"}`;
+  }
+
+  function setAuthMode(mode) {
+    const registering = mode === "register";
+    elements.loginForm.hidden = registering;
+    elements.registerForm.hidden = !registering;
+    document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+      const active = button.dataset.authMode === mode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    const field = registering
+      ? elements.registerForm.elements.name
+      : elements.loginForm.elements.email;
+    field.focus({ preventScroll: true });
   }
 
   function detail(label, value) {
@@ -122,24 +147,29 @@
   }
 
   async function loadEntries() {
-    const payload = await api("/api/entries");
+    const payload = await api("/entries");
     state.entries = payload.entries;
     renderEntries();
   }
 
   async function restoreSession() {
-    const payload = await api("/api/session");
+    const payload = await api("/session");
     state.csrf = payload.csrf || null;
     setView(payload.user);
     if (payload.user) await loadEntries();
   }
 
+  document.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+  });
+
   document.querySelectorAll("[data-demo-email]").forEach((button) => {
     button.addEventListener("click", () => {
+      setAuthMode("login");
       elements.loginForm.email.value = button.dataset.demoEmail;
       elements.loginForm.password.value = button.dataset.demoPassword;
       elements.loginForm.querySelector('button[type="submit"]').focus();
-      announce("Conta fictícia preenchida. Agora escolha Entrar.");
+      announce("Acesso local preenchido. Agora escolha Entrar.");
     });
   });
 
@@ -147,7 +177,7 @@
     event.preventDefault();
     const form = new FormData(elements.loginForm);
     try {
-      const payload = await api("/api/login", {
+      const payload = await api("/login", {
         method: "POST",
         body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
       });
@@ -156,7 +186,37 @@
       await loadEntries();
       elements.dashboardView.focus({ preventScroll: true });
       window.scrollTo({ top: 0, behavior: "auto" });
-      announce("Entrada realizada com uma conta de demonstração.");
+      announce("Entrada realizada com segurança.");
+    } catch (error) {
+      announce(error.message);
+    }
+  });
+
+  elements.registerForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(elements.registerForm);
+    if (form.get("password") !== form.get("password_confirmation")) {
+      announce("As senhas digitadas não são iguais.");
+      elements.registerForm.elements.password_confirmation.focus();
+      return;
+    }
+    try {
+      const payload = await api("/register", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.get("name"),
+          email: form.get("email"),
+          password: form.get("password"),
+          adult_confirmation: form.get("adult_confirmation") === "on",
+        }),
+      });
+      state.csrf = payload.csrf;
+      setView(payload.user);
+      await loadEntries();
+      elements.registerForm.reset();
+      elements.dashboardView.focus({ preventScroll: true });
+      window.scrollTo({ top: 0, behavior: "auto" });
+      announce("Conta criada. Seus registros começam privados.");
     } catch (error) {
       announce(error.message);
     }
@@ -164,13 +224,40 @@
 
   elements.logoutButton.addEventListener("click", async () => {
     try {
-      await api("/api/logout", { method: "POST" });
+      await api("/logout", { method: "POST" });
       state.csrf = null;
       state.entries = [];
       setView(null);
       elements.loginForm.reset();
+      elements.registerForm.reset();
+      elements.passwordForm.reset();
+      setAuthMode("login");
       window.scrollTo({ top: 0, behavior: "auto" });
-      announce("Você saiu do protótipo.");
+      announce("Você saiu da conta.");
+    } catch (error) {
+      announce(error.message);
+    }
+  });
+
+  elements.passwordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(elements.passwordForm);
+    if (form.get("new_password") !== form.get("new_password_confirmation")) {
+      announce("As senhas novas digitadas não são iguais.");
+      elements.passwordForm.elements.new_password_confirmation.focus();
+      return;
+    }
+    try {
+      await api("/account/password", {
+        method: "PATCH",
+        body: JSON.stringify({
+          current_password: form.get("current_password"),
+          new_password: form.get("new_password"),
+        }),
+      });
+      elements.passwordForm.reset();
+      elements.accountSettings.open = false;
+      announce("Senha atualizada. Outras sessões desta conta foram encerradas.");
     } catch (error) {
       announce(error.message);
     }
@@ -186,7 +273,7 @@
     const form = Object.fromEntries(new FormData(elements.entryForm));
     form.intensity = Number(form.intensity);
     try {
-      await api("/api/entries", { method: "POST", body: JSON.stringify(form) });
+      await api("/entries", { method: "POST", body: JSON.stringify(form) });
       elements.entryForm.reset();
       intensity.value = "5";
       document.getElementById("intensity-output").textContent = "5/10";
@@ -242,13 +329,13 @@
     state.pendingAction = null;
     try {
       if (action.type === "sharing") {
-        await api(`/api/entries/${action.entryId}/sharing`, {
+        await api(`/entries/${action.entryId}/sharing`, {
           method: "PATCH",
           body: JSON.stringify({ shared: action.shared }),
         });
         announce(action.shared ? "Registro compartilhado para a sessão." : "Compartilhamento revogado.");
       } else {
-        await api(`/api/entries/${action.entryId}`, { method: "DELETE" });
+        await api(`/entries/${action.entryId}`, { method: "DELETE" });
         announce("Registro excluído.");
       }
       await loadEntries();

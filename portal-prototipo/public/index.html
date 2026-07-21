@@ -10,14 +10,14 @@
       name="description"
       content="Espaço opcional para registrar experiências e escolher o que compartilhar para a sessão."
     />
-    <link rel="stylesheet" href="/styles.css" />
-    <script src="/app.js" defer></script>
+    <link rel="stylesheet" href="/espaco/styles.css" />
+    <script src="/espaco/app.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <header class="site-header">
-      <a class="brand" href="/" aria-label="Ir para o início do protótipo">
-        <img src="/brand-logo.svg" alt="" width="44" height="44" />
+      <a class="brand" href="/espaco/" aria-label="Ir para o início do Espaço entre sessões">
+        <img src="/espaco/brand-logo.svg" alt="" width="44" height="44" />
         <span>
           <strong>Espaço entre sessões</strong>
           <small>Uso opcional em psicoterapia · Mateus Ribeiro Marcos</small>
@@ -25,7 +25,7 @@
       </a>
       <div class="header-actions">
         <span class="test-chip">Ambiente local</span>
-        <a href="https://psico-mateus.github.io/">Site profissional</a>
+        <a href="/">Site profissional</a>
         <button id="logout-button" class="quiet-button" type="button" hidden>Sair</button>
       </div>
     </header>
@@ -36,7 +36,7 @@
           <p class="eyebrow">EXPERIÊNCIA OPCIONAL PARA PSICOTERAPIA</p>
           <h1>Um registro pode continuar <span>sob controle de quem escreveu.</span></h1>
           <p class="lead">
-            Este ambiente testa uma ideia simples: escrever de forma privada, escolher o que levar
+            A proposta é simples: escrever de forma privada, escolher o que levar
             para a sessão e poder retirar o compartilhamento depois.
           </p>
           <div class="principles" aria-label="Princípios de privacidade">
@@ -49,11 +49,16 @@
         <div class="login-card">
           <div>
             <p class="eyebrow">ACESSAR O ESPAÇO</p>
-            <h2>Entre como paciente ou profissional</h2>
-            <p>Nesta versão local, use as contas de demonstração. Nenhum cadastro é necessário.</p>
+            <h2>Seu acesso, com uma escolha clara</h2>
+            <p>Pacientes podem criar a própria conta. O acesso profissional é separado e não pode ser criado por esta tela.</p>
           </div>
 
-          <form id="login-form">
+          <div class="auth-mode" role="group" aria-label="Escolha como acessar">
+            <button class="auth-mode-button active" type="button" data-auth-mode="login" aria-pressed="true">Entrar</button>
+            <button class="auth-mode-button" type="button" data-auth-mode="register" aria-pressed="false">Criar conta</button>
+          </div>
+
+          <form id="login-form" class="auth-form">
             <label for="email">E-mail</label>
             <input id="email" name="email" type="email" autocomplete="username" required />
             <label for="password">Senha</label>
@@ -61,7 +66,26 @@
             <button class="primary-button" type="submit">Entrar</button>
           </form>
 
+          <form id="register-form" class="auth-form" hidden>
+            <label for="register-name">Nome completo</label>
+            <input id="register-name" name="name" autocomplete="name" maxlength="100" required />
+            <label for="register-email">E-mail</label>
+            <input id="register-email" name="email" type="email" autocomplete="email" maxlength="180" required />
+            <label for="register-password">Crie uma senha</label>
+            <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" aria-describedby="password-guidance" required />
+            <small id="password-guidance" class="field-guidance">Use pelo menos 12 caracteres, com letras e números.</small>
+            <label for="register-password-confirmation">Repita a senha</label>
+            <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
+            <label class="confirmation-check" for="adult-confirmation">
+              <input id="adult-confirmation" name="adult_confirmation" type="checkbox" required />
+              <span>Tenho 18 anos ou mais e entendo que este espaço não é um canal de emergência.</span>
+            </label>
+            <button class="primary-button" type="submit">Criar minha conta</button>
+            <p class="register-privacy"><strong>Seu primeiro registro será privado.</strong> O vínculo profissional não libera automaticamente o conteúdo.</p>
+          </form>
+
           <div class="demo-accounts" aria-label="Contas disponíveis para teste">
+            <p>Acessos disponíveis nesta versão local</p>
             <button
               type="button"
               data-demo-email="ana@exemplo.local"
@@ -72,14 +96,14 @@
             </button>
             <button
               type="button"
-              data-demo-email="profissional@exemplo.local"
+              data-demo-email="psico.mateus@outlook.com"
               data-demo-password="TesteProfissional!2026"
             >
               <strong>Profissional</strong>
               <span>Vê somente o que foi compartilhado.</span>
             </button>
           </div>
-          <p class="login-note">Ambiente local de demonstração. Ainda não insira informações clínicas reais.</p>
+          <p class="login-note">Ambiente local em validação. Ainda não insira informações clínicas reais.</p>
         </div>
       </section>
 
@@ -92,6 +116,29 @@
           </div>
           <div id="privacy-summary" class="privacy-summary"></div>
         </div>
+
+        <details class="account-settings">
+          <summary>
+            <span><strong>Conta e segurança</strong><small id="account-summary"></small></span>
+            <b>Alterar senha</b>
+          </summary>
+          <div class="account-settings-body">
+            <div>
+              <p class="eyebrow">PROTEÇÃO DA CONTA</p>
+              <h2>Uma senha que só você conhece</h2>
+              <p>Ao trocar a senha, outras sessões abertas desta conta são encerradas. Não reutilize uma senha de outro serviço.</p>
+            </div>
+            <form id="password-form">
+              <label for="current-password">Senha atual</label>
+              <input id="current-password" name="current_password" type="password" autocomplete="current-password" required />
+              <label for="new-password">Nova senha</label>
+              <input id="new-password" name="new_password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
+              <label for="new-password-confirmation">Repita a nova senha</label>
+              <input id="new-password-confirmation" name="new_password_confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
+              <button class="secondary-button" type="submit">Atualizar minha senha</button>
+            </form>
+          </div>
+        </details>
 
         <div id="patient-panel" hidden>
           <div class="patient-grid">
@@ -137,7 +184,7 @@
                   <p class="eyebrow">SEUS REGISTROS</p>
                   <h2 id="records-title">O que fica privado e o que vai para a sessão</h2>
                 </div>
-                <a class="secondary-button" href="/api/export">Exportar meus dados</a>
+              <a class="secondary-button" href="/espaco/api/export">Exportar meus dados</a>
               </div>
               <div id="patient-records" class="records-list"></div>
             </section>
@@ -184,8 +231,8 @@
 
     <footer>
       <div><strong>Versão local em validação</strong><span>Ainda não utilizar com pacientes reais.</span></div>
-      <p>O Guia público e o site profissional permanecem separados e inalterados.</p>
-      <a href="https://psico-mateus.github.io/guia-emocoes/">Abrir Guia de Emoções</a>
+      <p>O Guia público e o site profissional continuam disponíveis sem exigir uma conta.</p>
+      <a href="/guia-emocoes/">Abrir Guia de Emoções</a>
     </footer>
   </body>
 </html>

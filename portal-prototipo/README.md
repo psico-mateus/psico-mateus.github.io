@@ -1,6 +1,6 @@
 # Portal — protótipo local
 
-Este protótipo testa autenticação, persistência e compartilhamento controlado sem alterar o site público.
+Este protótipo testa autenticação, cadastro, persistência e compartilhamento controlado. A branch local também integra entradas para o portal no site profissional e no Guia, sem publicar essas mudanças.
 
 ## Limites
 
@@ -18,13 +18,19 @@ Na raiz do repositório:
 npm run portal
 ```
 
-Depois abra `http://127.0.0.1:4310`.
+Depois abra:
+
+- site profissional integrado: `http://127.0.0.1:4310/`;
+- Espaço entre sessões: `http://127.0.0.1:4310/espaco/`;
+- Guia integrado: `http://127.0.0.1:4310/guia-emocoes/`.
 
 ## Contas fictícias
 
 - paciente: `ana@exemplo.local` / `TestePaciente!2026`
 - outro paciente, para testes de isolamento: `bruno@exemplo.local` / `TestePaciente2!2026`
-- profissional: `profissional@exemplo.local` / `TesteProfissional!2026`
+- profissional: `psico.mateus@outlook.com` / `TesteProfissional!2026`
+
+A senha profissional acima existe somente para iniciar o banco local. Depois de entrar, Mateus pode abrir **Conta e segurança** e definir outra senha. Ela permanece apenas no banco ignorado pelo Git.
 
 ## O que já é real no protótipo
 
@@ -32,6 +38,9 @@ Depois abra `http://127.0.0.1:4310`.
 - sessão por cookie `HttpOnly` e token armazenado somente como hash;
 - proteção CSRF para alterações;
 - autorização no servidor;
+- cadastro público limitado ao perfil de paciente;
+- vínculo automático do novo paciente com a única conta profissional local, sem liberar registros;
+- troca de senha com encerramento das outras sessões da conta;
 - banco SQLite persistente;
 - registro privado por padrão;
 - compartilhamento e revogação explícitos;
@@ -41,4 +50,3 @@ Depois abra `http://127.0.0.1:4310`.
 - logs técnicos sem conteúdo clínico.
 
 Antes de qualquer publicação com usuários reais ainda seriam necessários fornecedor de autenticação, HTTPS, banco gerenciado, política de privacidade específica, revisão de segurança e avaliação jurídica/LGPD.
-

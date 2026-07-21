@@ -66,7 +66,28 @@ main .install-button {
   background: #dfbf88;
 }
 
+.hero-actions > .guide-portal-link,
+.hero-actions > a[href="/espaco/"] {
+  border-color: #292923;
+  background: #292923;
+  color: #fffdf9;
+  box-shadow: 0 8px 22px rgba(41, 41, 35, 0.16);
+  font-weight: 800;
+}
+
+.hero-actions > .guide-portal-link:hover,
+.hero-actions > a[href="/espaco/"]:hover {
+  border-color: #403f37;
+  background: #403f37;
+}
+
 @media (width <= 680px) {
+  .hero-actions > .guide-portal-link,
+  .hero-actions > a[href="/espaco/"] {
+    order: -2;
+    width: 100%;
+  }
+
   .hero-actions > a[href="/"] {
     order: -1;
   }
