@@ -1,0 +1,8 @@
+{
+  "name": "portal-prototipo-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning server.mjs"
+  }
+}

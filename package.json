@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "test": "playwright test",
-    "test:guide-scroll": "playwright test tests/guide-scroll.spec.mjs"
+    "test:guide-scroll": "playwright test tests/guide-scroll.spec.mjs",
+    "portal": "node --no-warnings=ExperimentalWarning portal-prototipo/server.mjs",
+    "test:portal": "playwright test -c portal-prototipo/playwright.config.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1"

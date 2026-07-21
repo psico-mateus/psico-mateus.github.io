@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light" />
+    <title>Espaço entre sessões | Mateus Ribeiro Marcos</title>
+    <meta
+      name="description"
+      content="Espaço opcional para registrar experiências e escolher o que compartilhar para a sessão."
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Ir para o início do protótipo">
+        <img src="/brand-logo.svg" alt="" width="44" height="44" />
+        <span>
+          <strong>Espaço entre sessões</strong>
+          <small>Uso opcional em psicoterapia · Mateus Ribeiro Marcos</small>
+        </span>
+      </a>
+      <div class="header-actions">
+        <span class="test-chip">Ambiente local</span>
+        <a href="https://psico-mateus.github.io/">Site profissional</a>
+        <button id="logout-button" class="quiet-button" type="button" hidden>Sair</button>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section id="login-view" class="login-layout">
+        <div class="login-intro">
+          <p class="eyebrow">EXPERIÊNCIA OPCIONAL PARA PSICOTERAPIA</p>
+          <h1>Um registro pode continuar <span>sob controle de quem escreveu.</span></h1>
+          <p class="lead">
+            Este ambiente testa uma ideia simples: escrever de forma privada, escolher o que levar
+            para a sessão e poder retirar o compartilhamento depois.
+          </p>
+          <div class="principles" aria-label="Princípios de privacidade">
+            <div><strong>Privado por padrão</strong><span>Nada é compartilhado automaticamente.</span></div>
+            <div><strong>Escolha explícita</strong><span>O paciente decide registro por registro.</span></div>
+            <div><strong>Sem vigilância</strong><span>Não há alertas ou promessa de leitura imediata.</span></div>
+          </div>
+        </div>
+
+        <div class="login-card">
+          <div>
+            <p class="eyebrow">ACESSAR O ESPAÇO</p>
+            <h2>Entre como paciente ou profissional</h2>
+            <p>Nesta versão local, use as contas de demonstração. Nenhum cadastro é necessário.</p>
+          </div>
+
+          <form id="login-form">
+            <label for="email">E-mail</label>
+            <input id="email" name="email" type="email" autocomplete="username" required />
+            <label for="password">Senha</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+            <button class="primary-button" type="submit">Entrar</button>
+          </form>
+
+          <div class="demo-accounts" aria-label="Contas disponíveis para teste">
+            <button
+              type="button"
+              data-demo-email="ana@exemplo.local"
+              data-demo-password="TestePaciente!2026"
+            >
+              <strong>Paciente</strong>
+              <span>Cria, compartilha, revoga e exclui registros.</span>
+            </button>
+            <button
+              type="button"
+              data-demo-email="profissional@exemplo.local"
+              data-demo-password="TesteProfissional!2026"
+            >
+              <strong>Profissional</strong>
+              <span>Vê somente o que foi compartilhado.</span>
+            </button>
+          </div>
+          <p class="login-note">Ambiente local de demonstração. Ainda não insira informações clínicas reais.</p>
+        </div>
+      </section>
+
+      <section id="dashboard-view" class="dashboard" tabindex="-1" hidden>
+        <div class="dashboard-heading">
+          <div>
+            <p id="dashboard-eyebrow" class="eyebrow"></p>
+            <h1 id="dashboard-title"></h1>
+            <p id="dashboard-description" class="lead"></p>
+          </div>
+          <div id="privacy-summary" class="privacy-summary"></div>
+        </div>
+
+        <div id="patient-panel" hidden>
+          <div class="patient-grid">
+            <section class="entry-composer" aria-labelledby="new-entry-title">
+              <div class="section-title">
+                <span>01</span>
+                <div>
+                  <p class="eyebrow">REGISTRO PARTICULAR</p>
+                  <h2 id="new-entry-title">Registrar para compreender melhor</h2>
+                </div>
+              </div>
+              <form id="entry-form">
+                <label for="entry-title">Título curto</label>
+                <input id="entry-title" name="title" maxlength="120" required placeholder="Ex.: Antes de uma conversa" />
+
+                <label for="entry-happened">O que aconteceu?</label>
+                <textarea id="entry-happened" name="happened" rows="4" maxlength="2000" required></textarea>
+
+                <div class="field-grid">
+                  <label>Corpo<textarea name="body" rows="3" maxlength="1500"></textarea></label>
+                  <label>Pensamentos<textarea name="thoughts" rows="3" maxlength="1500"></textarea></label>
+                  <label>Vontade de agir<textarea name="urge" rows="3" maxlength="1500"></textarea></label>
+                  <label>Emoção<input name="emotion" maxlength="120" /></label>
+                </div>
+
+                <label for="entry-intensity">Intensidade percebida: <output id="intensity-output">5/10</output></label>
+                <input id="entry-intensity" name="intensity" type="range" min="0" max="10" value="5" />
+
+                <label for="entry-message">O que isso pode estar comunicando?</label>
+                <textarea id="entry-message" name="message" rows="3" maxlength="1500"></textarea>
+
+                <div class="form-footer">
+                  <p><strong>Será salvo como privado.</strong> Você decide depois se quer compartilhar.</p>
+                  <button class="primary-button" type="submit">Salvar registro privado</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="records-section" aria-labelledby="records-title">
+              <div class="section-title records-heading">
+                <span>02</span>
+                <div>
+                  <p class="eyebrow">SEUS REGISTROS</p>
+                  <h2 id="records-title">O que fica privado e o que vai para a sessão</h2>
+                </div>
+                <a class="secondary-button" href="/api/export">Exportar meus dados</a>
+              </div>
+              <div id="patient-records" class="records-list"></div>
+            </section>
+          </div>
+        </div>
+
+        <div id="therapist-panel" hidden>
+          <section class="shared-section" aria-labelledby="shared-title">
+            <div class="section-title">
+              <span>01</span>
+              <div>
+                <p class="eyebrow">COMPARTILHADO PARA A SESSÃO</p>
+                <h2 id="shared-title">Somente o que o paciente escolheu mostrar</h2>
+              </div>
+            </div>
+            <div class="professional-boundary">
+              <strong>Leitura com limite claro</strong>
+              <p>O profissional não edita o texto, não vê registros privados e não recebe promessa de monitoramento em tempo real.</p>
+            </div>
+            <div id="shared-records" class="records-list"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
+
+    <dialog
+      id="confirmation-dialog"
+      class="confirmation-dialog"
+      aria-labelledby="confirmation-title"
+      aria-describedby="confirmation-description"
+    >
+      <form method="dialog">
+        <p class="eyebrow">CONFIRME SUA ESCOLHA</p>
+        <h2 id="confirmation-title"></h2>
+        <p id="confirmation-description"></p>
+        <div class="dialog-actions">
+          <button value="cancel" class="quiet-button">Cancelar</button>
+          <button id="confirmation-button" value="confirm" class="primary-button">Confirmar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <footer>
+      <div><strong>Versão local em validação</strong><span>Ainda não utilizar com pacientes reais.</span></div>
+      <p>O Guia público e o site profissional permanecem separados e inalterados.</p>
+      <a href="https://psico-mateus.github.io/guia-emocoes/">Abrir Guia de Emoções</a>
+    </footer>
+  </body>
+</html>
