@@ -206,7 +206,7 @@ test("guia apresenta os Registros entre sessões sem esconder o site profissiona
   const portalLink = page.getByRole("link", { name: "Registros entre sessões", exact: true }).first();
 
   await expect(portalLink).toBeVisible();
-  await expect(portalLink).toHaveAttribute("href", "/espaco/");
+  await expect(portalLink).toHaveAttribute("href", "https://registros-entre-sessoes.parinpontfm.chatgpt.site");
   const size = await portalLink.boundingBox();
   expect(size?.height).toBeGreaterThanOrEqual(44);
 });

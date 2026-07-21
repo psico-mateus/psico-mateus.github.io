@@ -113,7 +113,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
   await expect(page.getByRole("link", { name: "Entrar nos Registros", exact: true }))
-    .toHaveAttribute("href", "/espaco/");
+    .toHaveAttribute("href", "https://registros-entre-sessoes.parinpontfm.chatgpt.site");
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -223,7 +223,6 @@ test("todos os links locais declarados apontam para arquivos existentes", async 
       if (/^(?:https?:|mailto:|tel:|data:|#)/.test(rawLink)) continue;
       const url = new URL(rawLink, "https://psico-mateus.github.io/");
       if (url.origin !== "https://psico-mateus.github.io") continue;
-      if (url.pathname === "/espaco/") continue; // Rota dinâmica servida pelo backend do portal.
       const file = localPathToFile(decodeURIComponent(url.pathname));
       if (!file || extname(file) === ".rsc") continue;
       try {
