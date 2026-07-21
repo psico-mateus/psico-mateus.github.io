@@ -21,7 +21,7 @@ npm run portal
 Depois abra:
 
 - site profissional integrado: `http://127.0.0.1:4310/`;
-- Espaço entre sessões: `http://127.0.0.1:4310/espaco/`;
+- Notas para a sessão: `http://127.0.0.1:4310/espaco/`;
 - Guia integrado: `http://127.0.0.1:4310/guia-emocoes/`.
 
 ## Contas fictícias

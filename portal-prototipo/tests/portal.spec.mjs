@@ -58,14 +58,14 @@ test("site profissional e Guia conduzem ao portal funcional", async ({ page }, t
   test.skip(testInfo.project.name !== "desktop-chromium", "Integração completa executada uma vez.");
 
   await page.goto("/");
-  const sitePortalLink = page.getByRole("link", { name: "Acessar o Espaço entre sessões", exact: true });
+  const sitePortalLink = page.getByRole("link", { name: "Acessar minhas notas", exact: true });
   await expect(sitePortalLink).toBeVisible();
   await sitePortalLink.click();
   await expect(page).toHaveURL(/\/espaco\/$/);
   await expect(page.getByRole("heading", { name: /Seu acesso, com uma escolha clara/ })).toBeVisible();
 
   await page.goto("/guia-emocoes/");
-  const guidePortalLink = page.getByRole("link", { name: "Espaço entre sessões", exact: true }).first();
+  const guidePortalLink = page.getByRole("link", { name: "Notas para a sessão", exact: true }).first();
   await expect(guidePortalLink).toBeVisible();
   await guidePortalLink.click();
   await expect(page).toHaveURL(/\/espaco\/$/);

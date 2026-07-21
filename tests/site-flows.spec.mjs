@@ -65,7 +65,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
     { name: "Abordagem", hash: "#abordagem" },
     { name: "Atendimentos", hash: "#atendimentos" },
     { name: "Guia de Emoções", hash: "#guia" },
-    { name: "Espaço entre sessões", hash: "#espaco" },
+    { name: "Notas para a sessão", hash: "#espaco" },
     { name: "Dúvidas", hash: "#duvidas" },
     { name: "Contato", hash: "#contato" },
   ]) {
@@ -95,7 +95,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await page.getByRole("button", { name: "Compartilhar o guia" }).click();
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
-  await expect(page.getByRole("link", { name: "Acessar o Espaço entre sessões", exact: true }).first())
+  await expect(page.getByRole("link", { name: "Acessar minhas notas", exact: true }).first())
     .toHaveAttribute("href", "/espaco/");
 
   expect(pageErrors).toEqual([]);
@@ -178,7 +178,7 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   expect(manifest.display).toBe("standalone");
 
   const guideWorker = await readFile("guia-emocoes/sw.js", "utf8");
-  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v12"');
+  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v13"');
   expect(guideWorker).toContain('const GUIDE_PATH = "/guia-emocoes/"');
   expect(guideWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

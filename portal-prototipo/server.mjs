@@ -726,7 +726,7 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, host, () => {
   console.log(`Site e portal de teste disponíveis em http://${host}:${port}`);
-  console.log(`Espaço entre sessões: http://${host}:${port}/espaco/`);
+  console.log(`Notas para a sessão: http://${host}:${port}/espaco/`);
   console.log("Ainda não use informações clínicas reais.");
 });
 

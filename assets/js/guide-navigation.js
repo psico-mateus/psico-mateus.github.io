@@ -90,7 +90,7 @@
       const portalLink = document.createElement("a");
       portalLink.className = "button guide-portal-link";
       portalLink.href = PORTAL_PATH;
-      portalLink.textContent = "Espaço entre sessões";
+      portalLink.textContent = "Notas para a sessão";
       const professionalSiteLink = heroActions.querySelector('a[href="/"]');
       heroActions.insertBefore(portalLink, professionalSiteLink || null);
     }
@@ -98,7 +98,7 @@
     if (footerLinks && !footerLinks.querySelector(`a[href="${PORTAL_PATH}"]`)) {
       const portalLink = document.createElement("a");
       portalLink.href = PORTAL_PATH;
-      portalLink.textContent = "Acessar o Espaço entre sessões";
+      portalLink.textContent = "Acessar Notas para a sessão";
       footerLinks.append(portalLink);
     }
   };

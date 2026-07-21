@@ -1,6 +1,6 @@
 # Evolução para uso real
 
-O **Espaço entre sessões** foi construído como uma aplicação separada. O site profissional e o Guia de Emoções continuam íntegros e não dependem do portal.
+As **Notas para a sessão** foram construídas como uma aplicação separada. O site profissional e o Guia de Emoções continuam íntegros e não dependem do portal.
 
 ## Proposta de valor
 
