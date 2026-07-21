@@ -2849,3 +2849,37 @@ h2 {
     grid-column: 2;
   }
 }
+
+/* Atalhos consistentes entre o site profissional e o Guia de Emoções. */
+.simple-header-nav .resource-button {
+  white-space: nowrap;
+}
+
+.inner-page .footer-bottom span a {
+  color: #c5c0b7;
+  text-decoration: none;
+}
+
+.inner-page .footer-bottom span a:hover {
+  color: #e6c47f;
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .simple-header-nav {
+    gap: 0.45rem;
+  }
+
+  .simple-header-nav .resource-button {
+    display: inline-flex;
+    min-height: 38px;
+    padding-inline: 0.7rem;
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .inner-page .brand-copy {
+    display: none;
+  }
+}

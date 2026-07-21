@@ -86,12 +86,18 @@
     }
 
     const heroActions = document.querySelector(".hero-actions");
+    const professionalSiteLink = heroActions?.querySelector('a[href="/"]');
+    if (professionalSiteLink && !professionalSiteLink.classList.contains("guide-professional-link")) {
+      professionalSiteLink.classList.remove("button-quiet");
+      professionalSiteLink.classList.add("button-secondary", "guide-professional-link");
+      professionalSiteLink.textContent = "Site profissional";
+    }
+
     if (heroActions && !heroActions.querySelector(`a[href="${PORTAL_PATH}"]`)) {
       const portalLink = document.createElement("a");
-      portalLink.className = "button guide-portal-link";
+      portalLink.className = "button button-secondary guide-portal-link";
       portalLink.href = PORTAL_PATH;
       portalLink.textContent = "Registros entre sessões";
-      const professionalSiteLink = heroActions.querySelector('a[href="/"]');
       heroActions.insertBefore(portalLink, professionalSiteLink || null);
     }
 

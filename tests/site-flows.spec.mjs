@@ -30,6 +30,12 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
   await expect(page.getByText("Recursos para pacientes", { exact: true })).toBeVisible();
   await expect(page.getByText("Guia de emoções · gratuito", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".hero-actions, .hero-copy .button-row").getByRole("link", {
+      name: "Registros entre sessões",
+      exact: true,
+    }),
+  ).toBeVisible();
 
   const portrait = page.getByRole("img", { name: "Retrato profissional de Mateus Ribeiro Marcos" });
   await expect.poll(() => portrait.evaluate((image) => image.naturalWidth)).toBeGreaterThanOrEqual(1600);
@@ -179,7 +185,7 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   expect(manifest.display).toBe("standalone");
 
   const guideWorker = await readFile("guia-emocoes/sw.js", "utf8");
-  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v14"');
+  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v15"');
   expect(guideWorker).toContain('const GUIDE_PATH = "/guia-emocoes/"');
   expect(guideWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

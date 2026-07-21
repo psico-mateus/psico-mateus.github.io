@@ -63,6 +63,11 @@ test("site profissional e Guia conduzem ao portal funcional", async ({ page }, t
   await sitePortalLink.click();
   await expect(page).toHaveURL(/\/espaco\/$/);
   await expect(page.getByRole("heading", { name: "Acesse sua conta", exact: true })).toBeVisible();
+  const resourceNavigation = page.getByRole("navigation", {
+    name: "Outros recursos de Mateus Ribeiro Marcos",
+  });
+  await expect(resourceNavigation.getByRole("link", { name: "Site profissional" })).toBeVisible();
+  await expect(resourceNavigation.getByRole("link", { name: "Guia de Emoções" })).toBeVisible();
 
   await page.goto("/guia-emocoes/");
   const guidePortalLink = page.getByRole("link", { name: "Registros entre sessões", exact: true }).first();

@@ -186,13 +186,13 @@ test("modal mantém o foco contido e o devolve ao cartão", async ({ page }) => 
 test("a abertura do guia também identifica o site profissional", async ({ page }) => {
   await page.goto(guidePath);
   const professionalSite = page.getByRole("link", {
-    name: "← Site profissional",
+    name: "Site profissional",
     exact: true,
   });
 
   await expect(professionalSite).toBeVisible();
   await expect(professionalSite).toHaveAttribute("href", "/");
-  await expect(professionalSite).toHaveCSS("background-color", "rgb(234, 210, 170)");
+  await expect(professionalSite).toHaveClass(/button-secondary/);
 
   const size = await professionalSite.boundingBox();
   expect(size?.height).toBeGreaterThanOrEqual(44);
@@ -263,7 +263,7 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(bundle).toContain("updateViaCache:`none`");
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v14"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v15"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',
