@@ -266,7 +266,7 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(bundle).toContain("updateViaCache:`none`");
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v16"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v17"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

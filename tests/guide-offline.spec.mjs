@@ -13,7 +13,7 @@ test("guia e PDF permanecem disponíveis sem internet", async ({ context, page }
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
 
   const cacheState = await page.evaluate(async () => {
-    const cache = await caches.open("guia-emocoes-scoped-v16");
+    const cache = await caches.open("guia-emocoes-scoped-v17");
     const [guide, pdf] = await Promise.all([
       cache.match("/guia-emocoes/"),
       cache.match("/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"),
