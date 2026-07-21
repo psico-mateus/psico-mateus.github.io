@@ -29,10 +29,16 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Mateus Ribeiro Marcos/);
   await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
   await expect(page.getByText("Recursos para pacientes", { exact: true })).toBeVisible();
-  await expect(page.getByText("Guia de emoções · gratuito", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Dois recursos para momentos diferentes" }))
+  await expect(page.getByText("Uso imediato · sem conta", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Escolha pelo que você precisa agora" }))
     .toBeVisible();
-  await expect(page.getByText(/rascunho da exploração fica apenas no seu aparelho/i))
+  const resourceChooser = page.getByRole("navigation", {
+    name: "Escolha entre o Guia e os Registros",
+  });
+  await expect(resourceChooser).toBeVisible();
+  await expect(resourceChooser.locator(".resource-choice-guide")).toHaveAttribute("href", "#guia");
+  await expect(resourceChooser.locator(".resource-choice-records")).toHaveAttribute("href", "#espaco");
+  await expect(page.getByText(/o rascunho fica somente no seu aparelho/i))
     .toBeVisible();
   await expect(
     page.locator(".hero-actions, .hero-copy .button-row").getByRole("link", {
@@ -106,7 +112,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await page.getByRole("button", { name: "Compartilhar o guia" }).click();
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
-  await expect(page.getByRole("link", { name: "Acessar meus registros", exact: true }).first())
+  await expect(page.getByRole("link", { name: "Entrar nos Registros", exact: true }))
     .toHaveAttribute("href", "/espaco/");
 
   expect(pageErrors).toEqual([]);

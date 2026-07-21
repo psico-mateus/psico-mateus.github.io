@@ -58,7 +58,7 @@ test("site profissional e Guia conduzem ao portal funcional", async ({ page }, t
   test.skip(testInfo.project.name !== "desktop-chromium", "Integração completa executada uma vez.");
 
   await page.goto("/");
-  const sitePortalLink = page.getByRole("link", { name: "Acessar meus registros", exact: true });
+  const sitePortalLink = page.getByRole("link", { name: "Entrar nos Registros", exact: true });
   await expect(sitePortalLink).toBeVisible();
   await sitePortalLink.click();
   await expect(page).toHaveURL(/\/espaco\/$/);

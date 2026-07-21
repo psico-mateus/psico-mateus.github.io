@@ -365,12 +365,27 @@
         <div class="page-shell">
           <header class="patient-resources-heading">
             <p class="eyebrow">Recursos para pacientes</p>
-            <h2 id="patient-resources-title">Dois recursos para momentos diferentes</h2>
+            <h2 id="patient-resources-title">Escolha pelo que você precisa agora</h2>
             <p>
-              O Guia ajuda a reconhecer o que você está sentindo no momento. Já os Registros guardam,
-              em uma área reservada, situações que você talvez queira retomar na sessão.
+              São ferramentas diferentes e complementares. O Guia ajuda a explorar um momento;
+              os Registros acompanham situações ao longo do tempo.
             </p>
           </header>
+
+          <nav class="resource-chooser" aria-label="Escolha entre o Guia e os Registros">
+            <a class="resource-choice resource-choice-guide" href="#guia">
+              <span class="resource-choice-context">Quero entender o que sinto agora</span>
+              <strong>Guia de Emoções</strong>
+              <small>Uso imediato, sem conta. O rascunho fica somente neste aparelho.</small>
+              <span class="resource-choice-action">Conhecer o Guia <span aria-hidden="true">↓</span></span>
+            </a>
+            <a class="resource-choice resource-choice-records" href="#espaco">
+              <span class="resource-choice-context">Quero guardar algo para retomar depois</span>
+              <strong>Registros entre sessões</strong>
+              <small>Com conta e histórico privado. Você decide o que compartilhar.</small>
+              <span class="resource-choice-action">Conhecer os Registros <span aria-hidden="true">↓</span></span>
+            </a>
+          </nav>
 
           <div class="patient-resources-grid">
             <article class="patient-resource-card guide-section" id="guia" aria-labelledby="guia-title">
@@ -386,7 +401,7 @@
                   <span class="guide-pages" aria-hidden="true">33 páginas</span>
                 </div>
                 <div class="guide-copy">
-                  <p class="eyebrow">Guia de emoções · gratuito</p>
+                  <p class="eyebrow">Uso imediato · sem conta</p>
                   <h2 id="guia-title">Guia Prático para Reconhecer Emoções</h2>
                   <p>
                     Criei este guia para ajudar quando você percebe que algo mudou, mas ainda não sabe
@@ -398,7 +413,8 @@
                     uma experiência e, se fizer sentido, conversar sobre ela na terapia.
                   </p>
                   <p class="resource-distinction">
-                    O rascunho da exploração fica apenas no seu aparelho e não entra na área de Registros.
+                    <strong>Neste recurso:</strong> o rascunho fica somente no seu aparelho e não entra
+                    na área de Registros.
                   </p>
                   <div class="guide-features" aria-label="Recursos do Guia de Emoções">
                     <span>25 emoções</span>
@@ -406,7 +422,7 @@
                     <span>Funciona off-line</span>
                   </div>
                   <div class="button-row guide-actions">
-                    <a class="button button-dark" href="/guia-emocoes/">Abrir versão interativa</a>
+                    <a class="button button-dark" href="/guia-emocoes/">Usar o Guia agora</a>
                     <a
                       class="button button-outline"
                       href="/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"
@@ -424,14 +440,14 @@
             <article class="patient-resource-card portal-section" id="espaco" aria-labelledby="espaco-title">
               <div class="portal-grid">
                 <div class="portal-copy">
-                  <p class="eyebrow">Área reservada</p>
+                  <p class="eyebrow">Histórico privado · com conta</p>
                   <h2 id="espaco-title">Registros entre sessões</h2>
                   <p>
                     Durante a semana, você pode anotar uma situação, o que pensou, o que sentiu e como
                     teve vontade de agir. As anotações formam um histórico na sua conta, e cada registro
                     fica privado até você decidir compartilhá-lo.
                   </p>
-                  <a class="button button-dark" href="/espaco/">Acessar meus registros</a>
+                  <a class="button button-dark" href="/espaco/">Entrar nos Registros</a>
                   <small>Os registros não são acompanhados em tempo real e não funcionam como canal de emergência.</small>
                 </div>
                 <div class="portal-principles" aria-label="Como funcionam os Registros entre sessões">
