@@ -2,7 +2,7 @@
   "use strict";
 
   const PDF_PATH = "/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf";
-  const PORTAL_PATH = "https://registros-entre-sessoes.parinpontfm.chatgpt.site";
+  const PORTAL_PATH = "https://registros.psico-mateus.workers.dev";
 
   const hashTarget = (hash) => {
     if (!hash || hash === "#") return document.documentElement;

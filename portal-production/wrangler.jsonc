@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "registros",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "no_bundle": true,
+  "rules": [
+    { "type": "ESModule", "globs": ["**/*.js", "**/*.mjs"] }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "dist/client"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "psico-mateus-registros",
+      "database_id": "f2c23652-0c2d-49f0-ad25-99fc61c2ac6a",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "vars": {
+    "PUBLIC_SITE_URL": "https://psico-mateus.github.io/",
+    "GUIDE_URL": "https://psico-mateus.github.io/guia-emocoes/"
+  },
+  "observability": { "enabled": true }
+}
