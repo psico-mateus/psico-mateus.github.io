@@ -198,10 +198,52 @@ test("a abertura do guia também identifica o site profissional", async ({ page 
   expect(size?.height).toBeGreaterThanOrEqual(44);
 });
 
+test("guia oferece atalhos acessíveis, filtros identificáveis e PDF", async ({ page }, testInfo) => {
+  await page.goto(guidePath);
+
+  const skipLink = page.getByRole("link", {
+    name: "Pular para o conteúdo do Guia",
+    exact: true,
+  });
+  await expect(skipLink).toHaveAttribute("href", "#inicio");
+  if (testInfo.project.name === "desktop-chromium") await page.keyboard.press("Tab");
+  else await skipLink.focus();
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#inicio")).toBeFocused();
+
+  await expect(
+    page.getByRole("main", { name: "Conteúdo principal do Guia de Emoções" }),
+  ).toBeVisible();
+  await expect(page.getByRole("banner")).toHaveCount(1);
+  await expect(page.getByRole("contentinfo")).toHaveCount(1);
+
+  const filters = page.getByRole("group", { name: "O que destacar nos cartões" });
+  const overview = filters.getByRole("button", { name: "Visão geral", exact: true });
+  const bodySignals = filters.getByRole("button", { name: "Sinais no corpo", exact: true });
+  await expect(overview).toHaveAttribute("aria-pressed", "true");
+  await expect(bodySignals).toHaveAttribute("aria-pressed", "false");
+  await bodySignals.click();
+  await expect(overview).toHaveAttribute("aria-pressed", "false");
+  await expect(bodySignals).toHaveAttribute("aria-pressed", "true");
+
+  const pdfLink = page.getByRole("link", { name: "Baixar versão em PDF", exact: true });
+  await expect(pdfLink).toHaveAttribute(
+    "href",
+    "/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf",
+  );
+  await expect(pdfLink).toHaveAttribute("download", "Guia_Pratico_para_Reconhecer_Emocoes.pdf");
+
+  const filterSize = await bodySignals.boundingBox();
+  expect(filterSize?.height).toBeGreaterThanOrEqual(44);
+});
+
 test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", async () => {
-  const [bundle, css, serviceWorker] = await Promise.all([
+  const [bundle, css, brandCss, serviceWorker] = await Promise.all([
     readFile("assets/EmotionGuideApp-BiKEL11_.js", "utf8"),
     readFile("assets/index-BBQ5DOp1.css", "utf8"),
+    readFile("assets/css/guide-brand.css", "utf8"),
     readFile("guia-emocoes/sw.js", "utf8"),
   ]);
 
@@ -210,6 +252,10 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(bundle).toContain("focus({preventScroll:!0})");
   expect(bundle).toContain("updateViaCache:`none`");
   expect(css).toContain("html{scroll-behavior:auto");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v10"');
+  expect(brandCss).toContain("outline: 3px solid #6e4e16");
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v11"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
+  expect(serviceWorker).toContain(
+    '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',
+  );
 });

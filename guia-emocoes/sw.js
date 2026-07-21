@@ -1,4 +1,4 @@
-const CACHE_NAME = "guia-emocoes-scoped-v10";
+const CACHE_NAME = "guia-emocoes-scoped-v11";
 const CACHE_PREFIX = "guia-emocoes-scoped-";
 const GUIDE_PATH = "/guia-emocoes/";
 const GUIDE_ASSET_PATHS = new Set([
@@ -14,6 +14,7 @@ const GUIDE_ASSET_PATHS = new Set([
   "/assets/images/favicon/logo-mateus-512.png",
   "/assets/images/favicon/apple-touch-icon.png",
   "/assets/images/logo-mateus.svg",
+  "/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf",
 ]);
 const CORE_ASSETS = [
   GUIDE_PATH,

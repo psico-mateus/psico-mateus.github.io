@@ -20,6 +20,38 @@
   border-radius: 17px;
 }
 
+/* Torna a navegação por teclado mais clara em fundos claros e escuros. */
+:focus-visible,
+.hero-actions > a[href="/"]:focus-visible {
+  outline: 3px solid #6e4e16;
+  outline-offset: 3px;
+}
+
+.guide-skip-link {
+  position: fixed;
+  z-index: 220;
+  top: 12px;
+  left: 12px;
+  padding: 11px 16px;
+  transform: translateY(-180%);
+  border-radius: 10px;
+  background: #292923;
+  color: #fffdf9;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 150ms ease;
+}
+
+.guide-skip-link:focus {
+  transform: translateY(0);
+}
+
+main .cue-tabs button,
+main .install-button {
+  min-height: 44px;
+}
+
 /* Mantém a saída para o site profissional clara, sem competir com o Guia. */
 .hero-actions > a[href="/"] {
   border-color: #a97832;
@@ -34,13 +66,14 @@
   background: #dfbf88;
 }
 
-.hero-actions > a[href="/"]:focus-visible {
-  outline: 3px solid rgba(169, 120, 50, 0.34);
-  outline-offset: 3px;
-}
-
 @media (width <= 680px) {
   .hero-actions > a[href="/"] {
     order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-skip-link {
+    transition: none;
   }
 }

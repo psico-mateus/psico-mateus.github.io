@@ -1,11 +1,10 @@
 (() => {
   "use strict";
 
-  const scrollToHash = (hash) => {
-    if (!hash || hash === "#") {
-      window.scrollTo({ top: 0, behavior: "auto" });
-      return true;
-    }
+  const PDF_PATH = "/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf";
+
+  const hashTarget = (hash) => {
+    if (!hash || hash === "#") return document.documentElement;
 
     let id;
     try {
@@ -14,7 +13,16 @@
       id = hash.slice(1);
     }
 
-    const target = document.getElementById(id);
+    return document.getElementById(id);
+  };
+
+  const scrollToHash = (hash) => {
+    if (!hash || hash === "#") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return true;
+    }
+
+    const target = hashTarget(hash);
     if (!target) return false;
     target.scrollIntoView({ behavior: "auto", block: "start" });
     return true;
@@ -31,11 +39,51 @@
   ].join(",");
   let activeDialog = null;
   let dialogTrigger = null;
+  let semanticsReady = false;
 
   const dialogFocusable = (dialog) =>
     Array.from(dialog.querySelectorAll(focusableSelector)).filter(
       (element) => !element.closest('[aria-hidden="true"]'),
     );
+
+  const enhanceGuideSemantics = () => {
+    const main = document.querySelector("main");
+    const header = document.querySelector("main > header");
+    const footer = document.querySelector("main > footer");
+    const target = document.getElementById("inicio");
+
+    if (main) {
+      main.setAttribute("aria-label", "Conteúdo principal do Guia de Emoções");
+    }
+    if (header) header.setAttribute("role", "banner");
+    if (footer) footer.setAttribute("role", "contentinfo");
+    if (target) target.setAttribute("tabindex", "-1");
+
+    if (!document.querySelector(".guide-skip-link")) {
+      const skipLink = document.createElement("a");
+      skipLink.className = "guide-skip-link";
+      skipLink.href = "#inicio";
+      skipLink.textContent = "Pular para o conteúdo do Guia";
+      document.body.prepend(skipLink);
+    }
+
+    const cueTabs = document.querySelector(".cue-tabs");
+    if (cueTabs) {
+      cueTabs.setAttribute("role", "group");
+      cueTabs.querySelectorAll("button").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.classList.contains("active")));
+      });
+    }
+
+    const footerLinks = document.querySelector("main > footer .footer-links");
+    if (footerLinks && !footerLinks.querySelector(`a[href="${PDF_PATH}"]`)) {
+      const pdfLink = document.createElement("a");
+      pdfLink.href = PDF_PATH;
+      pdfLink.download = "Guia_Pratico_para_Reconhecer_Emocoes.pdf";
+      pdfLink.textContent = "Baixar versão em PDF";
+      footerLinks.append(pdfLink);
+    }
+  };
 
   document.addEventListener(
     "click",
@@ -65,6 +113,11 @@
       event.preventDefault();
       event.stopPropagation();
       window.history.pushState(null, "", hash);
+
+      if (link.classList.contains("guide-skip-link")) {
+        const target = hashTarget(hash);
+        window.requestAnimationFrame(() => target?.focus({ preventScroll: true }));
+      }
     },
     true,
   );
@@ -102,6 +155,7 @@
   );
 
   const dialogObserver = new MutationObserver(() => {
+    if (semanticsReady) enhanceGuideSemantics();
     const dialog = document.querySelector(dialogSelector);
 
     if (dialog && dialog !== activeDialog) {
@@ -125,5 +179,20 @@
     }
   });
 
-  dialogObserver.observe(document.body, { childList: true, subtree: true });
+  dialogObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class"],
+    childList: true,
+    subtree: true,
+  });
+
+  const startSemanticEnhancements = () => {
+    window.setTimeout(() => {
+      semanticsReady = true;
+      enhanceGuideSemantics();
+    }, 150);
+  };
+
+  if (document.readyState === "complete") startSemanticEnhancements();
+  else window.addEventListener("load", startSemanticEnhancements, { once: true });
 })();

@@ -174,8 +174,11 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   expect(manifest.display).toBe("standalone");
 
   const guideWorker = await readFile("guia-emocoes/sw.js", "utf8");
-  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v10"');
+  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v11"');
   expect(guideWorker).toContain('const GUIDE_PATH = "/guia-emocoes/"');
+  expect(guideWorker).toContain(
+    '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',
+  );
   expect(guideWorker).not.toContain('scope: "/"');
 });
 
