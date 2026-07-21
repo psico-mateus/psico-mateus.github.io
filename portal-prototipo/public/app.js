@@ -68,16 +68,16 @@
     }
 
     const patient = user.role === "patient";
-    document.getElementById("dashboard-eyebrow").textContent = patient ? "SEU ESPAÇO PARTICULAR" : "VISÃO PROFISSIONAL";
+    document.getElementById("dashboard-eyebrow").textContent = patient ? "MEUS REGISTROS" : "PAINEL PROFISSIONAL";
     document.getElementById("dashboard-title").innerHTML = patient
-      ? `Olá, ${escapeHtml(user.name.split(" (")[0])}. <span>Você decide o que compartilhar.</span>`
-      : "Acesso somente ao que foi <span>compartilhado para a sessão.</span>";
+      ? `Olá, ${escapeHtml(user.name.split(" (")[0])}.`
+      : "Registros <span>compartilhados.</span>";
     document.getElementById("dashboard-description").textContent = patient
-      ? "Escreva para você primeiro. Um registro só aparece para o profissional quando você escolhe compartilhar."
-      : "Este painel não mostra registros privados e não permite alterar o texto escrito pelo paciente.";
+      ? "Faça um registro para consultar depois. Mateus só poderá lê-lo se você escolher compartilhar."
+      : "Este painel mostra apenas o que um paciente vinculado decidiu compartilhar.";
     document.getElementById("privacy-summary").innerHTML = patient
-      ? "<strong>Privacidade por padrão</strong><p>Novo registro: privado · Compartilhamento: manual · Revogação: disponível</p>"
-      : "<strong>Limite de acesso ativo</strong><p>Somente pacientes vinculados e registros compartilhados aparecem aqui.</p>";
+      ? "<strong>Todo registro começa privado</strong><p>Ele só aparece para Mateus quando você compartilhar.</p>"
+      : "<strong>Acesso limitado</strong><p>Registros privados não aparecem neste painel.</p>";
     elements.accountSummary.textContent = `${user.email} · ${patient ? "Paciente" : "Profissional"}`;
   }
 
@@ -133,8 +133,8 @@
   function emptyMarkup(professional) {
     return `<div class="empty-state"><strong>${professional ? "Nenhum registro compartilhado" : "Nenhum registro por enquanto"}</strong><p>${
       professional
-        ? "Quando o paciente compartilhar algo explicitamente, o conteúdo aparecerá aqui."
-        : "O primeiro registro será salvo de forma privada."
+        ? "Quando um paciente vinculado compartilhar um registro, ele aparecerá aqui."
+        : "Quando quiser, use o formulário acima. O registro será privado."
     }</p></div>`;
   }
 
@@ -186,7 +186,7 @@
       await loadEntries();
       elements.dashboardView.focus({ preventScroll: true });
       window.scrollTo({ top: 0, behavior: "auto" });
-      announce("Entrada realizada com segurança.");
+      announce("Login realizado.");
     } catch (error) {
       announce(error.message);
     }
@@ -216,7 +216,7 @@
       elements.registerForm.reset();
       elements.dashboardView.focus({ preventScroll: true });
       window.scrollTo({ top: 0, behavior: "auto" });
-      announce("Conta criada. Seus registros começam privados.");
+      announce("Conta criada. Você já pode fazer seu primeiro registro.");
     } catch (error) {
       announce(error.message);
     }
@@ -299,7 +299,7 @@
     if (button.dataset.action === "share") {
       askConfirmation({
         title: "Compartilhar este registro?",
-        description: "O profissional poderá ler este registro. Você poderá revogar o acesso depois.",
+        description: "Mateus poderá ler este registro. Se mudar de ideia, você poderá revogar o acesso.",
         label: "Compartilhar",
         action: { type: "sharing", entryId, shared: true },
       });
@@ -313,7 +313,7 @@
     } else {
       askConfirmation({
         title: "Excluir este registro?",
-        description: "Esta ação remove o registro do banco de teste e não pode ser desfeita.",
+        description: "Esta ação não pode ser desfeita.",
         label: "Excluir definitivamente",
         action: { type: "delete", entryId },
       });
@@ -333,7 +333,7 @@
           method: "PATCH",
           body: JSON.stringify({ shared: action.shared }),
         });
-        announce(action.shared ? "Registro compartilhado para a sessão." : "Compartilhamento revogado.");
+        announce(action.shared ? "Registro compartilhado com Mateus." : "Compartilhamento revogado.");
       } else {
         await api(`/entries/${action.entryId}`, { method: "DELETE" });
         announce("Registro excluído.");

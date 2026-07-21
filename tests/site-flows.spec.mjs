@@ -27,7 +27,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await page.goto("/");
   await expect(page).toHaveTitle(/Mateus Ribeiro Marcos/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Mateus Ribeiro Marcos/);
-  await expect(page.getByText("Você não precisa chegar sabendo explicar tudo.")).toBeVisible();
+  await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
   await expect(page.getByText("Recurso gratuito", { exact: true })).toBeVisible();
 
   const portrait = page.getByRole("img", { name: "Retrato profissional de Mateus Ribeiro Marcos" });
@@ -65,7 +65,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
     { name: "Abordagem", hash: "#abordagem" },
     { name: "Atendimentos", hash: "#atendimentos" },
     { name: "Guia de Emoções", hash: "#guia" },
-    { name: "Notas para a sessão", hash: "#espaco" },
+    { name: "Registros entre sessões", hash: "#espaco" },
     { name: "Dúvidas", hash: "#duvidas" },
     { name: "Contato", hash: "#contato" },
   ]) {
@@ -95,7 +95,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await page.getByRole("button", { name: "Compartilhar o guia" }).click();
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
-  await expect(page.getByRole("link", { name: "Acessar minhas notas", exact: true }).first())
+  await expect(page.getByRole("link", { name: "Acessar meus registros", exact: true }).first())
     .toHaveAttribute("href", "/espaco/");
 
   expect(pageErrors).toEqual([]);
@@ -178,7 +178,7 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   expect(manifest.display).toBe("standalone");
 
   const guideWorker = await readFile("guia-emocoes/sw.js", "utf8");
-  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v13"');
+  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v14"');
   expect(guideWorker).toContain('const GUIDE_PATH = "/guia-emocoes/"');
   expect(guideWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

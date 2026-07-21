@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="color-scheme" content="light" />
-    <title>Notas para a sessão | Mateus Ribeiro Marcos</title>
+    <title>Registros entre sessões | Mateus Ribeiro Marcos</title>
     <meta
       name="description"
-      content="Espaço opcional para registrar experiências e escolher o que compartilhar para a sessão."
+      content="Registros pessoais que o paciente pode manter privados ou compartilhar para a sessão."
     />
     <link rel="stylesheet" href="/espaco/styles.css" />
     <script src="/espaco/app.js" defer></script>
@@ -16,10 +16,10 @@
   <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <header class="site-header">
-      <a class="brand" href="/espaco/" aria-label="Ir para o início das Notas para a sessão">
+      <a class="brand" href="/espaco/" aria-label="Ir para o início dos Registros entre sessões">
         <img src="/espaco/brand-logo.svg" alt="" width="44" height="44" />
         <span>
-          <strong>Notas para a sessão</strong>
+          <strong>Registros entre sessões</strong>
           <small>Uso opcional em psicoterapia · Mateus Ribeiro Marcos</small>
         </span>
       </a>
@@ -33,24 +33,24 @@
     <main id="conteudo">
       <section id="login-view" class="login-layout">
         <div class="login-intro">
-          <p class="eyebrow">EXPERIÊNCIA OPCIONAL PARA PSICOTERAPIA</p>
-          <h1>Um registro pode continuar <span>sob controle de quem escreveu.</span></h1>
+          <p class="eyebrow">REGISTROS ENTRE SESSÕES</p>
+          <h1>Anote o que aconteceu. <span>Você escolhe se quer compartilhar.</span></h1>
           <p class="lead">
-            A proposta é simples: escrever de forma privada, escolher o que levar
-            para a sessão e poder retirar o compartilhamento depois.
+            Use este recurso para organizar situações, pensamentos e emoções. Cada registro fica
+            privado até você decidir compartilhá-lo com Mateus.
           </p>
-          <div class="principles" aria-label="Princípios de privacidade">
-            <div><strong>Privado por padrão</strong><span>Nada é compartilhado automaticamente.</span></div>
-            <div><strong>Escolha explícita</strong><span>O paciente decide registro por registro.</span></div>
-            <div><strong>Sem vigilância</strong><span>Não há alertas ou promessa de leitura imediata.</span></div>
+          <div class="principles" aria-label="Como funcionam os registros">
+            <div><strong>Privado ao salvar</strong><span>Mateus não vê o que você não compartilhou.</span></div>
+            <div><strong>Compartilhar é opcional</strong><span>Você decide registro por registro.</span></div>
+            <div><strong>Sem leitura imediata</strong><span>Este recurso não é acompanhado em tempo real.</span></div>
           </div>
         </div>
 
         <div class="login-card">
           <div>
-            <p class="eyebrow">ACESSAR SUAS NOTAS</p>
-            <h2>Seu acesso, com uma escolha clara</h2>
-            <p>Pacientes podem criar a própria conta. O acesso profissional é separado e não pode ser criado por esta tela.</p>
+            <p class="eyebrow">ENTRAR</p>
+            <h2>Acesse sua conta</h2>
+            <p>O cadastro desta página é para pacientes. O acesso profissional é criado separadamente.</p>
           </div>
 
           <div class="auth-mode" role="group" aria-label="Escolha como acessar">
@@ -78,10 +78,10 @@
             <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
             <label class="confirmation-check" for="adult-confirmation">
               <input id="adult-confirmation" name="adult_confirmation" type="checkbox" required />
-              <span>Tenho 18 anos ou mais e entendo que este espaço não é um canal de emergência.</span>
+              <span>Tenho 18 anos ou mais e entendo que os registros não são lidos em tempo real nem substituem um serviço de emergência.</span>
             </label>
             <button class="primary-button" type="submit">Criar minha conta</button>
-            <p class="register-privacy"><strong>Seu primeiro registro será privado.</strong> O vínculo profissional não libera automaticamente o conteúdo.</p>
+            <p class="register-privacy"><strong>Sua conta ficará vinculada a Mateus.</strong> Nenhum registro será compartilhado automaticamente.</p>
           </form>
 
           <div class="demo-accounts" aria-label="Contas disponíveis para teste">
@@ -124,9 +124,9 @@
           </summary>
           <div class="account-settings-body">
             <div>
-              <p class="eyebrow">PROTEÇÃO DA CONTA</p>
-              <h2>Uma senha que só você conhece</h2>
-              <p>Ao trocar a senha, outras sessões abertas desta conta são encerradas. Não reutilize uma senha de outro serviço.</p>
+              <p class="eyebrow">SENHA</p>
+              <h2>Alterar sua senha</h2>
+              <p>A troca encerra outras sessões abertas desta conta. Use uma senha que você não utiliza em outro serviço.</p>
             </div>
             <form id="password-form">
               <label for="current-password">Senha atual</label>
@@ -146,8 +146,8 @@
               <div class="section-title">
                 <span>01</span>
                 <div>
-                  <p class="eyebrow">REGISTRO PARTICULAR</p>
-                  <h2 id="new-entry-title">Registrar para compreender melhor</h2>
+                  <p class="eyebrow">PRIVADO AO SALVAR</p>
+                  <h2 id="new-entry-title">Novo registro</h2>
                 </div>
               </div>
               <form id="entry-form">
@@ -182,7 +182,7 @@
                 <span>02</span>
                 <div>
                   <p class="eyebrow">SEUS REGISTROS</p>
-                  <h2 id="records-title">O que fica privado e o que vai para a sessão</h2>
+                  <h2 id="records-title">Meus registros</h2>
                 </div>
               <a class="secondary-button" href="/espaco/api/export">Exportar meus dados</a>
               </div>
@@ -196,13 +196,13 @@
             <div class="section-title">
               <span>01</span>
               <div>
-                <p class="eyebrow">COMPARTILHADO PARA A SESSÃO</p>
-                <h2 id="shared-title">Somente o que o paciente escolheu mostrar</h2>
+                <p class="eyebrow">COMPARTILHADOS</p>
+                <h2 id="shared-title">Registros compartilhados</h2>
               </div>
             </div>
             <div class="professional-boundary">
-              <strong>Leitura com limite claro</strong>
-              <p>O profissional não edita o texto, não vê registros privados e não recebe promessa de monitoramento em tempo real.</p>
+              <strong>O que aparece aqui</strong>
+              <p>Somente registros que um paciente vinculado decidiu compartilhar. Textos privados não aparecem neste painel.</p>
             </div>
             <div id="shared-records" class="records-list"></div>
           </section>

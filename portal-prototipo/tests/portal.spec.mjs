@@ -20,7 +20,7 @@ test("paciente controla criação, compartilhamento, revogação e persistência
     page,
     "Paciente Cria, compartilha, revoga e exclui registros.",
   );
-  await expect(page.getByRole("heading", { name: /Você decide o que compartilhar/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Olá, Ana Martins.", exact: true })).toBeVisible();
   await expect(page.getByText("Depois de uma conversa difícil", { exact: true })).toBeVisible();
 
   await page.getByLabel("Título curto").fill("Registro automatizado para validação");
@@ -58,14 +58,14 @@ test("site profissional e Guia conduzem ao portal funcional", async ({ page }, t
   test.skip(testInfo.project.name !== "desktop-chromium", "Integração completa executada uma vez.");
 
   await page.goto("/");
-  const sitePortalLink = page.getByRole("link", { name: "Acessar minhas notas", exact: true });
+  const sitePortalLink = page.getByRole("link", { name: "Acessar meus registros", exact: true });
   await expect(sitePortalLink).toBeVisible();
   await sitePortalLink.click();
   await expect(page).toHaveURL(/\/espaco\/$/);
-  await expect(page.getByRole("heading", { name: /Seu acesso, com uma escolha clara/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Acesse sua conta", exact: true })).toBeVisible();
 
   await page.goto("/guia-emocoes/");
-  const guidePortalLink = page.getByRole("link", { name: "Notas para a sessão", exact: true }).first();
+  const guidePortalLink = page.getByRole("link", { name: "Registros entre sessões", exact: true }).first();
   await expect(guidePortalLink).toBeVisible();
   await guidePortalLink.click();
   await expect(page).toHaveURL(/\/espaco\/$/);
@@ -107,7 +107,7 @@ test("profissional vê somente registros compartilhados e não pode editá-los",
     page,
     "Profissional Vê somente o que foi compartilhado.",
   );
-  await expect(page.getByRole("heading", { name: /Somente o que o paciente escolheu mostrar/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Registros compartilhados", exact: true })).toBeVisible();
   await expect(page.getByText("Antes de uma apresentação", { exact: true })).toBeVisible();
   await expect(page.getByText("Depois de uma conversa difícil", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Registro automatizado para validação", { exact: true })).toHaveCount(0);
@@ -197,7 +197,7 @@ test("profissional consegue definir uma nova senha própria", async ({ page }, t
 
   await loginForm.getByLabel("Senha", { exact: true }).fill("NovaSenhaLocal2026");
   await loginForm.getByRole("button", { name: "Entrar", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /Acesso somente ao que foi/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Registros compartilhados", exact: true })).toBeVisible();
 });
 
 test("entrada e painel não criam rolagem horizontal no celular", async ({ page }, testInfo) => {
