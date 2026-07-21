@@ -670,6 +670,7 @@ async function route(request: Request, context: RouteContext): Promise<Response>
     return json({ error: "Método não permitido." }, 405, { Allow: "GET, POST, PATCH, DELETE" });
   } catch (error) {
     if (error instanceof PortalError) return json({ error: error.message }, error.status);
+    console.error("Unexpected portal request failure", error);
     return json({ error: "Não foi possível concluir a ação. Tente novamente." }, 500);
   }
 }
