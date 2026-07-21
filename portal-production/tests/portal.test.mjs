@@ -35,15 +35,21 @@ test("protected values round-trip and one-time codes are well formed", async () 
 });
 
 test("public UI keeps privacy and safety boundaries visible", async () => {
-  const [app, privacy, worker] = await Promise.all([
+  const [app, privacy, worker, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
   assert.match(privacy, /não são usados para publicidade/);
   assert.match(worker, /Content-Security-Policy/);
+  assert.match(worker, /X-Robots-Tag/);
+  assert.match(app, /Convites recentes/);
+  assert.match(app, /aria-pressed/);
+  assert.match(styles, /focus-visible/);
+  assert.match(styles, /min-height:44px/);
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
 });

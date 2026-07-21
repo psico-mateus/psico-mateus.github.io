@@ -77,6 +77,9 @@ function Field({
   name,
   type = "text",
   autoComplete,
+  inputMode,
+  autoCapitalize,
+  spellCheck,
   required = false,
   hint,
 }: {
@@ -84,13 +87,16 @@ function Field({
   name: string;
   type?: string;
   autoComplete?: string;
+  inputMode?: "text" | "numeric" | "email";
+  autoCapitalize?: "none" | "characters";
+  spellCheck?: boolean;
   required?: boolean;
   hint?: string;
 }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input name={name} type={type} autoComplete={autoComplete} required={required} />
+      <input name={name} type={type} autoComplete={autoComplete} inputMode={inputMode} autoCapitalize={autoCapitalize} spellCheck={spellCheck} required={required} />
       {hint ? <small>{hint}</small> : null}
     </label>
   );
@@ -187,7 +193,7 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
       <p>Adicione uma conta manualmente no seu aplicativo autenticador usando esta chave:</p>
       <code className="secret-code">{totpSecret}</code>
       <Notice tone="info" message={`Antes de continuar, guarde também o código de recuperação: ${recovery}`} />
-      <Field label="Código de 6 dígitos do autenticador" name="totp" autoComplete="one-time-code" required />
+      <Field label="Código de 6 dígitos do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" required />
       {message ? <Notice tone="error" message={message} /> : null}
       <button className="primary-button" disabled={busy}>{busy ? "Confirmando…" : "Confirmar e entrar"}</button>
     </form>
@@ -264,18 +270,18 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
         <section className="auth-card" aria-labelledby="auth-title">
           <p className="eyebrow">ACESSO PROTEGIDO</p>
           <h2 id="auth-title">{mode === "login" ? "Entre na sua conta" : mode === "register" ? "Crie sua conta" : "Recupere seu acesso"}</h2>
-          <div className="tab-list" role="tablist" aria-label="Forma de acesso">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
-            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
+          <div className="tab-list" aria-label="Forma de acesso">
+            <button type="button" aria-pressed={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
+            <button type="button" aria-pressed={mode === "register"} className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
           </div>
           <form className="stack" onSubmit={submit}>
-            {mode === "register" ? <><Field label="Código de convite entregue por Mateus" name="invitation_code" required /><Field label="Como prefere ser chamado(a)" name="name" autoComplete="name" required /></> : null}
+            {mode === "register" ? <><Field label="Código de convite entregue por Mateus" name="invitation_code" autoComplete="off" autoCapitalize="characters" spellCheck={false} required /><Field label="Como prefere ser chamado(a)" name="name" autoComplete="name" required /></> : null}
             <Field label="E-mail" name="email" type="email" autoComplete="username" required />
             {mode === "recover" ? <Field label="Código de recuperação" name="recovery_code" autoComplete="off" required /> : null}
             <Field label={mode === "recover" ? "Nova senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required hint={mode !== "login" ? "Pelo menos 12 caracteres, com letras e números." : undefined} />
             {mode !== "login" ? <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required /> : null}
-            {mode === "login" ? <Field label="Código do autenticador (somente acesso profissional)" name="totp" autoComplete="one-time-code" /> : null}
-            {mode === "register" ? <div className="checks"><label><input type="checkbox" name="adult_confirmation" required /> Confirmo que tenho 18 anos ou mais.</label><label><input type="checkbox" name="privacy_confirmation" required /> Li e aceito o <a href="/privacidade/" target="_blank">aviso de privacidade</a>.</label></div> : null}
+            {mode === "login" ? <Field label="Código do autenticador (somente acesso profissional)" name="totp" autoComplete="one-time-code" inputMode="numeric" /> : null}
+            {mode === "register" ? <div className="checks"><label><input type="checkbox" name="adult_confirmation" required /> Confirmo que tenho 18 anos ou mais.</label><label><input type="checkbox" name="privacy_confirmation" required /> Li e aceito o <a href="/privacidade/" target="_blank" rel="noopener noreferrer">aviso de privacidade</a>.</label></div> : null}
             {message ? <Notice tone={message.startsWith("Senha alterada") ? "success" : "error"} message={message} /> : null}
             <button className="primary-button" disabled={busy}>{busy ? "Aguarde…" : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Alterar senha"}</button>
           </form>
@@ -395,13 +401,17 @@ function TherapistDashboard({ user, csrf, config, setRecovery }: { user: User; c
     try { await request(`/invitations/${invitation.id}`, { method: "DELETE" }, csrf); setMessage("Convite revogado."); await load(); }
     catch (error) { setMessage((error as Error).message); }
   }
+  async function copyInvite() {
+    try { await navigator.clipboard.writeText(latestCode); setMessage("Código do convite copiado."); }
+    catch { setMessage("Não foi possível copiar automaticamente. Selecione o código e copie."); }
+  }
   return (
     <main className="dashboard" id="conteudo">
       <section className="dashboard-hero professional"><div><p className="eyebrow">ACESSO PROFISSIONAL</p><h1>Olá, {user.name}.</h1><p>Aqui aparecem somente os registros que cada paciente decidiu compartilhar.</p></div><span className="secure-chip">MFA ativo</span></section>
       {message ? <Notice tone={message.includes("não") ? "error" : "success"} message={message} /> : null}
       <div className="professional-grid">
-        <section className="panel invite-panel"><div className="section-heading"><div><p className="eyebrow">NOVO ACESSO</p><h2>Convidar paciente</h2></div></div><p>O código vale por 7 dias e pode ser usado uma vez. A conta é criada pelo próprio paciente.</p><button className="primary-button" onClick={() => void createInvite()}>Gerar convite</button>{latestCode ? <div className="generated-code"><span>Código recém-criado</span><code>{latestCode}</code><button className="text-action" onClick={() => void navigator.clipboard.writeText(latestCode)}>Copiar código</button></div> : null}</section>
-        <section className="panel"><div className="section-heading"><div><p className="eyebrow">CONVITES</p><h2>Últimos códigos</h2></div></div><div className="invite-list">{invitations.length === 0 ? <p>Nenhum convite criado.</p> : invitations.map((invite) => { const status = invite.used_at ? "Usado" : invite.revoked_at ? "Revogado" : new Date(invite.expires_at) < new Date() ? "Expirado" : "Disponível"; return <div key={invite.id}><div><strong>{status}</strong><small>Criado em {formatDate(invite.created_at)}</small></div>{status === "Disponível" ? <button className="danger-link" onClick={() => void revoke(invite)}>Revogar</button> : null}</div>; })}</div></section>
+        <section className="panel invite-panel"><div className="section-heading"><div><p className="eyebrow">NOVO ACESSO</p><h2>Convidar paciente</h2></div></div><p>O código vale por 7 dias e pode ser usado uma vez. A conta é criada pelo próprio paciente.</p><button className="primary-button" onClick={() => void createInvite()}>Gerar convite</button>{latestCode ? <div className="generated-code"><span>Código recém-criado</span><code>{latestCode}</code><button className="text-action" onClick={() => void copyInvite()}>Copiar código</button></div> : null}</section>
+        <section className="panel"><div className="section-heading"><div><p className="eyebrow">CONVITES</p><h2>Convites recentes</h2></div></div><div className="invite-list">{invitations.length === 0 ? <p>Nenhum convite criado.</p> : invitations.map((invite) => { const status = invite.used_at ? "Usado" : invite.revoked_at ? "Revogado" : new Date(invite.expires_at) < new Date() ? "Expirado" : "Disponível"; return <div key={invite.id}><div><strong>{status}</strong><small>Criado em {formatDate(invite.created_at)} · válido até {formatDate(invite.expires_at)}</small></div>{status === "Disponível" ? <button className="danger-link" onClick={() => void revoke(invite)}>Revogar</button> : null}</div>; })}</div></section>
       </div>
       <section className="records-section" aria-labelledby="shared-title"><div className="section-heading"><div><p className="eyebrow">COMPARTILHADOS COM VOCÊ</p><h2 id="shared-title">Registros para retomar</h2></div><span className="count">{entries.length}</span></div>{entries.length === 0 ? <div className="empty-state"><h3>Nenhum registro compartilhado agora.</h3><p>Registros privados nunca aparecem aqui.</p></div> : <div className="record-list">{entries.map((entry) => <article className="record-card professional-record" key={entry.id}><div className="record-top"><div><span className="patient-name">{entry.patient_name}</span><h3>{entry.title}</h3><p className="record-meta">Compartilhado {entry.shared_at ? formatDate(entry.shared_at) : ""} · {entry.emotion || "emoção não nomeada"} · intensidade {entry.intensity}/10</p></div></div><EntryDetails entry={entry} /><p className="read-only">Somente leitura · o texto do paciente não pode ser editado aqui.</p></article>)}</div>}</section>
       <AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />
