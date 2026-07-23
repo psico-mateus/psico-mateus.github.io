@@ -109,3 +109,52 @@ select{width:100%;border:1px solid var(--line);border-radius:12px;background:#ff
 @media(prefers-reduced-motion:reduce){
   .professional-navigation button,.professional-record-disclosure{transition:none}
 }
+
+.install-app-button{
+  min-height:44px;
+  border:1px solid var(--green-2);
+  border-radius:999px;
+  background:transparent;
+  color:var(--green-2);
+  padding:.55rem .85rem;
+  font-size:.82rem;
+  font-weight:750;
+  white-space:nowrap;
+}
+.install-app-button:hover{
+  background:var(--mint);
+  color:var(--green);
+}
+.install-dialog{
+  width:min(92vw,540px);
+  max-height:min(86vh,680px);
+  border:0;
+  border-radius:22px;
+  background:var(--card);
+  color:var(--ink);
+  padding:0;
+  box-shadow:var(--shadow);
+}
+.install-dialog::backdrop{background:rgba(14,24,21,.72)}
+.install-dialog form{padding:clamp(1.35rem,4vw,2rem)}
+.install-dialog-heading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+}
+.install-dialog-heading h2{margin-bottom:1rem}
+.install-steps{
+  display:grid;
+  gap:.8rem;
+  margin:1.25rem 0 1.5rem;
+  padding-left:1.35rem;
+  color:var(--muted);
+}
+.install-steps strong{color:var(--ink)}
+.install-dialog .primary-button{width:100%;min-height:46px}
+
+@media(max-width:560px){
+  .install-app-button{flex:1 0 100%;width:100%}
+  .install-dialog{width:calc(100vw - 1.2rem)}
+}

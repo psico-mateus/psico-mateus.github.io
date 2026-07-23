@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { InstallAppButton } from "./InstallAppButton";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import { formatDate, portalRequest } from "./portal-client";
 
@@ -81,6 +82,7 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
       <nav className="top-links" aria-label="Links principais">
         <a href={config.public_site_url}>Site profissional</a>
         <a href={config.guide_url}>Guia de Emoções</a>
+        <InstallAppButton />
         {user && onLogout ? <button type="button" className="link-button" onClick={onLogout}>Sair</button> : null}
       </nav>
     </header>
