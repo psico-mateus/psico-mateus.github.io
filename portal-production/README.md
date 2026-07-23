@@ -42,6 +42,12 @@ pnpm test
 
 `pnpm test` executa o build antes dos testes.
 
+A suíte `pnpm test:integration` aceita somente um servidor local isolado. Ela
+requer `PORTAL_TEST_BASE_URL`, `PORTAL_TEST_SETUP_SECRET` e
+`PORTAL_TEST_DB_PATH`, apontando para o SQLite local criado pelo Miniflare. O
+caminho do banco é usado somente para simular a expiração de um convite
+sintético; a suíte recusa URLs que não sejam locais.
+
 ## Configuração local
 
 Crie um arquivo local ignorado pelo Git a partir de `.env.example`. As variáveis são:

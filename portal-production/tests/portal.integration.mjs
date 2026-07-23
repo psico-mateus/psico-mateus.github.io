@@ -3,10 +3,11 @@ import { createHmac } from "node:crypto";
 
 const baseUrl = process.env.PORTAL_TEST_BASE_URL;
 const setupSecret = process.env.PORTAL_TEST_SETUP_SECRET;
+const databasePath = process.env.PORTAL_TEST_DB_PATH;
 
-if (!baseUrl || !setupSecret) {
+if (!baseUrl || !setupSecret || !databasePath) {
   throw new Error(
-    "Defina PORTAL_TEST_BASE_URL e PORTAL_TEST_SETUP_SECRET para executar a integração.",
+    "Defina PORTAL_TEST_BASE_URL, PORTAL_TEST_SETUP_SECRET e PORTAL_TEST_DB_PATH para executar a integração.",
   );
 }
 
@@ -111,6 +112,19 @@ async function createInvitation(therapist) {
   return result.payload;
 }
 
+async function expireInvitation(invitationId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath);
+  try {
+    const result = database
+      .prepare("UPDATE invitations SET expires_at = ? WHERE id = ?")
+      .run(new Date(Date.now() - 1_000).toISOString(), invitationId);
+    assert.equal(result.changes, 1, "o convite sintético deve existir no banco local");
+  } finally {
+    database.close();
+  }
+}
+
 async function registerPatient({
   invitationCode,
   email,
@@ -183,6 +197,7 @@ const invitationA = await createInvitation(therapist);
 const invitationB = await createInvitation(therapist);
 const invitationToRevoke = await createInvitation(therapist);
 const invitationForAgeCheck = await createInvitation(therapist);
+const invitationToExpire = await createInvitation(therapist);
 
 const underageAttempt = await registerPatient({
   invitationCode: invitationForAgeCheck.code,
@@ -227,6 +242,14 @@ const revokedReuse = await registerPatient({
   password: "SenhaRevogada123",
 });
 expectStatus(revokedReuse.result, 400, "uso de convite revogado");
+
+await expireInvitation(invitationToExpire.id);
+const expiredReuse = await registerPatient({
+  invitationCode: invitationToExpire.code,
+  email: "expirado@example.test",
+  password: "SenhaExpirada123",
+});
+expectStatus(expiredReuse.result, 400, "uso de convite expirado");
 
 const privateEntryA = await createEntry(patientA, {
   title: "Registro privado sintético",
@@ -430,6 +453,12 @@ assert.ok(
       invitation.id === invitationForAgeCheck.id && invitation.status === "active",
   ),
 );
+assert.ok(
+  invitations.payload.invitations.some(
+    (invitation) =>
+      invitation.id === invitationToExpire.id && invitation.status === "expired",
+  ),
+);
 assert.ok(invitations.payload.invitations.every((invitation) => !("code" in invitation)));
 
 const deletedSharedEntry = await api(`/entries/${sharedEntryA}`, {
@@ -468,7 +497,7 @@ assert.equal(afterAccountDeletion.payload.patients.length, 0);
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 39,
+    checks: 40,
     data: "synthetic-only",
     production_requests: 0,
   }),
