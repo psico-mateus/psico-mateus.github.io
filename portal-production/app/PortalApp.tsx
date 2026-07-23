@@ -82,7 +82,7 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
       <nav className="top-links" aria-label="Links principais">
         <a href={config.public_site_url}>Site profissional</a>
         <a href={config.guide_url}>Guia de Emoções</a>
-        <InstallAppButton />
+        {user?.role !== "therapist" ? <InstallAppButton /> : null}
         {user && onLogout ? <button type="button" className="link-button" onClick={onLogout}>Sair</button> : null}
       </nav>
     </header>
@@ -100,7 +100,7 @@ function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) 
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
         <p className="eyebrow">GUARDE AGORA</p>
         <h2 id="recovery-title">Seu código de recuperação</h2>
-        <p>Ele é a única forma de redefinir sua senha sem e-mail. Guarde em um local seguro. O código anterior deixa de funcionar.</p>
+        <p>Com ele, você pode redefinir sua senha por conta própria. Guarde em um local seguro. Se perdê-lo, peça a Mateus uma recuperação assistida. O código anterior deixa de funcionar.</p>
         <code className="secret-code">{code}</code>
         <div className="button-row">
           <button className="secondary-button" type="button" onClick={copy}>{copied ? "Copiado" : "Copiar código"}</button>
@@ -225,17 +225,27 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
           <p className="eyebrow">REGISTROS ENTRE SESSÕES</p>
           <h1>Anote o que aconteceu. <em>Você decide o que compartilhar.</em></h1>
           <p className="lead">Um espaço para guardar situações, pensamentos e emoções que você queira retomar depois, no seu tempo.</p>
+          <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> Este portal é reservado a pessoas em acompanhamento com Mateus. A criação da conta acontece somente por convite.</p>
           <div className="principles">
             <article><span>01</span><div><strong>Privado ao salvar</strong><p>Mateus só vê um registro quando você o compartilha.</p></div></article>
             <article><span>02</span><div><strong>Compartilhar é opcional</strong><p>Você pode permitir ou retirar o acesso a cada registro.</p></div></article>
             <article><span>03</span><div><strong>Sem acompanhamento imediato</strong><p>Este espaço não é monitorado em tempo real.</p></div></article>
           </div>
-          <a className="guide-callout" href={config.guide_url}><span>Quer entender uma emoção agora?</span><strong>Use o Guia de Emoções sem criar conta →</strong></a>
+          <a className="guide-callout" href={config.guide_url}><span>Aberto a qualquer pessoa, sem conta</span><strong>Usar o Guia de Emoções →</strong></a>
         </section>
 
         <section className="auth-card" aria-labelledby="auth-title">
           <p className="eyebrow">ACESSO PROTEGIDO</p>
           <h2 id="auth-title">{mode === "login" ? "Entre na sua conta" : mode === "register" ? "Crie sua conta" : "Recupere seu acesso"}</h2>
+          {mode !== "recover" ? (
+            <p className="auth-audience-note">O cadastro é destinado a pacientes em acompanhamento atual e exige um convite entregue por Mateus.</p>
+          ) : null}
+          {mode === "recover" ? (
+            <p className="recovery-help">
+              Use o código que você guardou ao criar a conta. Se também perdeu
+              esse código, peça a Mateus um novo código de recuperação.
+            </p>
+          ) : null}
           <div className="tab-list" role="tablist" aria-label="Forma de acesso">
             <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
             <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>

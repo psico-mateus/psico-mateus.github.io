@@ -125,6 +125,19 @@ async function expireInvitation(invitationId) {
   }
 }
 
+async function setAssistedRecoveryExpiration(patientId, expiresAt) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath);
+  try {
+    const result = database
+      .prepare("UPDATE assisted_recovery_grants SET expires_at = ? WHERE user_id = ?")
+      .run(expiresAt, patientId);
+    assert.equal(result.changes, 1, "a recuperação assistida deve existir no banco local");
+  } finally {
+    database.close();
+  }
+}
+
 async function registerPatient({
   invitationCode,
   email,
@@ -573,7 +586,140 @@ const afterEntryDeletion = await api(
 );
 assert.deepEqual(afterEntryDeletion.payload.entries, []);
 
-const recovery = await api("/recover", {
+const patientCannotIssueRecovery = await api(
+  `/professional/patients/${patientB.user.id}/recovery-code`,
+  {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: "000000",
+    },
+    auth: patientA,
+  },
+);
+expectStatus(
+  patientCannotIssueRecovery,
+  403,
+  "paciente tentando gerar recuperação de outra conta",
+);
+
+const assistedRecoveryWithoutCsrf = await api(
+  `/professional/patients/${patientA.user.id}/recovery-code`,
+  {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: "000000",
+    },
+    auth: therapist,
+    includeCsrf: false,
+  },
+);
+expectStatus(
+  assistedRecoveryWithoutCsrf,
+  403,
+  "recuperação assistida sem CSRF",
+);
+
+const assistedRecoveryWithoutPassword = await api(
+  `/professional/patients/${patientA.user.id}/recovery-code`,
+  {
+    method: "POST",
+    body: {
+      current_password: "SenhaProfissionalIncorreta123",
+      totp: "000000",
+    },
+    auth: therapist,
+  },
+);
+expectStatus(
+  assistedRecoveryWithoutPassword,
+  400,
+  "recuperação assistida sem senha profissional válida",
+);
+
+const assistedRecoveryWithoutMfa = await api(
+  `/professional/patients/${patientA.user.id}/recovery-code`,
+  {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: "000000",
+    },
+    auth: therapist,
+  },
+);
+expectStatus(
+  assistedRecoveryWithoutMfa,
+  400,
+  "recuperação assistida sem MFA válido",
+);
+
+const assistedRecovery = await api(
+  `/professional/patients/${patientA.user.id}/recovery-code`,
+  {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: totp(setup.payload.totp_secret, Date.now() + 30_000),
+    },
+    auth: therapist,
+  },
+);
+expectStatus(assistedRecovery, 201, "recuperação assistida pelo profissional");
+assert.match(
+  assistedRecovery.payload.recovery_code,
+  /^[A-Z2-9]{5}(?:-[A-Z2-9]{5}){3}$/u,
+);
+assert.ok(new Date(assistedRecovery.payload.expires_at).getTime() > Date.now());
+const patientSessionAfterAssistedRecovery = await api("/entries", { auth: patientA });
+expectStatus(
+  patientSessionAfterAssistedRecovery,
+  401,
+  "sessão encerrada após recuperação assistida",
+);
+
+const revokeAfterAssistedRecovery = await api(
+  `/professional/patients/${patientA.user.id}/access`,
+  {
+    method: "PATCH",
+    body: { active: false },
+    auth: therapist,
+  },
+);
+expectStatus(
+  revokeAfterAssistedRecovery,
+  200,
+  "revogação após recuperação assistida",
+);
+const restoreAfterAssistedRecovery = await api(
+  `/professional/patients/${patientA.user.id}/access`,
+  {
+    method: "PATCH",
+    body: { active: true },
+    auth: therapist,
+  },
+);
+expectStatus(
+  restoreAfterAssistedRecovery,
+  200,
+  "restauração após recuperação assistida",
+);
+const invalidatedByAccessChange = await api("/recover", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    recovery_code: assistedRecovery.payload.recovery_code,
+    new_password: "SenhaPacienteNova123",
+  },
+});
+expectStatus(
+  invalidatedByAccessChange,
+  400,
+  "código assistido após mudança de acesso",
+);
+
+const previousRecoveryCode = await api("/recover", {
   method: "POST",
   body: {
     email: synthetic.patientEmailA,
@@ -581,9 +727,46 @@ const recovery = await api("/recover", {
     new_password: "SenhaPacienteNova123",
   },
 });
-expectStatus(recovery, 200, "recuperação de conta");
+expectStatus(previousRecoveryCode, 400, "código anterior após recuperação assistida");
+
+await setAssistedRecoveryExpiration(
+  patientA.user.id,
+  new Date(Date.now() - 1_000).toISOString(),
+);
+const expiredAssistedRecovery = await api("/recover", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    recovery_code: assistedRecovery.payload.recovery_code,
+    new_password: "SenhaPacienteNova123",
+  },
+});
+expectStatus(expiredAssistedRecovery, 400, "recuperação assistida vencida");
+
+await setAssistedRecoveryExpiration(
+  patientA.user.id,
+  new Date(Date.now() + 60_000).toISOString(),
+);
+const recovery = await api("/recover", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    recovery_code: assistedRecovery.payload.recovery_code,
+    new_password: "SenhaPacienteNova123",
+  },
+});
+expectStatus(recovery, 200, "uso único da recuperação assistida");
 const oldSessionAfterRecovery = await api("/entries", { auth: patientA });
 expectStatus(oldSessionAfterRecovery, 401, "sessão anterior após recuperação");
+const reusedAssistedRecovery = await api("/recover", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    recovery_code: assistedRecovery.payload.recovery_code,
+    new_password: "OutraSenhaPaciente123",
+  },
+});
+expectStatus(reusedAssistedRecovery, 400, "reutilização da recuperação assistida");
 
 const deleteAccountB = await api("/account", {
   method: "DELETE",
@@ -598,7 +781,7 @@ assert.equal(afterAccountDeletion.payload.patients.length, 0);
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 52,
+    checks: 66,
     data: "synthetic-only",
     production_requests: 0,
   }),

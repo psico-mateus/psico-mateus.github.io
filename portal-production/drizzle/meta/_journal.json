@@ -8,6 +8,13 @@
       "when": 1784602725082,
       "tag": "0000_tranquil_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784844606764,
+      "tag": "0001_assisted_recovery",
+      "breakpoints": true
     }
   ]
 }

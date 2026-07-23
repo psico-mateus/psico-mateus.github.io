@@ -62,11 +62,25 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
   assert.match(app, /InstallAppButton/);
+  assert.match(app, /user\?\.role !== "therapist"/);
+  assert.match(app, /Para pacientes atuais/);
+  assert.match(app, /Aberto a qualquer pessoa, sem conta/);
+  assert.match(app, /peça a Mateus um novo código de recuperação/i);
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
-  assert.match(installButton, /MacBook ou iMac/);
+  assert.match(installButton, /MacBook e iMac/);
   assert.match(installButton, /Adicionar ao Dock/);
-  assert.equal(JSON.parse(manifest).display, "standalone");
+  assert.match(installButton, /getInstalledRelatedApps/);
+  assert.match(installButton, /install-device-grid/);
+  const parsedManifest = JSON.parse(manifest);
+  assert.equal(parsedManifest.display, "standalone");
+  assert.deepEqual(parsedManifest.related_applications, [
+    {
+      platform: "webapp",
+      url: "/manifest.webmanifest",
+      id: "/",
+    },
+  ]);
   assert.match(serviceWorker, /respondWith\(fetch\(request\)\)/);
   assert.doesNotMatch(serviceWorker, /caches\./);
   assert.doesNotMatch(installButton, /localStorage|sessionStorage/);
@@ -219,6 +233,15 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(route, /expires_at <= \? THEN 'expired'/);
   assert.match(route, /\/professional\/accesses/);
   assert.match(route, /revoke_patient_access/);
+  assert.match(route, /issue_assisted_recovery/);
+  assert.match(route, /assisted_recovery_grants/);
+  assert.match(route, /\/recovery-code/);
+  assert.match(route, /A senha profissional não confere/);
+  assert.match(route, /novo código valerá por 24 horas|24 \* 60 \* 60/u);
+  assert.match(
+    route,
+    /UPDATE assisted_recovery_grants SET expires_at = \? WHERE user_id = \?/u,
+  );
   assert.match(route, /DELETE FROM sessions WHERE user_id = \?/);
   assert.match(route, /patient_links\.therapist_id = \? AND patient_links\.patient_id = \?/);
   assert.match(portal, /expires_at > \?/);
@@ -231,7 +254,12 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(dashboard, /Acessos de pacientes/);
   assert.match(dashboard, /Revogar acesso/);
   assert.match(dashboard, /Restaurar acesso/);
+  assert.match(dashboard, /Gerar recuperação/);
+  assert.match(dashboard, /Sua senha profissional/);
+  assert.match(dashboard, /Novo código do seu autenticador/);
+  assert.match(dashboard, /Ele aparece\s+somente agora/u);
   assert.match(dashboard, /AbortController/);
   assert.match(dashboard, /type="search"/);
   assert.doesNotMatch(dashboard, /localStorage|sessionStorage|dangerouslySetInnerHTML/);
+  assert.doesNotMatch(`${route}\n${dashboard}`, /BREVO|Brevo/u);
 });

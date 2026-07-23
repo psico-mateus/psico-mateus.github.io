@@ -79,6 +79,14 @@ const schemaStatements = [
   )`,
   `CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions (user_id)`,
   `CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions (expires_at)`,
+  `CREATE TABLE IF NOT EXISTS assisted_recovery_grants (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    issued_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS assisted_recovery_expiry_idx
+    ON assisted_recovery_grants (expires_at)`,
   `CREATE TABLE IF NOT EXISTS access_logs (
     id TEXT PRIMARY KEY,
     user_id TEXT REFERENCES users(id) ON DELETE SET NULL,

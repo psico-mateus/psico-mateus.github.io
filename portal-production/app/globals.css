@@ -98,8 +98,31 @@ select{width:100%;border:1px solid var(--line);border-radius:12px;background:#ff
 .patient-access-detail{margin:.35rem 0 0;color:var(--muted);font-size:.85rem}
 .status.access-active{background:var(--mint);color:var(--green)}
 .status.access-revoked{background:#f6e8e5;color:#7a2f29}
-.patient-access-card>button{min-width:148px;flex:0 0 auto}
+.patient-access-actions{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;flex:0 0 auto}
+.patient-access-actions>button{min-width:148px}
 .sr-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.assisted-recovery-dialog{
+  width:min(calc(100vw - 2rem),620px);
+  max-height:calc(100vh - 2rem);
+  margin:auto;
+  border:1px solid var(--line);
+  border-radius:24px;
+  background:var(--card);
+  color:var(--ink);
+  padding:0;
+  overflow:hidden;
+  box-shadow:0 28px 90px rgba(24,22,19,.28);
+}
+.assisted-recovery-dialog::backdrop{background:rgba(14,24,21,.72)}
+.assisted-recovery-shell{display:grid;gap:1rem;max-height:calc(100vh - 2rem);margin:0;padding:1.5rem;overflow:auto}
+.assisted-recovery-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.assisted-recovery-heading h2{margin:0;font-size:clamp(1.8rem,5vw,2.8rem)}
+.assisted-recovery-heading .eyebrow{margin-bottom:.35rem}
+.assisted-recovery-heading .icon-button{width:42px;height:42px;flex:0 0 auto;border:1px solid var(--line);background:#fffefa}
+.assisted-recovery-shell>p{margin:0;color:var(--muted)}
+.assisted-recovery-shell>p strong{color:var(--ink)}
+.assisted-recovery-instructions{border-left:3px solid var(--gold);padding:.7rem .85rem;background:#f5eee4;border-radius:0 12px 12px 0}
 
 @media(max-width:850px){
   .professional-tools{grid-template-columns:1fr}
@@ -128,7 +151,12 @@ select{width:100%;border:1px solid var(--line);border-radius:12px;background:#ff
   .invitation-status{display:grid}
   .invitation-status .status{min-width:0;width:max-content}
   .patient-access-card{display:grid;align-items:stretch;padding:1.05rem}
-  .patient-access-card>button{width:100%;min-width:0}
+  .patient-access-actions{display:grid;justify-content:stretch}
+  .patient-access-actions>button{width:100%;min-width:0}
+  .assisted-recovery-dialog{width:calc(100vw - 1rem);max-height:calc(100vh - 1rem);border-radius:20px}
+  .assisted-recovery-shell{max-height:calc(100vh - 1rem);padding:1.1rem}
+  .assisted-recovery-dialog .button-row{display:grid}
+  .assisted-recovery-dialog .button-row>*{width:100%}
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -785,4 +813,132 @@ input[type="range"]{accent-color:#9a6d27}
 
 @media(prefers-reduced-motion:reduce){
   .patient-overview>a,.patient-record-card,.optional-toggle{transition:none}
+}
+
+/* Explica a diferença entre o portal restrito e o Guia aberto. */
+.portal-audience-note{
+  max-width:680px;
+  margin:1.35rem 0 0;
+  border-left:3px solid var(--gold);
+  border-radius:0 12px 12px 0;
+  background:rgba(255,253,250,.72);
+  padding:.85rem 1rem;
+  color:#5b554d;
+  font-size:.88rem;
+}
+.portal-audience-note strong{color:var(--ink)}
+.auth-audience-note{
+  margin:-.35rem 0 1.15rem;
+  color:var(--muted);
+  font-size:.82rem;
+  line-height:1.5;
+}
+.recovery-help{
+  margin:-.35rem 0 1.15rem;
+  border-left:3px solid var(--gold);
+  border-radius:0 10px 10px 0;
+  background:#f5eee4;
+  padding:.75rem .85rem;
+  color:#5b554d;
+  font-size:.82rem;
+}
+
+/* Instalação compacta e janela centralizada. */
+.install-dialog{
+  width:min(calc(100vw - 2rem),760px);
+  max-height:min(calc(100vh - 2rem),780px);
+  margin:auto;
+  border:1px solid rgba(36,36,35,.12);
+  border-radius:24px;
+  overflow:hidden;
+  box-shadow:0 28px 90px rgba(24,22,19,.28);
+}
+.install-dialog .install-dialog-shell{
+  max-height:min(calc(100vh - 2rem),780px);
+  margin:0;
+  padding:0;
+  overflow:auto;
+}
+.install-dialog-heading{
+  position:sticky;
+  z-index:1;
+  top:0;
+  margin:0;
+  padding:1.5rem 1.6rem 1rem;
+  border-bottom:1px solid var(--line);
+  background:rgba(255,253,250,.97);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.install-dialog-heading h2{margin:0;font-size:clamp(2rem,5vw,3.2rem)}
+.install-dialog-heading .eyebrow{margin-bottom:.35rem}
+.install-dialog-heading .icon-button{
+  width:42px;
+  height:42px;
+  flex:0 0 auto;
+  border:1px solid var(--line);
+  background:#fffefa;
+}
+.install-dialog-intro{
+  max-width:620px;
+  margin:0;
+  padding:1.25rem 1.6rem 0;
+  color:var(--muted);
+}
+.install-device-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.75rem;
+  padding:1.25rem 1.6rem;
+}
+.install-device-grid section{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fbf5ed;
+  padding:1rem 1.05rem;
+}
+.install-device-grid section>span{
+  color:#8a6429;
+  font-size:.68rem;
+  font-weight:800;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.install-device-grid h3{margin:.32rem 0 .45rem;font-size:1.25rem}
+.install-device-grid p{margin:0;color:#625d56;font-size:.82rem;line-height:1.55}
+.install-dialog-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1.25rem;
+  border-top:1px solid var(--line);
+  background:#efe6da;
+  padding:1rem 1.6rem 1.2rem;
+}
+.install-dialog-footer p{max-width:520px;margin:0;color:#5c554c;font-size:.78rem}
+.install-dialog .install-dialog-footer .primary-button{
+  width:auto;
+  min-width:112px;
+  flex:0 0 auto;
+}
+
+@media(max-width:560px){
+  .install-app-button{
+    width:auto;
+    min-height:40px;
+    flex:0 0 auto;
+    padding:.45rem .75rem;
+  }
+  .install-dialog{
+    width:calc(100vw - 1rem);
+    max-height:calc(100vh - 1rem);
+    border-radius:20px;
+  }
+  .install-dialog .install-dialog-shell{max-height:calc(100vh - 1rem)}
+  .install-dialog-heading{padding:1.1rem 1.1rem .85rem}
+  .install-dialog-intro{padding:1rem 1.1rem 0}
+  .install-device-grid{grid-template-columns:1fr;padding:1rem 1.1rem}
+  .install-dialog-footer{display:grid;padding:1rem 1.1rem}
+  .install-dialog .install-dialog-footer .primary-button{width:100%}
 }

@@ -284,6 +284,12 @@ async function recoverAccount(request: Request, input: Input): Promise<Response>
   ) {
     throw genericError;
   }
+  const assistedRecovery = await DB.prepare(
+    "SELECT expires_at FROM assisted_recovery_grants WHERE user_id = ?",
+  )
+    .bind(user.id)
+    .first<{ expires_at: string }>();
+  if (assistedRecovery && assistedRecovery.expires_at <= now()) throw genericError;
   const newPassword = validatePassword(input.new_password);
   const passwordRecord = await derivePassword(newPassword);
   const newRecoveryCode = createRecoveryCode();
@@ -301,6 +307,7 @@ async function recoverAccount(request: Request, input: Input): Promise<Response>
       user.id,
     ),
     DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+    DB.prepare("DELETE FROM assisted_recovery_grants WHERE user_id = ?").bind(user.id),
   ]);
   await audit(user.id, "recover_account", "account");
   return json({ ok: true, recovery_code: newRecoveryCode });
@@ -510,6 +517,86 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (path === "/login") return login(request, input);
   if (path === "/register") return register(request, input);
   if (path === "/recover") return recoverAccount(request, input);
+  const assistedRecovery = path.match(
+    /^\/professional\/patients\/([A-Za-z0-9_-]+)\/recovery-code$/u,
+  );
+  if (assistedRecovery) {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    await checkRateLimit(request, "assisted-recovery", session.userId, 8, 60 * 60);
+    const therapist = (await DB.prepare("SELECT * FROM users WHERE id = ?")
+      .bind(session.userId)
+      .first<UserRow>()) as UserRow;
+    if (
+      !(await passwordMatches(
+        String(input.current_password ?? ""),
+        therapist.password_salt,
+        therapist.password_hash,
+        therapist.password_iterations,
+      ))
+    ) {
+      throw new PortalError(400, "A senha profissional não confere.");
+    }
+    if (!therapist.totp_secret || !therapist.totp_enabled) {
+      throw new PortalError(400, "O MFA profissional não está configurado.");
+    }
+    const verification = await verifyTotp(
+      await decrypt(APP_SECRET, therapist.totp_secret),
+      String(input.totp ?? ""),
+      therapist.last_totp_counter,
+    );
+    if (!verification.valid || verification.counter === null) {
+      throw new PortalError(
+        400,
+        "O código do autenticador não confere. Se acabou de entrar, aguarde o próximo código.",
+      );
+    }
+    const patient = await DB.prepare(
+      `SELECT users.id, users.password_iterations
+       FROM patient_links
+       JOIN users ON users.id = patient_links.patient_id
+       WHERE patient_links.therapist_id = ? AND patient_links.patient_id = ?
+         AND patient_links.status = 'active' AND users.status = 'active'
+         AND users.role = 'patient'`,
+    )
+      .bind(session.userId, assistedRecovery[1])
+      .first<{ id: string; password_iterations: number }>();
+    if (!patient) throw new PortalError(404, "Paciente ativo não encontrado.");
+
+    const recoveryCode = createRecoveryCode();
+    const recoveryRecord = await derivePassword(
+      recoveryCode,
+      undefined,
+      patient.password_iterations,
+    );
+    const createdAt = now();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString();
+    await DB.batch([
+      DB.prepare(
+        "UPDATE users SET recovery_salt = ?, recovery_hash = ? WHERE id = ?",
+      ).bind(recoveryRecord.salt, recoveryRecord.hash, patient.id),
+      DB.prepare(
+        `INSERT INTO assisted_recovery_grants (user_id, issued_by, expires_at, created_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET
+           issued_by = excluded.issued_by,
+           expires_at = excluded.expires_at,
+           created_at = excluded.created_at`,
+      ).bind(patient.id, session.userId, expiresAt, createdAt),
+      DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(patient.id),
+      DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?").bind(
+        verification.counter,
+        therapist.id,
+      ),
+    ]);
+    await audit(
+      session.userId,
+      "issue_assisted_recovery",
+      "patient_account",
+      patient.id,
+    );
+    return json({ recovery_code: recoveryCode, expires_at: expiresAt }, 201);
+  }
   if (path === "/logout") {
     const session = await requireSession(request);
     requireCsrf(request, session);
@@ -601,9 +688,11 @@ async function handlePost(request: Request, path: string): Promise<Response> {
     }
     const recoveryCode = createRecoveryCode();
     const record = await derivePassword(recoveryCode);
-    await DB.prepare("UPDATE users SET recovery_salt = ?, recovery_hash = ? WHERE id = ?")
-      .bind(record.salt, record.hash, user.id)
-      .run();
+    await DB.batch([
+      DB.prepare("UPDATE users SET recovery_salt = ?, recovery_hash = ? WHERE id = ?")
+        .bind(record.salt, record.hash, user.id),
+      DB.prepare("DELETE FROM assisted_recovery_grants WHERE user_id = ?").bind(user.id),
+    ]);
     await audit(user.id, "rotate_recovery_code", "account");
     return json({ recovery_code: recoveryCode });
   }
@@ -697,6 +786,9 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
              WHERE therapist_id = ? AND patient_id = ?`,
           ).bind(timestamp, session.userId, patient.id),
       DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(patient.id),
+      DB.prepare(
+        "UPDATE assisted_recovery_grants SET expires_at = ? WHERE user_id = ?",
+      ).bind(timestamp, patient.id),
     ]);
     await audit(
       session.userId,

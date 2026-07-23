@@ -68,10 +68,13 @@ O portal usa Cloudflare D1. As relações principais são:
 - `entries`: registros pertencentes ao paciente;
 - `invitations`: convites de uso único, válidos por 7 dias;
 - `sessions`: sessões armazenadas somente pelo hash do token;
+- `assisted_recovery_grants`: validade dos códigos temporários emitidos pelo profissional;
 - `access_logs`: eventos técnicos sem conteúdo clínico;
 - `auth_windows`: limites de tentativas.
 
 O cadastro de paciente exige convite, confirmação de 18 anos ou mais e aceite do aviso de privacidade. Registros nascem privados. O servidor filtra o acesso profissional por vínculo ativo e compartilhamento atual. O acesso profissional exige MFA.
+
+Se um paciente perder a senha e o próprio código de recuperação, ele pode pedir ajuda diretamente a Mateus. No painel profissional, a emissão de um código temporário exige a senha profissional e um novo código do autenticador. O código vale por 24 horas, substitui o anterior e encerra todas as sessões abertas do paciente. O portal não envia e-mails e não depende de um serviço externo para essa recuperação.
 
 ## Privacidade e segurança no desenvolvimento
 

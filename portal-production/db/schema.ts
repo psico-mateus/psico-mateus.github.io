@@ -98,6 +98,17 @@ export const sessions = sqliteTable(
   (table) => [index("sessions_user_idx").on(table.userId), index("sessions_expiry_idx").on(table.expiresAt)],
 );
 
+export const assistedRecoveryGrants = sqliteTable(
+  "assisted_recovery_grants",
+  {
+    userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+    issuedBy: text("issued_by").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("assisted_recovery_expiry_idx").on(table.expiresAt)],
+);
+
 export const accessLogs = sqliteTable(
   "access_logs",
   {

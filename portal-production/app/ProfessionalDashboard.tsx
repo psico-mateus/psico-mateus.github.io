@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type FormEvent,
   type KeyboardEvent,
   type ReactNode,
   useCallback,
@@ -35,6 +36,12 @@ type ProfessionalDashboardProps = {
   onSessionLost: () => void;
 };
 
+type IssuedRecovery = {
+  patientName: string;
+  code: string;
+  expiresAt: string;
+};
+
 function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone }) {
   return (
     <p
@@ -43,6 +50,180 @@ function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone
     >
       {message}
     </p>
+  );
+}
+
+function RecoveryAuthorizationDialog({
+  patient,
+  busy,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  patient: PatientAccess;
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onSubmit: (currentPassword: string, totp: string) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    passwordRef.current?.focus();
+  }, []);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    onSubmit(
+      String(form.get("current_password") ?? ""),
+      String(form.get("totp") ?? ""),
+    );
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="assisted-recovery-dialog"
+      aria-labelledby="assisted-recovery-title"
+      onCancel={(event) => {
+        if (busy) event.preventDefault();
+      }}
+      onClose={onClose}
+    >
+      <form className="assisted-recovery-shell" onSubmit={submit}>
+        <div className="assisted-recovery-heading">
+          <div>
+            <p className="eyebrow">RECUPERAÇÃO ASSISTIDA</p>
+            <h2 id="assisted-recovery-title">
+              Gerar código para {displayedPatientName(patient.patient_name)}
+            </h2>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Fechar recuperação"
+            onClick={onClose}
+            disabled={busy}
+          >
+            ×
+          </button>
+        </div>
+        <p>
+          Use somente depois de confirmar a identidade do paciente. O código
+          anterior deixará de funcionar, as sessões abertas serão encerradas e o
+          novo código valerá por 24 horas.
+        </p>
+        <label className="field">
+          <span>Sua senha profissional</span>
+          <input
+            ref={passwordRef}
+            name="current_password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+        </label>
+        <label className="field">
+          <span>Novo código do seu autenticador</span>
+          <input
+            name="totp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            required
+          />
+          <small>Se acabou de entrar, aguarde o próximo código de 6 dígitos.</small>
+        </label>
+        {error ? <Notice tone="error" message={error} /> : null}
+        <div className="button-row">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Cancelar
+          </button>
+          <button className="primary-button" disabled={busy}>
+            {busy ? "Gerando…" : "Confirmar e gerar"}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+function IssuedRecoveryDialog({
+  recovery,
+  onClose,
+}: {
+  recovery: IssuedRecovery;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  async function copy() {
+    await navigator.clipboard.writeText(recovery.code);
+    setCopied(true);
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="assisted-recovery-dialog"
+      aria-labelledby="issued-recovery-title"
+      onClose={onClose}
+    >
+      <div className="assisted-recovery-shell">
+        <div className="assisted-recovery-heading">
+          <div>
+            <p className="eyebrow">CÓDIGO CRIADO</p>
+            <h2 id="issued-recovery-title">
+              Entregue diretamente ao paciente
+            </h2>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Fechar código de recuperação"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+        <p>
+          Código para <strong>{recovery.patientName}</strong>. Ele aparece
+          somente agora e é válido até {formatDate(recovery.expiresAt)}.
+        </p>
+        <code className="secret-code">{recovery.code}</code>
+        <p className="assisted-recovery-instructions">
+          Oriente o paciente a abrir “Esqueci minha senha”, informar o e-mail da
+          conta, este código e uma nova senha.
+        </p>
+        <div className="button-row">
+          <button className="secondary-button" type="button" onClick={() => void copy()}>
+            {copied ? "Código copiado" : "Copiar código"}
+          </button>
+          <button className="primary-button" type="button" onClick={onClose}>
+            Já entreguei ou guardei
+          </button>
+        </div>
+        <p className="sr-status" role="status" aria-live="polite">
+          {copied ? "Código de recuperação copiado." : ""}
+        </p>
+      </div>
+    </dialog>
   );
 }
 
@@ -395,6 +576,7 @@ function PatientAccessView({
   onQueryChange,
   onRefresh,
   onChangeAccess,
+  onGenerateRecovery,
 }: {
   patients: PatientAccess[];
   loading: boolean;
@@ -404,6 +586,7 @@ function PatientAccessView({
   onQueryChange: (value: string) => void;
   onRefresh: () => void;
   onChangeAccess: (patient: PatientAccess, active: boolean) => void;
+  onGenerateRecovery: (patient: PatientAccess) => void;
 }) {
   const visiblePatients = useMemo(
     () => filterPatientAccesses(patients, query),
@@ -514,18 +697,30 @@ function PatientAccessView({
                       : ""}
                   </p>
                 </div>
-                <button
-                  className={active ? "danger-button" : "secondary-button"}
-                  type="button"
-                  onClick={() => onChangeAccess(patient, !active)}
-                  disabled={updating || loading}
-                >
-                  {updating
-                    ? "Aguarde…"
-                    : active
-                      ? "Revogar acesso"
-                      : "Restaurar acesso"}
-                </button>
+                <div className="patient-access-actions">
+                  {active ? (
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => onGenerateRecovery(patient)}
+                      disabled={updating || loading}
+                    >
+                      Gerar recuperação
+                    </button>
+                  ) : null}
+                  <button
+                    className={active ? "danger-button" : "secondary-button"}
+                    type="button"
+                    onClick={() => onChangeAccess(patient, !active)}
+                    disabled={updating || loading}
+                  >
+                    {updating
+                      ? "Aguarde…"
+                      : active
+                        ? "Revogar acesso"
+                        : "Restaurar acesso"}
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -781,6 +976,10 @@ export function ProfessionalDashboard({
   const [updatingAccessIds, setUpdatingAccessIds] = useState<Set<string>>(
     new Set(),
   );
+  const [recoveryPatient, setRecoveryPatient] = useState<PatientAccess | null>(null);
+  const [issuingRecovery, setIssuingRecovery] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+  const [issuedRecovery, setIssuedRecovery] = useState<IssuedRecovery | null>(null);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitationsLoaded, setInvitationsLoaded] = useState(false);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
@@ -807,6 +1006,8 @@ export function ProfessionalDashboard({
     setPatientAccesses([]);
     setInvitations([]);
     setLatestCode("");
+    setRecoveryPatient(null);
+    setIssuedRecovery(null);
     setNotice(null);
     onSessionLost();
   }, [onSessionLost]);
@@ -1036,6 +1237,49 @@ export function ProfessionalDashboard({
     }
   }
 
+  async function issuePatientRecovery(currentPassword: string, totp: string) {
+    if (!recoveryPatient || issuingRecovery) return;
+    setIssuingRecovery(true);
+    setRecoveryError("");
+    try {
+      const result = await portalRequest<{
+        recovery_code: string;
+        expires_at: string;
+      }>(
+        `/professional/patients/${encodeURIComponent(recoveryPatient.patient_id)}/recovery-code`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            current_password: currentPassword,
+            totp,
+          }),
+        },
+        csrf,
+      );
+      const patientName = displayedPatientName(recoveryPatient.patient_name);
+      setRecoveryPatient(null);
+      setIssuedRecovery({
+        patientName,
+        code: result.recovery_code,
+        expiresAt: result.expires_at,
+      });
+      setNotice({
+        tone: "success",
+        message: `Código temporário criado para ${patientName}. As sessões anteriores foram encerradas.`,
+      });
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setRecoveryError(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível gerar o código de recuperação.",
+        );
+      }
+    } finally {
+      setIssuingRecovery(false);
+    }
+  }
+
   async function createInvitation() {
     if (createInvitationLock.current) return;
     createInvitationLock.current = true;
@@ -1175,6 +1419,11 @@ export function ProfessionalDashboard({
           onChangeAccess={(patient, active) =>
             void changePatientAccess(patient, active)
           }
+          onGenerateRecovery={(patient) => {
+            setRecoveryError("");
+            setIssuedRecovery(null);
+            setRecoveryPatient(patient);
+          }}
         />
       ) : (
         <InvitationsView
@@ -1193,6 +1442,27 @@ export function ProfessionalDashboard({
       )}
 
       {accountPanel}
+      {recoveryPatient ? (
+        <RecoveryAuthorizationDialog
+          patient={recoveryPatient}
+          busy={issuingRecovery}
+          error={recoveryError}
+          onClose={() => {
+            if (issuingRecovery) return;
+            setRecoveryPatient(null);
+            setRecoveryError("");
+          }}
+          onSubmit={(currentPassword, totp) =>
+            void issuePatientRecovery(currentPassword, totp)
+          }
+        />
+      ) : null}
+      {issuedRecovery ? (
+        <IssuedRecoveryDialog
+          recovery={issuedRecovery}
+          onClose={() => setIssuedRecovery(null)}
+        />
+      ) : null}
     </main>
   );
 }

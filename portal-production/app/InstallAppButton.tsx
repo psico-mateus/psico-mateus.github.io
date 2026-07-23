@@ -7,10 +7,17 @@ type InstallPrompt = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+type NavigatorWithPwaDetection = Navigator & {
+  standalone?: boolean;
+  getInstalledRelatedApps?: () => Promise<Array<{
+    id?: string;
+    platform?: string;
+    url?: string;
+  }>>;
+};
+
 function isRunningAsApp() {
-  const navigatorWithStandalone = navigator as Navigator & {
-    standalone?: boolean;
-  };
+  const navigatorWithStandalone = navigator as NavigatorWithPwaDetection;
 
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
@@ -18,37 +25,70 @@ function isRunningAsApp() {
   );
 }
 
+async function isInstalled() {
+  if (isRunningAsApp()) return true;
+
+  const navigatorWithDetection = navigator as NavigatorWithPwaDetection;
+  if (!navigatorWithDetection.getInstalledRelatedApps) return false;
+
+  try {
+    const relatedApps = await navigatorWithDetection.getInstalledRelatedApps();
+    return relatedApps.some((app) => app.platform === "webapp");
+  } catch {
+    return false;
+  }
+}
+
 export function InstallAppButton() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
-  const [installed, setInstalled] = useState(false);
+  const [installed, setInstalled] = useState(true);
+  const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const standaloneCheck = window.requestAnimationFrame(() => {
-      setInstalled(isRunningAsApp());
-    });
+    let active = true;
+    const displayMode = window.matchMedia("(display-mode: standalone)");
+
+    const refreshInstallation = async () => {
+      const nextInstalled = await isInstalled();
+      if (!active) return;
+      setInstalled(nextInstalled);
+      setReady(true);
+    };
 
     const rememberPrompt = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as InstallPrompt);
+      setInstalled(false);
+      setReady(true);
     };
     const confirmInstallation = () => {
       setInstalled(true);
       setInstallPrompt(null);
       setMessage("Aplicativo instalado.");
     };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshInstallation();
+    };
 
+    void refreshInstallation();
     window.addEventListener("beforeinstallprompt", rememberPrompt);
     window.addEventListener("appinstalled", confirmInstallation);
+    window.addEventListener("focus", refreshInstallation);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    displayMode.addEventListener?.("change", refreshInstallation);
     navigator.serviceWorker?.register("/sw.js").catch(() => {
       // O portal continua funcionando como site se o navegador não aceitar o registro.
     });
 
     return () => {
-      window.cancelAnimationFrame(standaloneCheck);
+      active = false;
       window.removeEventListener("beforeinstallprompt", rememberPrompt);
       window.removeEventListener("appinstalled", confirmInstallation);
+      window.removeEventListener("focus", refreshInstallation);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      displayMode.removeEventListener?.("change", refreshInstallation);
     };
   }, []);
 
@@ -70,12 +110,12 @@ export function InstallAppButton() {
     );
   }
 
-  if (installed) return null;
+  if (!ready || installed) return null;
 
   return (
     <>
       <button type="button" className="install-app-button" onClick={install}>
-        Instalar aplicativo
+        Instalar
       </button>
       <span className="sr-status" role="status" aria-live="polite">
         {message}
@@ -86,11 +126,11 @@ export function InstallAppButton() {
         className="install-dialog"
         aria-labelledby="install-dialog-title"
       >
-        <form method="dialog">
+        <form method="dialog" className="install-dialog-shell">
           <div className="install-dialog-heading">
             <div>
-              <p className="eyebrow">ACESSO RÁPIDO</p>
-              <h2 id="install-dialog-title">Instale o portal</h2>
+              <p className="eyebrow">ACESSO PELO APARELHO</p>
+              <h2 id="install-dialog-title">Instalar Registros</h2>
             </div>
             <button
               type="submit"
@@ -100,28 +140,30 @@ export function InstallAppButton() {
               ×
             </button>
           </div>
-          <p>
-            O portal pode ficar na tela inicial e abrir como aplicativo, sem
-            cobrança e sem baixar nada de uma loja.
-          </p>
-          <ol className="install-steps">
-            <li>
-              <strong>No iPhone ou iPad:</strong> abra no Safari, toque em
-              Compartilhar, escolha “Adicionar à Tela de Início”, ative “Abrir
-              como App da Web” e toque em “Adicionar”.
-            </li>
-            <li>
-              <strong>No MacBook ou iMac:</strong> no Safari, clique em Compartilhar,
-              escolha “Adicionar ao Dock” e confirme em “Adicionar”.
-            </li>
-            <li>
-              <strong>No Android ou Windows:</strong> abra o menu do Chrome ou
-              Edge e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.
-            </li>
-          </ol>
-          <button type="submit" className="primary-button">
-            Entendi
-          </button>
+          <p className="install-dialog-intro">Use o portal como aplicativo, sem loja e sem cobrança. Escolha abaixo o seu aparelho.</p>
+          <div className="install-device-grid">
+            <section>
+              <span>iPhone e iPad</span>
+              <h3>No Safari</h3>
+              <p>Toque em Compartilhar, escolha “Adicionar à Tela de Início”, ative “Abrir como App da Web” e toque em “Adicionar”.</p>
+            </section>
+            <section>
+              <span>MacBook e iMac</span>
+              <h3>No Safari</h3>
+              <p>Clique em Compartilhar, escolha “Adicionar ao Dock” e confirme em “Adicionar”.</p>
+            </section>
+            <section>
+              <span>Android</span>
+              <h3>No Chrome</h3>
+              <p>Abra o menu do navegador e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.</p>
+            </section>
+            <section>
+              <span>Windows</span>
+              <h3>No Chrome ou Edge</h3>
+              <p>Use o ícone de instalação na barra de endereço ou procure “Instalar aplicativo” no menu.</p>
+            </section>
+          </div>
+          <div className="install-dialog-footer"><p>Depois de instalar, abra pelo novo ícone. A opção deixa de ocupar espaço quando o navegador reconhece a instalação.</p><button type="submit" className="primary-button">Fechar</button></div>
         </form>
       </dialog>
     </>
