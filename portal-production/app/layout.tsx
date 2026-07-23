@@ -1,5 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  themeColor: "#234c42",
+};
 
 export const metadata: Metadata = {
   title: {
@@ -11,6 +15,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   referrer: "no-referrer",
   applicationName: "Registros entre sessões",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Registros",
+  },
   openGraph: {
     title: "Registros entre sessões",
     description: "Você guarda. Você escolhe o que compartilhar.",
@@ -25,6 +35,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
+    apple: "/apple-touch-icon.png",
   },
 };
 

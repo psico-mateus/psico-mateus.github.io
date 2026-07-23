@@ -44,14 +44,24 @@ test("protected values round-trip and one-time codes are well formed", async () 
 });
 
 test("public UI keeps privacy and safety boundaries visible", async () => {
-  const [app, privacy, worker] = await Promise.all([
+  const [app, installButton, manifest, privacy, serviceWorker, worker] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/InstallAppButton.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
+  assert.match(app, /InstallAppButton/);
+  assert.match(installButton, /beforeinstallprompt/);
+  assert.match(installButton, /Adicionar à Tela de Início/);
+  assert.equal(JSON.parse(manifest).display, "standalone");
+  assert.match(serviceWorker, /respondWith\(fetch\(request\)\)/);
+  assert.doesNotMatch(serviceWorker, /caches\./);
+  assert.doesNotMatch(installButton, /localStorage|sessionStorage/);
   assert.match(privacy, /não são usados para publicidade/);
   assert.match(worker, /Content-Security-Policy/);
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
