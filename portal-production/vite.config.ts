@@ -10,10 +10,11 @@ const { d1, r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
+const isPublicWorkerBuild = process.env.CLOUDFLARE_PUBLIC_DEPLOY === "1";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
-  d1_databases: d1
+  d1_databases: d1 && !isPublicWorkerBuild
     ? [
         {
           binding: d1,
