@@ -54,6 +54,11 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
+  assert.match(app, /Não precisa preencher tudo/);
+  assert.match(app, /Aprofundar este registro/);
+  assert.match(app, /Privado ao salvar/);
+  assert.match(app, /Compartilhado com Mateus/);
+  assert.match(app, /patient-record-card/);
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
   assert.match(app, /InstallAppButton/);

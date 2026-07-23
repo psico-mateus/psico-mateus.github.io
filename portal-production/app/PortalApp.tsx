@@ -284,21 +284,51 @@ function EntryForm({ initial, onSave, onCancel }: { initial?: Entry; onSave: (en
     try { await onSave(draft); } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
   }
   return (
-    <form className="entry-form panel" onSubmit={submit}>
-      <div className="section-heading"><div><p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p><h2>{initial ? "Revise sua anotação" : "O que vale guardar?"}</h2></div><button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">×</button></div>
-      <label className="field"><span>Título breve</span><input value={draft.title} maxLength={120} onChange={(e) => update("title", e.target.value)} required /></label>
-      <label className="field"><span>O que aconteceu?</span><textarea value={draft.happened} maxLength={2000} rows={5} onChange={(e) => update("happened", e.target.value)} required /></label>
-      <div className="two-columns">
-        <label className="field"><span>O que percebeu no corpo?</span><textarea value={draft.body} maxLength={1500} rows={4} onChange={(e) => update("body", e.target.value)} /></label>
-        <label className="field"><span>Quais pensamentos apareceram?</span><textarea value={draft.thoughts} maxLength={1500} rows={4} onChange={(e) => update("thoughts", e.target.value)} /></label>
-        <label className="field"><span>O que teve vontade de fazer?</span><textarea value={draft.urge} maxLength={1500} rows={4} onChange={(e) => update("urge", e.target.value)} /></label>
-        <label className="field"><span>Há algo que queira levar para a sessão?</span><textarea value={draft.message} maxLength={1500} rows={4} onChange={(e) => update("message", e.target.value)} /></label>
+    <form className="entry-form panel patient-entry-form" id="entry-editor" onSubmit={submit}>
+      <div className="section-heading entry-form-heading">
+        <div>
+          <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
+          <h2>{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
+          <p>Não precisa preencher tudo. Comece pelo que estiver mais claro agora.</p>
+        </div>
+        <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">×</button>
       </div>
-      <div className="emotion-row">
-        <label className="field"><span>Emoção principal (se souber)</span><input value={draft.emotion} maxLength={120} onChange={(e) => update("emotion", e.target.value)} /></label>
-        <label className="field range-field"><span>Intensidade: <strong>{draft.intensity}</strong>/10</span><input type="range" min="0" max="10" value={draft.intensity} onChange={(e) => update("intensity", Number(e.target.value))} /></label>
-      </div>
-      <p className="privacy-line">Ao salvar, este registro fica privado. O compartilhamento é uma escolha separada.</p>
+
+      <section className="entry-step" aria-labelledby="entry-step-one">
+        <div className="entry-step-heading">
+          <span aria-hidden="true">01</span>
+          <div><h3 id="entry-step-one">Comece pela situação</h3><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
+        </div>
+        <label className="field"><span>Título breve</span><input value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required /></label>
+        <label className="field"><span>O que aconteceu?</span><textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required /></label>
+      </section>
+
+      <section className="entry-step" aria-labelledby="entry-step-two">
+        <div className="entry-step-heading">
+          <span aria-hidden="true">02</span>
+          <div><h3 id="entry-step-two">Como isso chegou em você?</h3><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
+        </div>
+        <div className="emotion-row">
+          <label className="field"><span>Emoção principal, se souber</span><input value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} /></label>
+          <label className="field range-field">
+            <span>Intensidade percebida: <strong>{draft.intensity}</strong>/10</span>
+            <input type="range" min="0" max="10" value={draft.intensity} onChange={(e) => update("intensity", Number(e.target.value))} />
+            <small className="range-scale"><span>0 · muito leve</span><span>10 · muito intensa</span></small>
+          </label>
+        </div>
+      </section>
+
+      <details className="entry-optional" defaultOpen={Boolean(initial && (initial.body || initial.thoughts || initial.urge || initial.message))}>
+        <summary><span><strong>Aprofundar este registro</strong><small>Campos opcionais para quando fizer sentido.</small></span><span className="optional-toggle" aria-hidden="true">+</span></summary>
+        <div className="two-columns">
+          <label className="field"><span>O que percebeu no corpo?</span><textarea value={draft.body} maxLength={1500} rows={4} onChange={(e) => update("body", e.target.value)} /></label>
+          <label className="field"><span>Quais pensamentos apareceram?</span><textarea value={draft.thoughts} maxLength={1500} rows={4} onChange={(e) => update("thoughts", e.target.value)} /></label>
+          <label className="field"><span>O que teve vontade de fazer?</span><textarea value={draft.urge} maxLength={1500} rows={4} onChange={(e) => update("urge", e.target.value)} /></label>
+          <label className="field"><span>Há algo que queira levar para a sessão?</span><textarea value={draft.message} maxLength={1500} rows={4} onChange={(e) => update("message", e.target.value)} /></label>
+        </div>
+      </details>
+
+      <div className="privacy-save-note"><span aria-hidden="true" /><p><strong>Privado ao salvar.</strong> Mateus só poderá ler se você decidir compartilhar este registro depois.</p></div>
       {message ? <Notice tone="error" message={message} /> : null}
       <div className="button-row"><button className="secondary-button" type="button" onClick={onCancel}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando…" : "Salvar registro"}</button></div>
     </form>
@@ -314,9 +344,11 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editing, setEditing] = useState<Entry | null | "new">(null);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
     catch (error) { if ((error as Error).message.includes("login")) onSessionLost(); else setMessage((error as Error).message); }
+    finally { setLoading(false); }
   }, [onSessionLost]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
@@ -328,7 +360,9 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   }
   async function sharing(entry: Entry) {
     const shared = Boolean(entry.shared_at && !entry.revoked_at);
-    const question = shared ? "Retirar o acesso de Mateus a este registro?" : "Compartilhar este registro com Mateus?";
+    const question = shared
+      ? "Mateus deixará de ver este registro. Retirar o compartilhamento?"
+      : "Compartilhar este registro com Mateus? Ele poderá lê-lo no painel profissional, mas não editá-lo.";
     if (!window.confirm(question)) return;
     await portalRequest(`/entries/${entry.id}/sharing`, { method: "PATCH", body: JSON.stringify({ shared: !shared }) }, csrf);
     setMessage(shared ? "Compartilhamento retirado." : "Registro compartilhado com Mateus."); await load();
@@ -337,16 +371,59 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
     await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf); setMessage("Registro excluído."); await load();
   }
+  const sharedCount = entries.filter((entry) => entry.shared_at && !entry.revoked_at).length;
   return (
-    <main className="dashboard" id="conteudo">
-      <section className="dashboard-hero"><div><p className="eyebrow">SEUS REGISTROS</p><h1>Olá, {user.name}.</h1><p>Guarde o que fizer sentido. Nada é compartilhado automaticamente.</p></div><button className="primary-button" onClick={() => setEditing("new")}>Novo registro</button></section>
+    <main className="dashboard patient-dashboard" id="conteudo">
+      <section className="dashboard-hero patient-hero">
+        <div className="patient-hero-copy">
+          <p className="eyebrow">SEU ESPAÇO</p>
+          <h1>Olá, {user.name}.</h1>
+          <p>Guarde situações, pensamentos e emoções que você queira retomar depois. Nada é compartilhado automaticamente.</p>
+          <span className="patient-privacy-chip"><span aria-hidden="true" /> Privado por padrão</span>
+        </div>
+        <button className="primary-button" onClick={() => setEditing("new")}>Registrar algo</button>
+      </section>
+
+      <section className="patient-overview" aria-label="Resumo dos seus registros">
+        <article><span className="overview-number">{entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
+        <article><span className="overview-number">{sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado" : "compartilhados"}</strong><small>Visíveis para Mateus agora</small></div></article>
+        <a href={config.guide_url}><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções →</strong></a>
+      </section>
+
       {message ? <Notice tone="success" message={message} /> : null}
       {editing ? <EntryForm initial={editing === "new" ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} /> : null}
       <section className="records-section" aria-labelledby="records-title">
-        <div className="section-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title">O que você guardou</h2></div><span className="count">{entries.length} {entries.length === 1 ? "registro" : "registros"}</span></div>
-        {entries.length === 0 ? <div className="empty-state"><h3>Seu histórico começa quando você quiser.</h3><p>Crie um registro para guardar algo que possa ser útil retomar.</p><button className="secondary-button" onClick={() => setEditing("new")}>Criar o primeiro</button></div> : <div className="record-list">{entries.map((entry) => {
+        <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title">Seus registros</h2><p>Abra quando quiser reler, editar ou escolher o que compartilhar.</p></div><span className="count">{entries.length} {entries.length === 1 ? "registro" : "registros"}</span></div>
+        {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entries.length === 0 ? (
+          <div className="empty-state patient-empty-state">
+            <span className="empty-state-number" aria-hidden="true">01</span>
+            <h3>Seu histórico começa quando você quiser.</h3>
+            <p>Você pode começar com uma situação breve. Não precisa entender tudo antes de escrever.</p>
+            <div className="empty-state-actions"><button className="primary-button" onClick={() => setEditing("new")}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url}>Explorar o Guia de Emoções</a></div>
+          </div>
+        ) : <div className="record-list patient-record-list">{entries.map((entry) => {
           const shared = Boolean(entry.shared_at && !entry.revoked_at);
-          return <article className="record-card" key={entry.id}><div className="record-top"><div><span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado" : "Privado"}</span><h3>{entry.title}</h3><p className="record-meta">{formatDate(entry.created_at)} · {entry.emotion || "emoção não nomeada"} · intensidade {entry.intensity}/10</p></div></div><EntryDetails entry={entry} /><div className="record-actions"><button className={shared ? "secondary-button" : "share-button"} onClick={() => void sharing(entry)}>{shared ? "Retirar compartilhamento" : "Compartilhar com Mateus"}</button><button className="quiet-button" onClick={() => setEditing(entry)}>Editar</button><button className="danger-link" onClick={() => void remove(entry)}>Excluir</button></div></article>;
+          return (
+            <details className="record-card patient-record-card" key={entry.id}>
+              <summary>
+                <span className="record-summary-marker" aria-hidden="true" />
+                <span className="patient-record-summary-copy">
+                  <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
+                  <strong>{entry.title}</strong>
+                  <small>{formatDate(entry.created_at)} · {entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</small>
+                </span>
+                <span className="patient-record-toggle" aria-hidden="true"><span className="when-closed">Abrir</span><span className="when-open">Fechar</span></span>
+              </summary>
+              <div className="patient-record-content">
+                <EntryDetails entry={entry} />
+                <div className="record-actions">
+                  <button className={shared ? "secondary-button" : "share-button"} onClick={() => void sharing(entry)}>{shared ? "Deixar privado novamente" : "Compartilhar com Mateus"}</button>
+                  <button className="quiet-button" onClick={() => setEditing(entry)}>Editar</button>
+                  <button className="danger-link" onClick={() => void remove(entry)}>Excluir</button>
+                </div>
+              </div>
+            </details>
+          );
         })}</div>}
       </section>
       <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} />
@@ -374,7 +451,10 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
     catch (error) { setMessage((error as Error).message); }
   }
   return (
-    <details className="account-panel"><summary>Segurança e conta</summary><div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div></details>
+    <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
+      <summary><span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>{role === "patient" ? <small>Senha, recuperação, exportação e exclusão</small> : null}</summary>
+      <div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div>
+    </details>
   );
 }
 
