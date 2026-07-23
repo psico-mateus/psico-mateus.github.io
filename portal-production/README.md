@@ -1,98 +1,90 @@
-# vinext-starter
+# Registros entre sessões
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Portal privado de apoio à psicoterapia de Mateus Ribeiro Marcos, Psicólogo Clínico (CRP 08/38930). Pacientes convidados podem guardar registros, mantê-los privados e escolher individualmente quais compartilhar. O acesso profissional é somente leitura.
 
-## Prerequisites
+O portal não é prontuário, chat, canal de emergência, monitoramento em tempo real nem ferramenta de diagnóstico ou análise automática.
 
-- Node.js `>=22.13.0`
+## Estrutura
 
-## Quick Start
+```text
+app/
+  PortalApp.tsx                         Fluxos públicos e dashboard do paciente
+  ProfessionalDashboard.tsx            Dashboard profissional
+  professional-dashboard-data.ts       Busca, ordenação e helpers de apresentação
+  portal-client.ts                      Cliente HTTP e tratamento de erros
+  api/portal/[...segments]/route.ts     API, autenticação e autorização
+  privacidade/page.tsx                  Aviso de privacidade
+db/
+  runtime.ts                            Binding D1 e inicialização compatível
+  schema.ts                             Esquema Drizzle
+drizzle/                                Migrações versionadas
+lib/
+  crypto.ts                             Hashes, códigos, criptografia e TOTP
+  portal.ts                             Sessões, CSRF, validação, auditoria e limites
+tests/
+  portal.test.mjs                       Testes unitários e regressões estruturais
+worker/
+  index.ts                              Entrada do Worker e headers de segurança
+```
+
+## Requisitos e comandos
+
+- Node.js 22.13 ou superior.
+- pnpm e o lockfile existente.
 
 ```bash
-npm install
-npm run dev
-npm run build
+pnpm install
+pnpm dev
+pnpm lint
+pnpm build
+pnpm test
 ```
 
-This starter does not use `wrangler.jsonc`.
+`pnpm test` executa o build antes dos testes.
 
-## Included Shape
+## Configuração local
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+Crie um arquivo local ignorado pelo Git a partir de `.env.example`. As variáveis são:
 
-## Workspace Auth Headers
+- `APP_SECRET`: protege identificadores, códigos e o segredo MFA armazenado;
+- `SETUP_SECRET`: restringe a configuração inicial da conta profissional;
+- `PUBLIC_SITE_URL`: endereço do site profissional;
+- `GUIDE_URL`: endereço do Guia de Emoções.
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+Nunca registre valores reais dessas variáveis no Git, em logs, testes ou documentação.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## Banco e autenticação
 
-Treat the full name as optional and fall back to email when it is absent:
+O portal usa Cloudflare D1. As relações principais são:
 
-```tsx
-import { headers } from "next/headers";
+- `users`: contas de pacientes e profissional;
+- `patient_links`: vínculo entre profissional e paciente;
+- `entries`: registros pertencentes ao paciente;
+- `invitations`: convites de uso único, válidos por 7 dias;
+- `sessions`: sessões armazenadas somente pelo hash do token;
+- `access_logs`: eventos técnicos sem conteúdo clínico;
+- `auth_windows`: limites de tentativas.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+O cadastro de paciente exige convite, confirmação de 18 anos ou mais e aceite do aviso de privacidade. Registros nascem privados. O servidor filtra o acesso profissional por vínculo ativo e compartilhamento atual. O acesso profissional exige MFA.
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
+## Privacidade e segurança no desenvolvimento
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+- Use apenas dados sintéticos.
+- Não consulte nem copie dados de produção.
+- Não registre títulos, textos, emoções, nomes, e-mails, códigos, cookies ou credenciais.
+- Não armazene conteúdo autenticado em `localStorage`, `sessionStorage`, service worker ou Cache API.
+- Mantenha `Cache-Control: no-store` nas respostas autenticadas.
+- Preserve consultas parametrizadas, autorização no servidor e proteção CSRF.
+- Não execute migrações em produção sem revisão, backup e autorização.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+## Publicação
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+O build é produzido com Vinext para Cloudflare Workers. O Worker público e o banco D1 são configurados em `wrangler.jsonc`; `.openai/hosting.json` mantém os bindings lógicos usados pelo fluxo de build.
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+Antes de publicar:
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+1. revise a branch e confirme que não há segredos ou dados reais;
+2. execute lint, build e testes;
+3. valide login, MFA, convites, compartilhamento, revogação, exportação e exclusão em ambiente isolado;
+4. revise qualquer migração sem executá-la automaticamente;
+5. faça deploy somente após autorização expressa.
