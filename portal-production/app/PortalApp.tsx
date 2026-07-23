@@ -278,6 +278,7 @@ function EntryForm({ initial, onSave, onCancel }: { initial?: Entry; onSave: (en
   } : blankEntry);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [optionalOpen, setOptionalOpen] = useState(Boolean(initial && (initial.body || initial.thoughts || initial.urge || initial.message)));
   function update(name: keyof EntryDraft, value: string | number) { setDraft((current) => ({ ...current, [name]: value })); }
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -318,7 +319,7 @@ function EntryForm({ initial, onSave, onCancel }: { initial?: Entry; onSave: (en
         </div>
       </section>
 
-      <details className="entry-optional" defaultOpen={Boolean(initial && (initial.body || initial.thoughts || initial.urge || initial.message))}>
+      <details className="entry-optional" open={optionalOpen} onToggle={(event) => setOptionalOpen(event.currentTarget.open)}>
         <summary><span><strong>Aprofundar este registro</strong><small>Campos opcionais para quando fizer sentido.</small></span><span className="optional-toggle" aria-hidden="true">+</span></summary>
         <div className="two-columns">
           <label className="field"><span>O que percebeu no corpo?</span><textarea value={draft.body} maxLength={1500} rows={4} onChange={(e) => update("body", e.target.value)} /></label>
