@@ -1,0 +1,934 @@
+"use client";
+
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  displayedPatientName,
+  filterAndSortPatients,
+  invitationStatusLabel,
+  type Invitation,
+  type PatientSort,
+  type PatientSummary,
+  type ProfessionalArea,
+  type SharedEntry,
+  sharedCountLabel,
+  splitInvitations,
+} from "./professional-dashboard-data";
+import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
+
+type User = { id: string; name: string; role: "therapist" };
+type NoticeTone = "info" | "error" | "success";
+
+type ProfessionalDashboardProps = {
+  user: User;
+  csrf: string;
+  accountPanel: ReactNode;
+  onSessionLost: () => void;
+};
+
+function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone }) {
+  return (
+    <p
+      className={`notice notice-${tone}`}
+      role={tone === "error" ? "alert" : "status"}
+    >
+      {message}
+    </p>
+  );
+}
+
+function ProfessionalNavigation({
+  area,
+  sharedEntryCount,
+  activeInvitationCount,
+  onChange,
+}: {
+  area: ProfessionalArea;
+  sharedEntryCount: number;
+  activeInvitationCount: number | null;
+  onChange: (area: ProfessionalArea) => void;
+}) {
+  const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+  const areas: Array<{ id: ProfessionalArea; label: string; count: number | null }> = [
+    { id: "records", label: "Registros compartilhados", count: sharedEntryCount },
+    { id: "invitations", label: "Convites", count: activeInvitationCount },
+  ];
+
+  function navigateWithArrows(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    let nextIndex = index;
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + areas.length) % areas.length;
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % areas.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = areas.length - 1;
+    const nextArea = areas[nextIndex];
+    onChange(nextArea.id);
+    buttons.current[nextIndex]?.focus();
+  }
+
+  return (
+    <nav className="professional-navigation" aria-label="Áreas do acesso profissional">
+      {areas.map((item, index) => (
+        <button
+          key={item.id}
+          ref={(element) => {
+            buttons.current[index] = element;
+          }}
+          type="button"
+          className={area === item.id ? "active" : ""}
+          aria-pressed={area === item.id}
+          onClick={() => onChange(item.id)}
+          onKeyDown={(event) => navigateWithArrows(event, index)}
+        >
+          <span>{item.label}</span>
+          <small
+            aria-label={
+              item.count === null
+                ? "Contagem disponível ao abrir esta área"
+                : `${item.count} no total`
+            }
+          >
+            {item.count ?? "—"}
+          </small>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function RecordDisclosure({
+  entry,
+  initiallyOpen,
+}: {
+  entry: SharedEntry;
+  initiallyOpen: boolean;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+  const details = [
+    ["O que aconteceu", entry.happened],
+    ["Percepções no corpo", entry.body],
+    ["Pensamentos", entry.thoughts],
+    ["Vontade de agir", entry.urge],
+    ["Para levar à sessão", entry.message],
+  ].filter((item): item is [string, string] => Boolean(item[1]));
+
+  return (
+    <details
+      className="professional-record-disclosure"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          setOpen((current) => !current);
+        }}
+      >
+        <span className="record-summary-main">
+          <span className="record-summary-title">{entry.title}</span>
+          <span className="record-meta">
+            Compartilhado {formatDate(entry.shared_at)}
+            {entry.emotion ? ` · ${entry.emotion}` : ""}
+            {` · intensidade ${entry.intensity}/10`}
+          </span>
+        </span>
+        <span className="disclosure-action" aria-hidden="true">
+          <span className="when-closed">Ver conteúdo</span>
+          <span className="when-open">Recolher</span>
+        </span>
+      </summary>
+      <div className="professional-record-content">
+        <div className="entry-details">
+          {details.map(([label, value]) => (
+            <div key={label}>
+              <strong>{label}</strong>
+              <p>{value}</p>
+            </div>
+          ))}
+        </div>
+        <p className="read-only">
+          Somente leitura · o texto do paciente não pode ser editado aqui.
+        </p>
+      </div>
+    </details>
+  );
+}
+
+function PatientList({
+  patients,
+  loading,
+  refreshing,
+  error,
+  query,
+  sort,
+  onQueryChange,
+  onSortChange,
+  onRefresh,
+  onOpen,
+}: {
+  patients: PatientSummary[];
+  loading: boolean;
+  refreshing: boolean;
+  error: string;
+  query: string;
+  sort: PatientSort;
+  onQueryChange: (value: string) => void;
+  onSortChange: (value: PatientSort) => void;
+  onRefresh: () => void;
+  onOpen: (patient: PatientSummary) => void;
+}) {
+  const visiblePatients = useMemo(
+    () => filterAndSortPatients(patients, query, sort),
+    [patients, query, sort],
+  );
+
+  return (
+    <section
+      className="professional-section"
+      aria-labelledby="professional-patient-list-title"
+    >
+      <div className="section-heading professional-section-heading">
+        <div>
+          <p className="eyebrow">COMPARTILHADOS COM VOCÊ</p>
+          <h2 id="professional-patient-list-title" tabIndex={-1}>
+            Pacientes com registros
+          </h2>
+          <p className="section-description">
+            Somente pessoas com algum registro compartilhado neste momento.
+          </p>
+        </div>
+        <button
+          className="secondary-button compact-button"
+          type="button"
+          onClick={onRefresh}
+          disabled={loading || refreshing}
+        >
+          {refreshing ? "Atualizando…" : "Atualizar"}
+        </button>
+      </div>
+
+      <div className="professional-tools">
+        <label className="field search-field">
+          <span>Buscar paciente</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            autoComplete="off"
+            placeholder="Digite parte do nome"
+          />
+        </label>
+        <label className="field sort-field">
+          <span>Ordenar por</span>
+          <select
+            value={sort}
+            onChange={(event) => onSortChange(event.target.value as PatientSort)}
+          >
+            <option value="recent">Mais recentes</option>
+            <option value="alphabetical">Em ordem alfabética</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="sr-status" aria-live="polite">
+        {refreshing ? "Atualizando a lista de pacientes." : ""}
+      </div>
+
+      {loading ? (
+        <div className="panel loading-panel" role="status">
+          <div className="loader" />
+          <p>Carregando registros compartilhados…</p>
+        </div>
+      ) : error ? (
+        <div className="panel error-state">
+          <Notice tone="error" message={error} />
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : patients.length === 0 ? (
+        <div className="empty-state">
+          <h3>Nenhum registro compartilhado agora.</h3>
+          <p>Registros privados não aparecem aqui.</p>
+        </div>
+      ) : visiblePatients.length === 0 ? (
+        <div className="empty-state">
+          <h3>Nenhum paciente encontrado com esse nome.</h3>
+          <p>A busca considera somente o nome exibido.</p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => onQueryChange("")}
+          >
+            Limpar busca
+          </button>
+        </div>
+      ) : (
+        <div className="patient-summary-list">
+          {visiblePatients.map((patient) => (
+            <article className="patient-summary-card" key={patient.patient_id}>
+              <div className="patient-summary-copy">
+                <h3>{displayedPatientName(patient.patient_name)}</h3>
+                <p className="patient-summary-count">
+                  {sharedCountLabel(patient.shared_count)}
+                </p>
+                <p className="record-meta">
+                  Último compartilhamento: {formatDate(patient.latest_shared_at)}
+                </p>
+              </div>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => onOpen(patient)}
+              >
+                Ver registros
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PatientRecordsView({
+  patient,
+  entries,
+  loading,
+  refreshing,
+  error,
+  onBack,
+  onRefresh,
+}: {
+  patient: PatientSummary;
+  entries: SharedEntry[];
+  loading: boolean;
+  refreshing: boolean;
+  error: string;
+  onBack: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="professional-section" aria-labelledby="selected-patient-title">
+      <button className="back-button" type="button" onClick={onBack}>
+        ← Voltar aos pacientes
+      </button>
+      <div className="section-heading professional-section-heading patient-detail-heading">
+        <div>
+          <p className="eyebrow">REGISTROS COMPARTILHADOS</p>
+          <h2 id="selected-patient-title" tabIndex={-1}>
+            {displayedPatientName(patient.patient_name)}
+          </h2>
+          <p className="section-description">
+            {loading ? "Consultando os registros autorizados…" : sharedCountLabel(entries.length)}
+          </p>
+        </div>
+        <button
+          className="secondary-button compact-button"
+          type="button"
+          onClick={onRefresh}
+          disabled={loading || refreshing}
+        >
+          {refreshing ? "Atualizando…" : "Atualizar"}
+        </button>
+      </div>
+
+      <div className="sr-status" aria-live="polite">
+        {refreshing ? "Atualizando os registros compartilhados." : ""}
+      </div>
+
+      {loading ? (
+        <div className="panel loading-panel" role="status">
+          <div className="loader" />
+          <p>Carregando os registros desta pessoa…</p>
+        </div>
+      ) : error ? (
+        <div className="panel error-state">
+          <Notice tone="error" message={error} />
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="empty-state">
+          <h3>Este paciente não possui mais registros compartilhados.</h3>
+          <p>O compartilhamento pode ter sido retirado ou o registro excluído.</p>
+          <button className="secondary-button" type="button" onClick={onBack}>
+            Voltar aos pacientes
+          </button>
+        </div>
+      ) : (
+        <div className="professional-record-list">
+          {entries.map((entry, index) => (
+            <RecordDisclosure
+              key={entry.id}
+              entry={entry}
+              initiallyOpen={index === 0}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InvitationItem({
+  invitation,
+  revoking,
+  disabled = false,
+  onRevoke,
+}: {
+  invitation: Invitation;
+  revoking: boolean;
+  disabled?: boolean;
+  onRevoke?: (invitation: Invitation) => void;
+}) {
+  const eventLine =
+    invitation.status === "used" && invitation.used_at
+      ? `Usado em ${formatDate(invitation.used_at)}`
+      : invitation.status === "revoked" && invitation.revoked_at
+        ? `Revogado em ${formatDate(invitation.revoked_at)}`
+        : null;
+
+  return (
+    <article className="invitation-item">
+      <div className="invitation-status">
+        <span className={`status invitation-${invitation.status}`}>
+          {invitationStatusLabel(invitation.status)}
+        </span>
+        <div>
+          <small>Criado em {formatDate(invitation.created_at)}</small>
+          <small>Válido até {formatDate(invitation.expires_at)}</small>
+          {eventLine ? <small>{eventLine}</small> : null}
+        </div>
+      </div>
+      {invitation.status === "active" && onRevoke ? (
+        <button
+          className="danger-button compact-button"
+          type="button"
+          onClick={() => onRevoke(invitation)}
+          disabled={revoking || disabled}
+        >
+          {revoking ? "Revogando…" : "Revogar"}
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
+function InvitationsView({
+  invitations,
+  loading,
+  error,
+  latestCode,
+  creating,
+  revokingIds,
+  onCreate,
+  onCopy,
+  onHideCode,
+  onRevoke,
+  onRefresh,
+}: {
+  invitations: Invitation[];
+  loading: boolean;
+  error: string;
+  latestCode: string;
+  creating: boolean;
+  revokingIds: Set<string>;
+  onCreate: () => void;
+  onCopy: () => Promise<void>;
+  onHideCode: () => void;
+  onRevoke: (invitation: Invitation) => void;
+  onRefresh: () => void;
+}) {
+  const [showAllActive, setShowAllActive] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState({ code: "", message: "" });
+  const { active, history } = useMemo(() => splitInvitations(invitations), [invitations]);
+  const visibleActive = showAllActive ? active : active.slice(0, 5);
+  const copyMessage = copyFeedback.code === latestCode ? copyFeedback.message : "";
+
+  async function copy() {
+    try {
+      await onCopy();
+      setCopyFeedback({ code: latestCode, message: "Código copiado" });
+    } catch {
+      setCopyFeedback({
+        code: latestCode,
+        message:
+          "Não foi possível copiar automaticamente. Selecione o código e copie manualmente.",
+      });
+    }
+  }
+
+  return (
+    <section className="professional-section" aria-labelledby="invitations-title">
+      <div className="section-heading professional-section-heading">
+        <div>
+          <p className="eyebrow">ACESSO POR CONVITE</p>
+          <h2 id="invitations-title">Convites</h2>
+          <p className="section-description">
+            Cada código vale por 7 dias e pode ser usado uma única vez.
+          </p>
+        </div>
+        <button
+          className="secondary-button compact-button"
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+        >
+          {loading ? "Atualizando…" : "Atualizar"}
+        </button>
+      </div>
+
+      <section className="panel invitation-generator" aria-labelledby="new-invitation-title">
+        <div>
+          <p className="eyebrow">NOVO ACESSO</p>
+          <h3 id="new-invitation-title">Convidar paciente</h3>
+          <p>A conta será criada pelo próprio paciente, após receber o código.</p>
+        </div>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={onCreate}
+          disabled={creating || loading}
+        >
+          {creating ? "Gerando…" : "Gerar convite"}
+        </button>
+        {latestCode ? (
+          <div className="generated-code">
+            <span>Código recém-criado</span>
+            <code>{latestCode}</code>
+            <div className="generated-code-actions">
+              <button className="secondary-button" type="button" onClick={() => void copy()}>
+                Copiar código
+              </button>
+              <button className="quiet-button" type="button" onClick={onHideCode}>
+                Ocultar código
+              </button>
+            </div>
+            {copyMessage ? (
+              <p
+                className={copyMessage.startsWith("Código") ? "copy-success" : "copy-error"}
+                role={copyMessage.startsWith("Código") ? "status" : "alert"}
+                aria-live="polite"
+              >
+                {copyMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      {error ? (
+        <div className="panel error-state">
+          <Notice tone="error" message={error} />
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : loading && invitations.length === 0 ? (
+        <div className="panel loading-panel" role="status">
+          <div className="loader" />
+          <p>Carregando convites…</p>
+        </div>
+      ) : (
+        <>
+          <section className="invitation-section" aria-labelledby="active-invitations-title">
+            <div className="subsection-heading">
+              <h3 id="active-invitations-title">Convites ativos</h3>
+              <span className="count">{active.length}</span>
+            </div>
+            {active.length === 0 ? (
+              <div className="empty-state compact-empty">
+                <h3>Nenhum convite ativo.</h3>
+                <p>Gere um convite somente quando precisar cadastrar alguém.</p>
+              </div>
+            ) : (
+              <div className="invitation-list">
+                {visibleActive.map((invitation) => (
+                  <InvitationItem
+                    key={invitation.id}
+                    invitation={invitation}
+                    revoking={revokingIds.has(invitation.id)}
+                    disabled={loading || creating}
+                    onRevoke={onRevoke}
+                  />
+                ))}
+              </div>
+            )}
+            {active.length > 5 ? (
+              <button
+                className="text-action list-toggle"
+                type="button"
+                onClick={() => setShowAllActive((current) => !current)}
+              >
+                {showAllActive ? "Mostrar menos" : `Mostrar todos (${active.length})`}
+              </button>
+            ) : null}
+          </section>
+
+          <details className="invitation-history">
+            <summary>
+              <span>Histórico de convites</span>
+              <span className="count">{history.length}</span>
+            </summary>
+            {history.length === 0 ? (
+              <p className="section-description">Nenhum convite no histórico.</p>
+            ) : (
+              <div className="invitation-list history-list">
+                {history.map((invitation) => (
+                  <InvitationItem
+                    key={invitation.id}
+                    invitation={invitation}
+                    revoking={false}
+                  />
+                ))}
+              </div>
+            )}
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function ProfessionalDashboard({
+  user,
+  csrf,
+  accountPanel,
+  onSessionLost,
+}: ProfessionalDashboardProps) {
+  const [area, setArea] = useState<ProfessionalArea>("records");
+  const [patients, setPatients] = useState<PatientSummary[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(true);
+  const [patientsRefreshing, setPatientsRefreshing] = useState(false);
+  const [patientsError, setPatientsError] = useState("");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<PatientSort>("recent");
+  const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
+  const [entries, setEntries] = useState<SharedEntry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(false);
+  const [entriesRefreshing, setEntriesRefreshing] = useState(false);
+  const [entriesError, setEntriesError] = useState("");
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [invitationsLoaded, setInvitationsLoaded] = useState(false);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [invitationsError, setInvitationsError] = useState("");
+  const [latestCode, setLatestCode] = useState("");
+  const [creatingInvitation, setCreatingInvitation] = useState(false);
+  const [revokingIds, setRevokingIds] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(
+    null,
+  );
+
+  const patientRequest = useRef<AbortController | null>(null);
+  const patientRequestSequence = useRef(0);
+  const invitationsRequestLock = useRef(false);
+  const createInvitationLock = useRef(false);
+  const revokeInvitationLocks = useRef<Set<string>>(new Set());
+
+  const expireSession = useCallback(() => {
+    patientRequest.current?.abort();
+    setPatients([]);
+    setEntries([]);
+    setInvitations([]);
+    setLatestCode("");
+    setNotice(null);
+    onSessionLost();
+  }, [onSessionLost]);
+
+  const isSessionError = useCallback(
+    (error: unknown) => {
+      if (error instanceof PortalRequestError && error.status === 401) {
+        expireSession();
+        return true;
+      }
+      return false;
+    },
+    [expireSession],
+  );
+
+  const loadPatients = useCallback(
+    async (refresh = false) => {
+      if (refresh) setPatientsRefreshing(true);
+      else setPatientsLoading(true);
+      setPatientsError("");
+      try {
+        const result = await portalRequest<{ patients: PatientSummary[] }>(
+          "/professional/patients",
+        );
+        setPatients(result.patients);
+        setSelectedPatient((current) => {
+          if (!current) return null;
+          return (
+            result.patients.find((patient) => patient.patient_id === current.patient_id) ??
+            current
+          );
+        });
+      } catch (error) {
+        if (!isSessionError(error)) {
+          setPatientsError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível atualizar os registros.",
+          );
+        }
+      } finally {
+        setPatientsLoading(false);
+        setPatientsRefreshing(false);
+      }
+    },
+    [isSessionError],
+  );
+
+  const loadPatientEntries = useCallback(
+    async (patient: PatientSummary, refresh = false) => {
+      patientRequest.current?.abort();
+      const controller = new AbortController();
+      patientRequest.current = controller;
+      const sequence = patientRequestSequence.current + 1;
+      patientRequestSequence.current = sequence;
+      if (refresh) setEntriesRefreshing(true);
+      else {
+        setEntries([]);
+        setEntriesLoading(true);
+      }
+      setEntriesError("");
+      try {
+        const result = await portalRequest<{ entries: SharedEntry[] }>(
+          `/professional/patients/${encodeURIComponent(patient.patient_id)}/entries`,
+          { signal: controller.signal },
+        );
+        if (sequence !== patientRequestSequence.current) return;
+        setEntries(result.entries);
+      } catch (error) {
+        if (controller.signal.aborted || sequence !== patientRequestSequence.current) {
+          return;
+        }
+        if (!isSessionError(error)) {
+          setEntriesError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível atualizar os registros.",
+          );
+        }
+      } finally {
+        if (sequence === patientRequestSequence.current) {
+          setEntriesLoading(false);
+          setEntriesRefreshing(false);
+        }
+      }
+    },
+    [isSessionError],
+  );
+
+  const loadInvitations = useCallback(async () => {
+    if (invitationsRequestLock.current) return;
+    invitationsRequestLock.current = true;
+    setInvitationsLoading(true);
+    setInvitationsError("");
+    try {
+      const result = await portalRequest<{ invitations: Invitation[] }>("/invitations");
+      setInvitations(result.invitations);
+      setInvitationsLoaded(true);
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setInvitationsError(
+          error instanceof Error ? error.message : "Não foi possível atualizar os convites.",
+        );
+      }
+    } finally {
+      invitationsRequestLock.current = false;
+      setInvitationsLoading(false);
+    }
+  }, [isSessionError]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadPatients();
+    return () => patientRequest.current?.abort();
+  }, [loadPatients]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (area === "invitations" && !invitationsLoaded) void loadInvitations();
+  }, [area, invitationsLoaded, loadInvitations]);
+
+  function openPatient(patient: PatientSummary) {
+    setSelectedPatient(patient);
+    setNotice(null);
+    void loadPatientEntries(patient);
+    window.requestAnimationFrame(() =>
+      document.getElementById("selected-patient-title")?.focus(),
+    );
+  }
+
+  function backToPatients() {
+    patientRequest.current?.abort();
+    patientRequestSequence.current += 1;
+    setSelectedPatient(null);
+    setEntries([]);
+    setEntriesError("");
+    window.requestAnimationFrame(() =>
+      document.getElementById("professional-patient-list-title")?.focus(),
+    );
+  }
+
+  async function refreshSelectedPatient() {
+    if (!selectedPatient) return;
+    await loadPatientEntries(selectedPatient, true);
+    await loadPatients(true);
+  }
+
+  async function createInvitation() {
+    if (createInvitationLock.current) return;
+    createInvitationLock.current = true;
+    setCreatingInvitation(true);
+    setNotice(null);
+    try {
+      const result = await portalRequest<{ code: string; expires_at: string }>(
+        "/invitations",
+        { method: "POST", body: JSON.stringify({ valid_days: 7 }) },
+        csrf,
+      );
+      setLatestCode(result.code);
+      setNotice({
+        tone: "success",
+        message: "Convite criado. Envie o código ao paciente por um canal adequado.",
+      });
+      await loadInvitations();
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setNotice({
+          tone: "error",
+          message:
+            error instanceof Error ? error.message : "Não foi possível gerar o convite.",
+        });
+      }
+    } finally {
+      createInvitationLock.current = false;
+      setCreatingInvitation(false);
+    }
+  }
+
+  async function copyLatestCode() {
+    if (!latestCode) throw new Error("Não há código para copiar.");
+    await navigator.clipboard.writeText(latestCode);
+  }
+
+  async function revokeInvitation(invitation: Invitation) {
+    if (revokeInvitationLocks.current.has(invitation.id)) return;
+    if (!window.confirm("Revogar este convite?")) return;
+    revokeInvitationLocks.current.add(invitation.id);
+    setRevokingIds((current) => new Set(current).add(invitation.id));
+    setNotice(null);
+    let shouldRefresh = true;
+    try {
+      await portalRequest(`/invitations/${invitation.id}`, { method: "DELETE" }, csrf);
+      setNotice({ tone: "success", message: "Convite revogado." });
+    } catch (error) {
+      if (isSessionError(error)) {
+        shouldRefresh = false;
+      } else {
+        setNotice({
+          tone: "error",
+          message:
+            error instanceof Error ? error.message : "Não foi possível revogar o convite.",
+        });
+      }
+    } finally {
+      revokeInvitationLocks.current.delete(invitation.id);
+      setRevokingIds((current) => {
+        const next = new Set(current);
+        next.delete(invitation.id);
+        return next;
+      });
+      if (shouldRefresh) await loadInvitations();
+    }
+  }
+
+  const sharedEntryCount = patients.reduce(
+    (total, patient) => total + patient.shared_count,
+    0,
+  );
+  const activeInvitationCount = invitationsLoaded
+    ? splitInvitations(invitations).active.length
+    : null;
+
+  return (
+    <main className="dashboard professional-dashboard" id="conteudo">
+      <section className="dashboard-hero professional">
+        <div>
+          <p className="eyebrow">ACESSO PROFISSIONAL</p>
+          <h1>Olá, {user.name}.</h1>
+          <p>Aqui aparecem somente os registros que cada paciente decidiu compartilhar.</p>
+        </div>
+        <span className="secure-chip">MFA ativo</span>
+      </section>
+
+      <ProfessionalNavigation
+        area={area}
+        sharedEntryCount={sharedEntryCount}
+        activeInvitationCount={activeInvitationCount}
+        onChange={(nextArea) => {
+          setArea(nextArea);
+          setNotice(null);
+        }}
+      />
+
+      {notice ? <Notice tone={notice.tone} message={notice.message} /> : null}
+
+      {area === "records" ? (
+        selectedPatient ? (
+          <PatientRecordsView
+            patient={selectedPatient}
+            entries={entries}
+            loading={entriesLoading}
+            refreshing={entriesRefreshing}
+            error={entriesError}
+            onBack={backToPatients}
+            onRefresh={() => void refreshSelectedPatient()}
+          />
+        ) : (
+          <PatientList
+            patients={patients}
+            loading={patientsLoading}
+            refreshing={patientsRefreshing}
+            error={patientsError}
+            query={query}
+            sort={sort}
+            onQueryChange={setQuery}
+            onSortChange={setSort}
+            onRefresh={() => void loadPatients(true)}
+            onOpen={openPatient}
+          />
+        )
+      ) : (
+        <InvitationsView
+          invitations={invitations}
+          loading={invitationsLoading}
+          error={invitationsError}
+          latestCode={latestCode}
+          creating={creatingInvitation}
+          revokingIds={revokingIds}
+          onCreate={() => void createInvitation()}
+          onCopy={copyLatestCode}
+          onHideCode={() => setLatestCode("")}
+          onRevoke={(invitation) => void revokeInvitation(invitation)}
+          onRefresh={() => void loadInvitations()}
+        />
+      )}
+
+      {accountPanel}
+    </main>
+  );
+}

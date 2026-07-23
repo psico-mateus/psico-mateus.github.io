@@ -336,6 +336,54 @@ async function listEntries(session: Awaited<ReturnType<typeof requireSession>>) 
   return result.results;
 }
 
+async function listSharedPatients(
+  session: Awaited<ReturnType<typeof requireSession>>,
+) {
+  const { DB } = getPortalEnv();
+  const result = await DB.prepare(
+    `SELECT entries.patient_id,
+            users.display_name AS patient_name,
+            COUNT(entries.id) AS shared_count,
+            MAX(entries.shared_at) AS latest_shared_at
+     FROM entries
+     JOIN users ON users.id = entries.patient_id
+     JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     WHERE patient_links.therapist_id = ? AND patient_links.status = 'active'
+       AND users.status = 'active'
+       AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
+     GROUP BY entries.patient_id, users.display_name
+     ORDER BY latest_shared_at DESC`,
+  )
+    .bind(session.userId)
+    .all();
+  await audit(session.userId, "view_shared_patients", "patient_list");
+  return result.results;
+}
+
+async function listSharedEntriesForPatient(
+  session: Awaited<ReturnType<typeof requireSession>>,
+  patientId: string,
+) {
+  const { DB } = getPortalEnv();
+  const result = await DB.prepare(
+    `SELECT entries.id, entries.title, entries.happened, entries.body,
+            entries.thoughts, entries.urge, entries.emotion, entries.intensity,
+            entries.message, entries.created_at, entries.updated_at, entries.shared_at
+     FROM entries
+     JOIN users ON users.id = entries.patient_id
+     JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     WHERE patient_links.therapist_id = ? AND patient_links.patient_id = ?
+       AND patient_links.status = 'active' AND users.status = 'active'
+       AND entries.patient_id = ?
+       AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
+     ORDER BY entries.shared_at DESC`,
+  )
+    .bind(session.userId, patientId, patientId)
+    .all();
+  await audit(session.userId, "view_shared_entries", "patient_entries", patientId);
+  return result.results;
+}
+
 async function handleGet(request: Request, path: string): Promise<Response> {
   const { DB, PUBLIC_SITE_URL, GUIDE_URL } = getPortalEnv();
   if (path === "/health") return json({ ok: true, mode: "production" });
@@ -359,15 +407,37 @@ async function handleGet(request: Request, path: string): Promise<Response> {
     const session = await requireSession(request);
     return json({ entries: await listEntries(session) });
   }
+  if (path === "/professional/patients") {
+    const session = await requireSession(request, "therapist");
+    return json({ patients: await listSharedPatients(session) });
+  }
+  const professionalEntries = path.match(
+    /^\/professional\/patients\/([A-Za-z0-9_-]+)\/entries$/u,
+  );
+  if (professionalEntries) {
+    const session = await requireSession(request, "therapist");
+    return json({
+      entries: await listSharedEntriesForPatient(session, professionalEntries[1]),
+    });
+  }
   if (path === "/invitations") {
     const session = await requireSession(request, "therapist");
+    const timestamp = now();
     const result = await DB.prepare(
-      `SELECT id, expires_at, created_at, used_at, revoked_at
-       FROM invitations WHERE therapist_id = ? ORDER BY created_at DESC LIMIT 30`,
+      `SELECT id, expires_at, created_at, used_at, revoked_at,
+              CASE
+                WHEN used_at IS NOT NULL THEN 'used'
+                WHEN revoked_at IS NOT NULL THEN 'revoked'
+                WHEN expires_at <= ? THEN 'expired'
+                ELSE 'active'
+              END AS status
+       FROM invitations
+       WHERE therapist_id = ?
+       ORDER BY created_at DESC`,
     )
-      .bind(session.userId)
+      .bind(timestamp, session.userId)
       .all();
-    return json({ invitations: result.results });
+    return json({ invitations: result.results, status_at: timestamp });
   }
   if (path === "/export") {
     const session = await requireSession(request, "patient");
@@ -434,11 +504,10 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (path === "/invitations") {
     const session = await requireSession(request, "therapist");
     requireCsrf(request, session);
-    const days = Math.min(14, Math.max(1, Number(input.valid_days) || 7));
     const code = createInvitationCode();
     const invitationId = identifier("invite");
     const createdAt = now();
-    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1_000).toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString();
     await DB.prepare(
       `INSERT INTO invitations (id, code_hash, therapist_id, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?)`,
@@ -614,13 +683,17 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
   const invitation = path.match(/^\/invitations\/([A-Za-z0-9_-]+)$/u);
   if (invitation) {
     if (session.role !== "therapist") throw new PortalError(403, "Ação não permitida.");
+    const revokedAt = now();
     const result = await DB.prepare(
       `UPDATE invitations SET revoked_at = ?
-       WHERE id = ? AND therapist_id = ? AND used_at IS NULL AND revoked_at IS NULL`,
+       WHERE id = ? AND therapist_id = ? AND used_at IS NULL
+         AND revoked_at IS NULL AND expires_at > ?`,
     )
-      .bind(now(), invitation[1], session.userId)
+      .bind(revokedAt, invitation[1], session.userId, revokedAt)
       .run();
-    if (!result.meta.changes) throw new PortalError(404, "Convite não encontrado.");
+    if (!result.meta.changes) {
+      throw new PortalError(409, "Este convite já não está ativo. A lista foi atualizada.");
+    }
     await audit(session.userId, "revoke", "invitation", invitation[1]);
     return noContent();
   }
