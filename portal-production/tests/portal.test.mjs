@@ -90,6 +90,36 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
 });
 
+test("mobile layout keeps the portal within the viewport", async () => {
+  const styles = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  const finalMobileRules =
+    styles.match(
+      /Mantém a entrada do portal[\s\S]*?@media\(max-width:850px\)\{[\s\S]*?@media\(max-width:560px\)\{[\s\S]*$/u,
+    )?.[0] ?? "";
+
+  assert.match(finalMobileRules, /grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(finalMobileRules, /\.guest-intro,\.auth-card\{[\s\S]*?min-width:0/);
+  assert.match(finalMobileRules, /\.guest-layout\{[\s\S]*?padding:0 1rem/);
+  assert.match(finalMobileRules, /\.disclosure-action\{[\s\S]*?calc\(100% - 2\.7rem\)/);
+  assert.match(finalMobileRules, /#selected-patient-title[\s\S]*?scroll-margin-top:8\.5rem/);
+});
+
+test("public Worker build does not duplicate the Sites database binding", async () => {
+  const [viteConfig, packageJson] = await Promise.all([
+    readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  const scripts = JSON.parse(packageJson).scripts;
+
+  assert.match(viteConfig, /CLOUDFLARE_PUBLIC_DEPLOY === "1"/);
+  assert.match(viteConfig, /d1 && !isPublicWorkerBuild/);
+  assert.match(scripts["build:worker"], /CLOUDFLARE_PUBLIC_DEPLOY=1/);
+  assert.match(scripts["deploy:worker"], /pnpm build:worker && wrangler deploy/);
+});
+
 test("professional patient search ignores case and accents without merging equal names", () => {
   const patients = [
     {

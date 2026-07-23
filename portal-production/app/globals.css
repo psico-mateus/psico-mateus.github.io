@@ -954,3 +954,52 @@ input[type="range"]{accent-color:#9a6d27}
   .install-dialog-footer{display:grid;padding:1rem 1.1rem}
   .install-dialog .install-dialog-footer .primary-button{width:100%}
 }
+
+/* Mantém a entrada do portal dentro da largura útil em celulares.
+   Estas regras ficam após os refinamentos visuais para não serem anuladas. */
+@media(max-width:850px){
+  .guest-layout{
+    grid-template-columns:minmax(0,1fr);
+    gap:clamp(2.5rem,8vw,4rem);
+  }
+  .guest-intro,.auth-card{
+    width:100%;
+    min-width:0;
+  }
+}
+
+@media(max-width:560px){
+  .site-header{
+    width:100%;
+    padding:.9rem 1rem;
+  }
+  .brand{
+    width:100%;
+    min-width:0;
+  }
+  .brand span{min-width:0}
+  .brand strong{overflow-wrap:anywhere}
+  .top-links{
+    width:100%;
+    gap:.55rem .7rem;
+  }
+  .guest-layout{
+    width:100%;
+    margin:2rem auto 4rem;
+    padding:0 1rem;
+  }
+  .guest-intro h1{
+    font-size:clamp(2.75rem,14vw,3.65rem);
+    overflow-wrap:normal;
+  }
+  .auth-card{padding:1.25rem}
+  .guide-callout{width:100%}
+  .disclosure-action{
+    width:calc(100% - 2.7rem);
+    max-width:calc(100% - 2.7rem);
+  }
+  #selected-patient-title,
+  #professional-patient-list-title{
+    scroll-margin-top:8.5rem;
+  }
+}
