@@ -18,6 +18,7 @@ import {
   normalizePatientSearch,
   sharedCountLabel,
   splitInvitations,
+  unreadCountLabel,
 } from "../app/professional-dashboard-data.ts";
 
 test("passwords are salted and verified", async () => {
@@ -95,18 +96,21 @@ test("professional patient search ignores case and accents without merging equal
       patient_id: "patient_beta",
       patient_name: "Álvaro",
       shared_count: 2,
+      unread_count: 0,
       latest_shared_at: "2026-07-21T18:00:00.000Z",
     },
     {
       patient_id: "patient_alpha",
       patient_name: "Álvaro",
       shared_count: 1,
+      unread_count: 2,
       latest_shared_at: "2026-07-22T18:00:00.000Z",
     },
     {
       patient_id: "patient_gamma",
       patient_name: "Beatriz",
       shared_count: 3,
+      unread_count: 1,
       latest_shared_at: "2026-07-20T18:00:00.000Z",
     },
   ];
@@ -124,8 +128,17 @@ test("professional patient search ignores case and accents without merging equal
     ),
     ["patient_alpha", "patient_beta", "patient_gamma"],
   );
+  assert.deepEqual(
+    filterAndSortPatients(patients, "", "unread").map(
+      (patient) => patient.patient_id,
+    ),
+    ["patient_alpha", "patient_gamma", "patient_beta"],
+  );
   assert.equal(sharedCountLabel(1), "1 registro compartilhado");
   assert.equal(sharedCountLabel(2), "2 registros compartilhados");
+  assert.equal(unreadCountLabel(0), "Tudo visto");
+  assert.equal(unreadCountLabel(1), "1 registro ainda não visto");
+  assert.equal(unreadCountLabel(3), "3 registros ainda não vistos");
 });
 
 test("patient access list keeps active accounts first and filters by name", () => {
@@ -234,6 +247,10 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(route, /\/professional\/accesses/);
   assert.match(route, /revoke_patient_access/);
   assert.match(route, /issue_assisted_recovery/);
+  assert.match(route, /mark_entry_viewed/);
+  assert.match(route, /entry_views/);
+  assert.match(route, /viewedEntry = path\.match\([\s\S]*?viewed/u);
+  assert.match(route, /ON CONFLICT\(entry_id, therapist_id\) DO UPDATE/);
   assert.match(route, /assisted_recovery_grants/);
   assert.match(route, /\/recovery-code/);
   assert.match(route, /A senha profissional não confere/);
@@ -255,6 +272,11 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(dashboard, /Revogar acesso/);
   assert.match(dashboard, /Restaurar acesso/);
   assert.match(dashboard, /Gerar recuperação/);
+  assert.match(dashboard, /Com pendências primeiro/);
+  assert.match(dashboard, /Não vistos/);
+  assert.match(dashboard, /Vistos/);
+  assert.match(dashboard, /Salvando leitura/);
+  assert.match(dashboard, /Concluir leitura/);
   assert.match(dashboard, /Sua senha profissional/);
   assert.match(dashboard, /Novo código do seu autenticador/);
   assert.match(dashboard, /Ele aparece\s+somente agora/u);

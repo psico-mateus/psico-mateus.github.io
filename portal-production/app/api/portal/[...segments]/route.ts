@@ -351,17 +351,32 @@ async function listSharedPatients(
     `SELECT entries.patient_id,
             users.display_name AS patient_name,
             COUNT(entries.id) AS shared_count,
+            SUM(
+              CASE
+                WHEN entry_views.viewed_at IS NULL
+                  OR entry_views.viewed_at < CASE
+                    WHEN entries.updated_at > entries.shared_at
+                      THEN entries.updated_at
+                    ELSE entries.shared_at
+                  END
+                THEN 1
+                ELSE 0
+              END
+            ) AS unread_count,
             MAX(entries.shared_at) AS latest_shared_at
      FROM entries
      JOIN users ON users.id = entries.patient_id
      JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     LEFT JOIN entry_views
+       ON entry_views.entry_id = entries.id
+      AND entry_views.therapist_id = ?
      WHERE patient_links.therapist_id = ? AND patient_links.status = 'active'
        AND users.status = 'active'
        AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
      GROUP BY entries.patient_id, users.display_name
-     ORDER BY latest_shared_at DESC`,
+     ORDER BY unread_count DESC, latest_shared_at DESC`,
   )
-    .bind(session.userId)
+    .bind(session.userId, session.userId)
     .all();
   await audit(session.userId, "view_shared_patients", "patient_list");
   return result.results;
@@ -417,17 +432,31 @@ async function listSharedEntriesForPatient(
   const result = await DB.prepare(
     `SELECT entries.id, entries.title, entries.happened, entries.body,
             entries.thoughts, entries.urge, entries.emotion, entries.intensity,
-            entries.message, entries.created_at, entries.updated_at, entries.shared_at
+            entries.message, entries.created_at, entries.updated_at, entries.shared_at,
+            entry_views.viewed_at,
+            CASE
+              WHEN entry_views.viewed_at IS NULL
+                OR entry_views.viewed_at < CASE
+                  WHEN entries.updated_at > entries.shared_at
+                    THEN entries.updated_at
+                  ELSE entries.shared_at
+                END
+              THEN 1
+              ELSE 0
+            END AS is_unread
      FROM entries
      JOIN users ON users.id = entries.patient_id
      JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     LEFT JOIN entry_views
+       ON entry_views.entry_id = entries.id
+      AND entry_views.therapist_id = ?
      WHERE patient_links.therapist_id = ? AND patient_links.patient_id = ?
        AND patient_links.status = 'active' AND users.status = 'active'
        AND entries.patient_id = ?
        AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
-     ORDER BY entries.shared_at DESC`,
+     ORDER BY is_unread DESC, entries.shared_at DESC`,
   )
-    .bind(session.userId, patientId, patientId)
+    .bind(session.userId, session.userId, patientId, patientId)
     .all();
   await audit(session.userId, "view_shared_entries", "patient_entries", patientId);
   return result.results;
@@ -517,6 +546,39 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (path === "/login") return login(request, input);
   if (path === "/register") return register(request, input);
   if (path === "/recover") return recoverAccount(request, input);
+  const viewedEntry = path.match(
+    /^\/professional\/entries\/([A-Za-z0-9_-]+)\/viewed$/u,
+  );
+  if (viewedEntry) {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    const entry = await DB.prepare(
+      `SELECT entries.id
+       FROM entries
+       JOIN users ON users.id = entries.patient_id
+       JOIN patient_links ON patient_links.patient_id = entries.patient_id
+       WHERE entries.id = ?
+         AND patient_links.therapist_id = ?
+         AND patient_links.status = 'active'
+         AND users.status = 'active'
+         AND entries.shared_at IS NOT NULL
+         AND entries.revoked_at IS NULL`,
+    )
+      .bind(viewedEntry[1], session.userId)
+      .first<{ id: string }>();
+    if (!entry) throw new PortalError(404, "Registro compartilhado não encontrado.");
+    const viewedAt = now();
+    await DB.prepare(
+      `INSERT INTO entry_views (entry_id, therapist_id, viewed_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(entry_id, therapist_id) DO UPDATE SET
+         viewed_at = excluded.viewed_at`,
+    )
+      .bind(entry.id, session.userId, viewedAt)
+      .run();
+    await audit(session.userId, "mark_entry_viewed", "entry", entry.id);
+    return json({ viewed_at: viewedAt });
+  }
   const assistedRecovery = path.match(
     /^\/professional\/patients\/([A-Za-z0-9_-]+)\/recovery-code$/u,
   );

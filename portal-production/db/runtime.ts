@@ -69,6 +69,14 @@ const schemaStatements = [
   )`,
   `CREATE INDEX IF NOT EXISTS entries_patient_created_idx ON entries (patient_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS entries_shared_idx ON entries (shared_at, revoked_at)`,
+  `CREATE TABLE IF NOT EXISTS entry_views (
+    entry_id TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+    therapist_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    viewed_at TEXT NOT NULL,
+    PRIMARY KEY (entry_id, therapist_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS entry_views_therapist_idx
+    ON entry_views (therapist_id, viewed_at)`,
   `CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

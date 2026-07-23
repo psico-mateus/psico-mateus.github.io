@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   displayedPatientName,
+  type EntryViewFilter,
   filterAndSortPatients,
   filterPatientAccesses,
   invitationStatusLabel,
@@ -23,6 +24,7 @@ import {
   type SharedEntry,
   sharedCountLabel,
   splitInvitations,
+  unreadCountLabel,
 } from "./professional-dashboard-data";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
 
@@ -229,22 +231,43 @@ function IssuedRecoveryDialog({
 
 function ProfessionalNavigation({
   area,
-  sharedEntryCount,
+  unreadEntryCount,
   activePatientCount,
   activeInvitationCount,
   onChange,
 }: {
   area: ProfessionalArea;
-  sharedEntryCount: number;
+  unreadEntryCount: number;
   activePatientCount: number | null;
   activeInvitationCount: number | null;
   onChange: (area: ProfessionalArea) => void;
 }) {
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
-  const areas: Array<{ id: ProfessionalArea; label: string; count: number | null }> = [
-    { id: "records", label: "Registros compartilhados", count: sharedEntryCount },
-    { id: "accesses", label: "Acessos de pacientes", count: activePatientCount },
-    { id: "invitations", label: "Convites", count: activeInvitationCount },
+  const areas: Array<{
+    id: ProfessionalArea;
+    label: string;
+    count: number | null;
+    countLabel: (count: number) => string;
+  }> = [
+    {
+      id: "records",
+      label: "Registros compartilhados",
+      count: unreadEntryCount,
+      countLabel: (count) =>
+        `${count} ${count === 1 ? "registro não visto" : "registros não vistos"}`,
+    },
+    {
+      id: "accesses",
+      label: "Acessos de pacientes",
+      count: activePatientCount,
+      countLabel: (count) => `${count} no total`,
+    },
+    {
+      id: "invitations",
+      label: "Convites",
+      count: activeInvitationCount,
+      countLabel: (count) => `${count} no total`,
+    },
   ];
 
   function navigateWithArrows(event: KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -279,7 +302,7 @@ function ProfessionalNavigation({
             aria-label={
               item.count === null
                 ? "Contagem disponível ao abrir esta área"
-                : `${item.count} no total`
+                : item.countLabel(item.count)
             }
           >
             {item.count ?? "—"}
@@ -292,12 +315,16 @@ function ProfessionalNavigation({
 
 function RecordDisclosure({
   entry,
-  initiallyOpen,
+  viewing,
+  onViewed,
 }: {
   entry: SharedEntry;
-  initiallyOpen: boolean;
+  viewing: boolean;
+  onViewed: (entryId: string) => void;
 }) {
-  const [open, setOpen] = useState(initiallyOpen);
+  const [open, setOpen] = useState(false);
+  const [openedUnread, setOpenedUnread] = useState(false);
+  const unread = Boolean(entry.is_unread);
   const details = [
     ["O que aconteceu", entry.happened],
     ["Percepções no corpo", entry.body],
@@ -308,18 +335,31 @@ function RecordDisclosure({
 
   return (
     <details
-      className="professional-record-disclosure"
+      className={`professional-record-disclosure${unread ? " is-unread" : ""}`}
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        const nextOpen = event.currentTarget.open;
+        setOpen(nextOpen);
+        if (nextOpen && unread) setOpenedUnread(true);
+        if (!nextOpen && openedUnread && unread && !viewing) {
+          setOpenedUnread(false);
+          onViewed(entry.id);
+        }
+      }}
     >
-      <summary
-        onKeyDown={(event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          setOpen((current) => !current);
-        }}
-      >
+      <summary>
         <span className="record-summary-main">
+          <span
+            className={`record-view-state ${unread ? "unread" : "viewed"}`}
+          >
+            {viewing
+              ? "Salvando leitura…"
+              : open && unread
+                ? "Em leitura"
+                : unread
+                  ? "Não visto"
+                  : "Visto"}
+          </span>
           <span className="record-summary-title">{entry.title}</span>
           <span className="record-meta">
             Compartilhado {formatDate(entry.shared_at)}
@@ -329,7 +369,7 @@ function RecordDisclosure({
         </span>
         <span className="disclosure-action" aria-hidden="true">
           <span className="when-closed">Ver conteúdo</span>
-          <span className="when-open">Recolher</span>
+          <span className="when-open">Concluir leitura</span>
         </span>
       </summary>
       <div className="professional-record-content">
@@ -343,6 +383,7 @@ function RecordDisclosure({
         </div>
         <p className="read-only">
           Somente leitura · o texto do paciente não pode ser editado aqui.
+          {unread ? " Ao concluir a leitura, este registro será marcado como visto." : ""}
         </p>
       </div>
     </details>
@@ -419,6 +460,7 @@ function PatientList({
             value={sort}
             onChange={(event) => onSortChange(event.target.value as PatientSort)}
           >
+            <option value="unread">Com pendências primeiro</option>
             <option value="recent">Mais recentes</option>
             <option value="alphabetical">Em ordem alfabética</option>
           </select>
@@ -467,6 +509,13 @@ function PatientList({
                 <p className="patient-summary-count">
                   {sharedCountLabel(patient.shared_count)}
                 </p>
+                <p
+                  className={`patient-summary-view-count${
+                    patient.unread_count > 0 ? " has-unread" : ""
+                  }`}
+                >
+                  {unreadCountLabel(patient.unread_count)}
+                </p>
                 <p className="record-meta">
                   Último compartilhamento: {formatDate(patient.latest_shared_at)}
                 </p>
@@ -476,7 +525,7 @@ function PatientList({
                 type="button"
                 onClick={() => onOpen(patient)}
               >
-                Ver registros
+                {patient.unread_count > 0 ? "Ver pendentes" : "Abrir registros"}
               </button>
             </article>
           ))}
@@ -492,17 +541,30 @@ function PatientRecordsView({
   loading,
   refreshing,
   error,
+  viewingIds,
   onBack,
   onRefresh,
+  onViewed,
 }: {
   patient: PatientSummary;
   entries: SharedEntry[];
   loading: boolean;
   refreshing: boolean;
   error: string;
+  viewingIds: Set<string>;
   onBack: () => void;
   onRefresh: () => void;
+  onViewed: (entryId: string) => void;
 }) {
+  const [viewFilter, setViewFilter] = useState<EntryViewFilter>("all");
+  const unreadCount = entries.filter((entry) => Boolean(entry.is_unread)).length;
+  const viewedCount = entries.length - unreadCount;
+  const visibleEntries = entries.filter((entry) => {
+    if (viewFilter === "unread") return Boolean(entry.is_unread);
+    if (viewFilter === "viewed") return !entry.is_unread;
+    return true;
+  });
+
   return (
     <section className="professional-section" aria-labelledby="selected-patient-title">
       <button className="back-button" type="button" onClick={onBack}>
@@ -515,7 +577,9 @@ function PatientRecordsView({
             {displayedPatientName(patient.patient_name)}
           </h2>
           <p className="section-description">
-            {loading ? "Consultando os registros autorizados…" : sharedCountLabel(entries.length)}
+            {loading
+              ? "Consultando os registros autorizados…"
+              : `${sharedCountLabel(entries.length)} · ${unreadCountLabel(unreadCount)}`}
           </p>
         </div>
         <button
@@ -531,6 +595,33 @@ function PatientRecordsView({
       <div className="sr-status" aria-live="polite">
         {refreshing ? "Atualizando os registros compartilhados." : ""}
       </div>
+
+      {!loading && !error && entries.length > 0 ? (
+        <div
+          className="entry-view-toolbar"
+          role="group"
+          aria-label="Filtrar registros por leitura"
+        >
+          {([
+            ["all", "Todos", entries.length],
+            ["unread", "Não vistos", unreadCount],
+            ["viewed", "Vistos", viewedCount],
+          ] as Array<[EntryViewFilter, string, number]>).map(
+            ([value, label, count]) => (
+              <button
+                key={value}
+                className={viewFilter === value ? "active" : ""}
+                type="button"
+                aria-pressed={viewFilter === value}
+                onClick={() => setViewFilter(value)}
+              >
+                <span>{label}</span>
+                <small>{count}</small>
+              </button>
+            ),
+          )}
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="panel loading-panel" role="status">
@@ -552,13 +643,30 @@ function PatientRecordsView({
             Voltar aos pacientes
           </button>
         </div>
+      ) : visibleEntries.length === 0 ? (
+        <div className="empty-state compact-empty">
+          <h3>
+            {viewFilter === "unread"
+              ? "Nenhum registro aguardando leitura."
+              : "Nenhum registro neste filtro."}
+          </h3>
+          <p>Você pode voltar a exibir todos os registros.</p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setViewFilter("all")}
+          >
+            Mostrar todos
+          </button>
+        </div>
       ) : (
         <div className="professional-record-list">
-          {entries.map((entry, index) => (
+          {visibleEntries.map((entry) => (
             <RecordDisclosure
               key={entry.id}
               entry={entry}
-              initiallyOpen={index === 0}
+              viewing={viewingIds.has(entry.id)}
+              onViewed={onViewed}
             />
           ))}
         </div>
@@ -962,12 +1070,13 @@ export function ProfessionalDashboard({
   const [patientsRefreshing, setPatientsRefreshing] = useState(false);
   const [patientsError, setPatientsError] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<PatientSort>("recent");
+  const [sort, setSort] = useState<PatientSort>("unread");
   const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
   const [entries, setEntries] = useState<SharedEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesRefreshing, setEntriesRefreshing] = useState(false);
   const [entriesError, setEntriesError] = useState("");
+  const [viewingEntryIds, setViewingEntryIds] = useState<Set<string>>(new Set());
   const [patientAccesses, setPatientAccesses] = useState<PatientAccess[]>([]);
   const [patientAccessesLoaded, setPatientAccessesLoaded] = useState(false);
   const [patientAccessesLoading, setPatientAccessesLoading] = useState(false);
@@ -993,6 +1102,7 @@ export function ProfessionalDashboard({
 
   const patientRequest = useRef<AbortController | null>(null);
   const patientRequestSequence = useRef(0);
+  const viewingEntryLocks = useRef<Set<string>>(new Set());
   const patientAccessRequestLock = useRef(false);
   const patientAccessUpdateLocks = useRef<Set<string>>(new Set());
   const invitationsRequestLock = useRef(false);
@@ -1003,6 +1113,7 @@ export function ProfessionalDashboard({
     patientRequest.current?.abort();
     setPatients([]);
     setEntries([]);
+    setViewingEntryIds(new Set());
     setPatientAccesses([]);
     setInvitations([]);
     setLatestCode("");
@@ -1185,6 +1296,58 @@ export function ProfessionalDashboard({
     await loadPatients(true);
   }
 
+  async function markEntryViewed(entryId: string) {
+    if (viewingEntryLocks.current.has(entryId)) return;
+    const entry = entries.find((item) => item.id === entryId);
+    if (!entry || !entry.is_unread) return;
+    viewingEntryLocks.current.add(entryId);
+    setViewingEntryIds((current) => new Set(current).add(entryId));
+    try {
+      const result = await portalRequest<{ viewed_at: string }>(
+        `/professional/entries/${encodeURIComponent(entryId)}/viewed`,
+        { method: "POST", body: JSON.stringify({}) },
+        csrf,
+      );
+      setEntries((current) =>
+        current.map((item) =>
+          item.id === entryId
+            ? { ...item, is_unread: 0, viewed_at: result.viewed_at }
+            : item,
+        ),
+      );
+      if (selectedPatient) {
+        const updatePatient = (patient: PatientSummary) =>
+          patient.patient_id === selectedPatient.patient_id
+            ? {
+                ...patient,
+                unread_count: Math.max(0, patient.unread_count - 1),
+              }
+            : patient;
+        setPatients((current) => current.map(updatePatient));
+        setSelectedPatient((current) =>
+          current ? updatePatient(current) : current,
+        );
+      }
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setNotice({
+          tone: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível guardar o estado de leitura.",
+        });
+      }
+    } finally {
+      viewingEntryLocks.current.delete(entryId);
+      setViewingEntryIds((current) => {
+        const next = new Set(current);
+        next.delete(entryId);
+        return next;
+      });
+    }
+  }
+
   async function changePatientAccess(patient: PatientAccess, active: boolean) {
     if (patientAccessUpdateLocks.current.has(patient.patient_id)) return;
     const name = displayedPatientName(patient.patient_name);
@@ -1347,8 +1510,8 @@ export function ProfessionalDashboard({
     }
   }
 
-  const sharedEntryCount = patients.reduce(
-    (total, patient) => total + patient.shared_count,
+  const unreadEntryCount = patients.reduce(
+    (total, patient) => total + patient.unread_count,
     0,
   );
   const activePatientCount = patientAccessesLoaded
@@ -1371,7 +1534,7 @@ export function ProfessionalDashboard({
 
       <ProfessionalNavigation
         area={area}
-        sharedEntryCount={sharedEntryCount}
+        unreadEntryCount={unreadEntryCount}
         activePatientCount={activePatientCount}
         activeInvitationCount={activeInvitationCount}
         onChange={(nextArea) => {
@@ -1385,13 +1548,16 @@ export function ProfessionalDashboard({
       {area === "records" ? (
         selectedPatient ? (
           <PatientRecordsView
+            key={selectedPatient.patient_id}
             patient={selectedPatient}
             entries={entries}
             loading={entriesLoading}
             refreshing={entriesRefreshing}
             error={entriesError}
+            viewingIds={viewingEntryIds}
             onBack={backToPatients}
             onRefresh={() => void refreshSelectedPatient()}
+            onViewed={(entryId) => void markEntryViewed(entryId)}
           />
         ) : (
           <PatientList

@@ -15,6 +15,13 @@
       "when": 1784844606764,
       "tag": "0001_assisted_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784846586777,
+      "tag": "0002_entry_views",
+      "breakpoints": true
     }
   ]
 }

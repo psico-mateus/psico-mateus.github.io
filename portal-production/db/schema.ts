@@ -1,4 +1,11 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable(
   "users",
@@ -82,6 +89,22 @@ export const entries = sqliteTable(
   (table) => [
     index("entries_patient_created_idx").on(table.patientId, table.createdAt),
     index("entries_shared_idx").on(table.sharedAt, table.revokedAt),
+  ],
+);
+
+export const entryViews = sqliteTable(
+  "entry_views",
+  {
+    entryId: text("entry_id").notNull().references(() => entries.id, { onDelete: "cascade" }),
+    therapistId: text("therapist_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    viewedAt: text("viewed_at").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.entryId, table.therapistId],
+      name: "entry_views_pk",
+    }),
+    index("entry_views_therapist_idx").on(table.therapistId, table.viewedAt),
   ],
 );
 

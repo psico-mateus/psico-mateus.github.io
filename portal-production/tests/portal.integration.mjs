@@ -337,6 +337,7 @@ assert.equal(summaries.payload.patients.length, 2);
 assert.equal(new Set(summaries.payload.patients.map((item) => item.patient_id)).size, 2);
 assert.ok(summaries.payload.patients.every((item) => item.patient_name === synthetic.sharedName));
 assert.ok(summaries.payload.patients.every((item) => item.shared_count === 1));
+assert.ok(summaries.payload.patients.every((item) => item.unread_count === 1));
 assert.doesNotMatch(JSON.stringify(summaries.payload), /example\.test|password|recovery|totp/iu);
 
 const entriesForA = await api(
@@ -347,6 +348,8 @@ expectStatus(entriesForA, 200, "registros compartilhados do paciente A");
 assert.deepEqual(entriesForA.payload.entries.map((entry) => entry.id), [sharedEntryA]);
 assert.equal(entriesForA.payload.entries[0].emotion, "Ansiedade / Alívio");
 assert.match(entriesForA.payload.entries[0].happened, /<script>texto<\/script>/u);
+assert.equal(entriesForA.payload.entries[0].is_unread, 1);
+assert.equal(entriesForA.payload.entries[0].viewed_at, null);
 assert.ok(!entriesForA.payload.entries.some((entry) => entry.id === privateEntryA));
 
 const entriesForB = await api(
@@ -355,6 +358,76 @@ const entriesForB = await api(
 );
 expectStatus(entriesForB, 200, "registros compartilhados do paciente B");
 assert.deepEqual(entriesForB.payload.entries.map((entry) => entry.id), [sharedEntryB]);
+assert.equal(entriesForB.payload.entries[0].is_unread, 1);
+
+const patientCannotMarkViewed = await api(
+  `/professional/entries/${sharedEntryB}/viewed`,
+  {
+    method: "POST",
+    body: {},
+    auth: patientA,
+  },
+);
+expectStatus(
+  patientCannotMarkViewed,
+  403,
+  "paciente marcando registro como visto",
+);
+const viewedWithoutCsrf = await api(
+  `/professional/entries/${sharedEntryA}/viewed`,
+  {
+    method: "POST",
+    body: {},
+    auth: therapist,
+    includeCsrf: false,
+  },
+);
+expectStatus(viewedWithoutCsrf, 403, "leitura profissional sem CSRF");
+const unknownEntryViewed = await api(
+  "/professional/entries/entry_inexistente/viewed",
+  {
+    method: "POST",
+    body: {},
+    auth: therapist,
+  },
+);
+expectStatus(unknownEntryViewed, 404, "leitura de registro sem acesso");
+const markEntryAViewed = await api(
+  `/professional/entries/${sharedEntryA}/viewed`,
+  {
+    method: "POST",
+    body: {},
+    auth: therapist,
+  },
+);
+expectStatus(markEntryAViewed, 200, "registro marcado como visto");
+assert.ok(new Date(markEntryAViewed.payload.viewed_at).getTime() <= Date.now());
+const entriesAfterViewed = await api(
+  `/professional/patients/${patientA.user.id}/entries`,
+  { auth: therapist },
+);
+expectStatus(entriesAfterViewed, 200, "lista após leitura profissional");
+assert.equal(entriesAfterViewed.payload.entries[0].is_unread, 0);
+assert.equal(
+  entriesAfterViewed.payload.entries[0].viewed_at,
+  markEntryAViewed.payload.viewed_at,
+);
+const summariesAfterViewed = await api("/professional/patients", {
+  auth: therapist,
+});
+expectStatus(summariesAfterViewed, 200, "contadores após leitura profissional");
+assert.equal(
+  summariesAfterViewed.payload.patients.find(
+    (patient) => patient.patient_id === patientA.user.id,
+  ).unread_count,
+  0,
+);
+assert.equal(
+  summariesAfterViewed.payload.patients.find(
+    (patient) => patient.patient_id === patientB.user.id,
+  ).unread_count,
+  1,
+);
 
 const initialAccesses = await api("/professional/accesses", { auth: therapist });
 expectStatus(initialAccesses, 200, "lista profissional de acessos");
@@ -517,6 +590,7 @@ const updatedProfessionalView = await api(
   { auth: therapist },
 );
 assert.equal(updatedProfessionalView.payload.entries[0].happened, updatedText);
+assert.equal(updatedProfessionalView.payload.entries[0].is_unread, 1);
 
 const sharingRevoked = await api(`/entries/${sharedEntryA}/sharing`, {
   method: "PATCH",
@@ -541,6 +615,7 @@ const afterSharingAgain = await api(
   { auth: therapist },
 );
 assert.deepEqual(afterSharingAgain.payload.entries.map((entry) => entry.id), [sharedEntryA]);
+assert.equal(afterSharingAgain.payload.entries[0].is_unread, 1);
 
 const exportResult = await api("/export", { auth: patientA });
 expectStatus(exportResult, 200, "exportação do paciente");
@@ -781,7 +856,7 @@ assert.equal(afterAccountDeletion.payload.patients.length, 0);
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 66,
+    checks: 72,
     data: "synthetic-only",
     production_requests: 0,
   }),

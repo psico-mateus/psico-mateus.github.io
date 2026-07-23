@@ -1,5 +1,6 @@
 export type ProfessionalArea = "records" | "accesses" | "invitations";
-export type PatientSort = "recent" | "alphabetical";
+export type PatientSort = "unread" | "recent" | "alphabetical";
+export type EntryViewFilter = "all" | "unread" | "viewed";
 export type InvitationStatus = "active" | "used" | "expired" | "revoked";
 export type PatientAccessStatus = "active" | "revoked";
 
@@ -7,6 +8,7 @@ export type PatientSummary = {
   patient_id: string;
   patient_name: string;
   shared_count: number;
+  unread_count: number;
   latest_shared_at: string;
 };
 
@@ -23,6 +25,8 @@ export type SharedEntry = {
   created_at: string;
   updated_at: string;
   shared_at: string;
+  viewed_at: string | null;
+  is_unread: number;
 };
 
 export type PatientAccess = {
@@ -84,6 +88,10 @@ export function filterAndSortPatients(
         );
         if (nameComparison !== 0) return nameComparison;
       } else {
+        if (sort === "unread") {
+          const unreadComparison = second.unread_count - first.unread_count;
+          if (unreadComparison !== 0) return unreadComparison;
+        }
         const dateComparison =
           new Date(second.latest_shared_at).getTime() -
           new Date(first.latest_shared_at).getTime();
@@ -141,4 +149,9 @@ export function invitationStatusLabel(status: InvitationStatus): string {
 
 export function sharedCountLabel(count: number): string {
   return `${count} ${count === 1 ? "registro compartilhado" : "registros compartilhados"}`;
+}
+
+export function unreadCountLabel(count: number): string {
+  if (count === 0) return "Tudo visto";
+  return `${count} ${count === 1 ? "registro ainda não visto" : "registros ainda não vistos"}`;
 }
