@@ -13,6 +13,7 @@ import {
 } from "../lib/crypto.ts";
 import {
   filterAndSortPatients,
+  filterPatientAccesses,
   invitationStatusLabel,
   normalizePatientSearch,
   sharedCountLabel,
@@ -58,6 +59,8 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /InstallAppButton/);
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
+  assert.match(installButton, /MacBook ou iMac/);
+  assert.match(installButton, /Adicionar ao Dock/);
   assert.equal(JSON.parse(manifest).display, "standalone");
   assert.match(serviceWorker, /respondWith\(fetch\(request\)\)/);
   assert.doesNotMatch(serviceWorker, /caches\./);
@@ -104,6 +107,47 @@ test("professional patient search ignores case and accents without merging equal
   );
   assert.equal(sharedCountLabel(1), "1 registro compartilhado");
   assert.equal(sharedCountLabel(2), "2 registros compartilhados");
+});
+
+test("patient access list keeps active accounts first and filters by name", () => {
+  const accesses = [
+    {
+      patient_id: "patient_revoked",
+      patient_name: "Beatriz",
+      access_status: "revoked",
+      created_at: "2026-07-20T10:00:00.000Z",
+      revoked_at: "2026-07-22T10:00:00.000Z",
+      last_login_at: null,
+      shared_count: 0,
+    },
+    {
+      patient_id: "patient_active_b",
+      patient_name: "Álvaro",
+      access_status: "active",
+      created_at: "2026-07-20T10:00:00.000Z",
+      revoked_at: null,
+      last_login_at: null,
+      shared_count: 1,
+    },
+    {
+      patient_id: "patient_active_a",
+      patient_name: "Ana",
+      access_status: "active",
+      created_at: "2026-07-20T10:00:00.000Z",
+      revoked_at: null,
+      last_login_at: null,
+      shared_count: 2,
+    },
+  ];
+
+  assert.deepEqual(
+    filterPatientAccesses(accesses, "").map((patient) => patient.patient_id),
+    ["patient_active_b", "patient_active_a", "patient_revoked"],
+  );
+  assert.deepEqual(
+    filterPatientAccesses(accesses, "alv").map((patient) => patient.patient_id),
+    ["patient_active_b"],
+  );
 });
 
 test("invitation status separates active codes from compact history", () => {
@@ -168,6 +212,10 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(route, /patient_links\.patient_id = \?/);
   assert.match(route, /invitations\.expires_at > \?/);
   assert.match(route, /expires_at <= \? THEN 'expired'/);
+  assert.match(route, /\/professional\/accesses/);
+  assert.match(route, /revoke_patient_access/);
+  assert.match(route, /DELETE FROM sessions WHERE user_id = \?/);
+  assert.match(route, /patient_links\.therapist_id = \? AND patient_links\.patient_id = \?/);
   assert.match(portal, /expires_at > \?/);
   assert.match(worker, /Cache-Control", "no-store, max-age=0"/);
   assert.doesNotMatch(
@@ -175,6 +223,9 @@ test("professional API groups by stable patient id and filters every detail quer
     /email_hash|password|recovery|totp_secret/u,
   );
   assert.match(dashboard, /useState<ProfessionalArea>\("records"\)/);
+  assert.match(dashboard, /Acessos de pacientes/);
+  assert.match(dashboard, /Revogar acesso/);
+  assert.match(dashboard, /Restaurar acesso/);
   assert.match(dashboard, /AbortController/);
   assert.match(dashboard, /type="search"/);
   assert.doesNotMatch(dashboard, /localStorage|sessionStorage|dangerouslySetInnerHTML/);

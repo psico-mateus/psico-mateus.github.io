@@ -360,6 +360,48 @@ async function listSharedPatients(
   return result.results;
 }
 
+async function listPatientAccesses(
+  session: Awaited<ReturnType<typeof requireSession>>,
+) {
+  const { DB } = getPortalEnv();
+  const result = await DB.prepare(
+    `SELECT users.id AS patient_id,
+            users.display_name AS patient_name,
+            CASE
+              WHEN users.status = 'active' AND patient_links.status = 'active'
+                THEN 'active'
+              ELSE 'revoked'
+            END AS access_status,
+            patient_links.created_at,
+            patient_links.closed_at AS revoked_at,
+            users.last_login_at,
+            COALESCE(SUM(
+              CASE
+                WHEN entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
+                  THEN 1
+                ELSE 0
+              END
+            ), 0) AS shared_count
+     FROM patient_links
+     JOIN users ON users.id = patient_links.patient_id
+     LEFT JOIN entries ON entries.patient_id = users.id
+     WHERE patient_links.therapist_id = ? AND users.role = 'patient'
+     GROUP BY users.id, users.display_name, users.status, patient_links.status,
+              patient_links.created_at, patient_links.closed_at, users.last_login_at
+     ORDER BY
+       CASE
+         WHEN users.status = 'active' AND patient_links.status = 'active' THEN 0
+         ELSE 1
+       END,
+       users.display_name COLLATE NOCASE,
+       users.id`,
+  )
+    .bind(session.userId)
+    .all();
+  await audit(session.userId, "view_patient_accesses", "patient_access_list");
+  return result.results;
+}
+
 async function listSharedEntriesForPatient(
   session: Awaited<ReturnType<typeof requireSession>>,
   patientId: string,
@@ -410,6 +452,10 @@ async function handleGet(request: Request, path: string): Promise<Response> {
   if (path === "/professional/patients") {
     const session = await requireSession(request, "therapist");
     return json({ patients: await listSharedPatients(session) });
+  }
+  if (path === "/professional/accesses") {
+    const session = await requireSession(request, "therapist");
+    return json({ patients: await listPatientAccesses(session) });
   }
   const professionalEntries = path.match(
     /^\/professional\/patients\/([A-Za-z0-9_-]+)\/entries$/u,
@@ -613,6 +659,55 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
     ]);
     await audit(user.id, "change_password", "account");
     return json({ ok: true });
+  }
+
+  const patientAccess = path.match(
+    /^\/professional\/patients\/([A-Za-z0-9_-]+)\/access$/u,
+  );
+  if (patientAccess) {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    if (typeof input.active !== "boolean") {
+      throw new PortalError(400, "Informe se o acesso deve ficar ativo.");
+    }
+    const patient = await DB.prepare(
+      `SELECT users.id, users.status, patient_links.status AS link_status
+       FROM patient_links
+       JOIN users ON users.id = patient_links.patient_id
+       WHERE patient_links.therapist_id = ? AND patient_links.patient_id = ?
+         AND users.role = 'patient'`,
+    )
+      .bind(session.userId, patientAccess[1])
+      .first<{ id: string; status: string; link_status: string }>();
+    if (!patient) throw new PortalError(404, "Paciente não encontrado.");
+
+    const timestamp = now();
+    await DB.batch([
+      DB.prepare("UPDATE users SET status = ? WHERE id = ? AND role = 'patient'").bind(
+        input.active ? "active" : "disabled",
+        patient.id,
+      ),
+      input.active
+        ? DB.prepare(
+            `UPDATE patient_links SET status = 'active', closed_at = NULL
+             WHERE therapist_id = ? AND patient_id = ?`,
+          ).bind(session.userId, patient.id)
+        : DB.prepare(
+            `UPDATE patient_links SET status = 'closed', closed_at = ?
+             WHERE therapist_id = ? AND patient_id = ?`,
+          ).bind(timestamp, session.userId, patient.id),
+      DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(patient.id),
+    ]);
+    await audit(
+      session.userId,
+      input.active ? "restore_patient_access" : "revoke_patient_access",
+      "patient_account",
+      patient.id,
+    );
+    return json({
+      ok: true,
+      access_status: input.active ? "active" : "revoked",
+    });
   }
 
   const sharing = path.match(/^\/entries\/([A-Za-z0-9_-]+)\/sharing$/u);

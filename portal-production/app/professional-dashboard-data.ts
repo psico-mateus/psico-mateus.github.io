@@ -1,6 +1,7 @@
-export type ProfessionalArea = "records" | "invitations";
+export type ProfessionalArea = "records" | "accesses" | "invitations";
 export type PatientSort = "recent" | "alphabetical";
 export type InvitationStatus = "active" | "used" | "expired" | "revoked";
+export type PatientAccessStatus = "active" | "revoked";
 
 export type PatientSummary = {
   patient_id: string;
@@ -22,6 +23,16 @@ export type SharedEntry = {
   created_at: string;
   updated_at: string;
   shared_at: string;
+};
+
+export type PatientAccess = {
+  patient_id: string;
+  patient_name: string;
+  access_status: PatientAccessStatus;
+  created_at: string;
+  revoked_at: string | null;
+  last_login_at: string | null;
+  shared_count: number;
 };
 
 export type Invitation = {
@@ -78,6 +89,32 @@ export function filterAndSortPatients(
           new Date(first.latest_shared_at).getTime();
         if (dateComparison !== 0) return dateComparison;
       }
+      return first.patient_id.localeCompare(second.patient_id);
+    });
+}
+
+export function filterPatientAccesses(
+  patients: PatientAccess[],
+  query: string,
+): PatientAccess[] {
+  const normalizedQuery = normalizePatientSearch(query);
+  return patients
+    .filter((patient) =>
+      normalizedQuery
+        ? normalizePatientSearch(displayedPatientName(patient.patient_name)).includes(
+            normalizedQuery,
+          )
+        : true,
+    )
+    .sort((first, second) => {
+      if (first.access_status !== second.access_status) {
+        return first.access_status === "active" ? -1 : 1;
+      }
+      const nameComparison = collator.compare(
+        displayedPatientName(first.patient_name),
+        displayedPatientName(second.patient_name),
+      );
+      if (nameComparison !== 0) return nameComparison;
       return first.patient_id.localeCompare(second.patient_id);
     });
 }

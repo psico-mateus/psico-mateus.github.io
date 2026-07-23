@@ -307,6 +307,10 @@ const patientCannotListProfessional = await api("/professional/patients", {
   auth: patientA,
 });
 expectStatus(patientCannotListProfessional, 403, "paciente no endpoint profissional");
+const patientCannotListAccesses = await api("/professional/accesses", {
+  auth: patientA,
+});
+expectStatus(patientCannotListAccesses, 403, "paciente listando acessos");
 const patientCannotCreateInvite = await api("/invitations", {
   method: "POST",
   body: { valid_days: 7 },
@@ -338,6 +342,103 @@ const entriesForB = await api(
 );
 expectStatus(entriesForB, 200, "registros compartilhados do paciente B");
 assert.deepEqual(entriesForB.payload.entries.map((entry) => entry.id), [sharedEntryB]);
+
+const initialAccesses = await api("/professional/accesses", { auth: therapist });
+expectStatus(initialAccesses, 200, "lista profissional de acessos");
+assert.equal(initialAccesses.payload.patients.length, 2);
+assert.ok(
+  initialAccesses.payload.patients.every(
+    (patient) => patient.access_status === "active",
+  ),
+);
+assert.doesNotMatch(
+  JSON.stringify(initialAccesses.payload),
+  /email|password|recovery|totp/iu,
+);
+
+const patientCannotRevokeAccess = await api(
+  `/professional/patients/${patientB.user.id}/access`,
+  {
+    method: "PATCH",
+    body: { active: false },
+    auth: patientA,
+  },
+);
+expectStatus(patientCannotRevokeAccess, 403, "paciente revogando outro acesso");
+
+const unknownPatientAccess = await api(
+  "/professional/patients/patient_inexistente/access",
+  {
+    method: "PATCH",
+    body: { active: false },
+    auth: therapist,
+  },
+);
+expectStatus(unknownPatientAccess, 404, "revogação sem vínculo");
+
+const revokePatientA = await api(
+  `/professional/patients/${patientA.user.id}/access`,
+  {
+    method: "PATCH",
+    body: { active: false },
+    auth: therapist,
+  },
+);
+expectStatus(revokePatientA, 200, "revogação de acesso do paciente");
+assert.equal(revokePatientA.payload.access_status, "revoked");
+
+const revokedPatientSession = await api("/entries", { auth: patientA });
+expectStatus(revokedPatientSession, 401, "sessão encerrada após revogação");
+const revokedPatientLogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: synthetic.patientPasswordA,
+  },
+});
+expectStatus(revokedPatientLogin, 401, "login após revogação");
+
+const accessesAfterRevocation = await api("/professional/accesses", {
+  auth: therapist,
+});
+assert.equal(
+  accessesAfterRevocation.payload.patients.find(
+    (patient) => patient.patient_id === patientA.user.id,
+  ).access_status,
+  "revoked",
+);
+const professionalAfterPatientRevocation = await api(
+  `/professional/patients/${patientA.user.id}/entries`,
+  { auth: therapist },
+);
+assert.deepEqual(professionalAfterPatientRevocation.payload.entries, []);
+
+const restorePatientA = await api(
+  `/professional/patients/${patientA.user.id}/access`,
+  {
+    method: "PATCH",
+    body: { active: true },
+    auth: therapist,
+  },
+);
+expectStatus(restorePatientA, 200, "restauração de acesso do paciente");
+assert.equal(restorePatientA.payload.access_status, "active");
+const restoredPatientLogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: synthetic.patientPasswordA,
+  },
+  auth: patientA,
+});
+expectStatus(restoredPatientLogin, 200, "login após restauração");
+const professionalAfterRestore = await api(
+  `/professional/patients/${patientA.user.id}/entries`,
+  { auth: therapist },
+);
+assert.deepEqual(professionalAfterRestore.payload.entries.map((entry) => entry.id), [
+  sharedEntryA,
+]);
 
 const unknownPatient = await api("/professional/patients/patient_inexistente/entries", {
   auth: therapist,
@@ -497,7 +598,7 @@ assert.equal(afterAccountDeletion.payload.patients.length, 0);
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 40,
+    checks: 52,
     data: "synthetic-only",
     production_requests: 0,
   }),

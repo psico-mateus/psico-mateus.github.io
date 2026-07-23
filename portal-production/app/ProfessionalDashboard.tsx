@@ -12,8 +12,10 @@ import {
 import {
   displayedPatientName,
   filterAndSortPatients,
+  filterPatientAccesses,
   invitationStatusLabel,
   type Invitation,
+  type PatientAccess,
   type PatientSort,
   type PatientSummary,
   type ProfessionalArea,
@@ -47,17 +49,20 @@ function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone
 function ProfessionalNavigation({
   area,
   sharedEntryCount,
+  activePatientCount,
   activeInvitationCount,
   onChange,
 }: {
   area: ProfessionalArea;
   sharedEntryCount: number;
+  activePatientCount: number | null;
   activeInvitationCount: number | null;
   onChange: (area: ProfessionalArea) => void;
 }) {
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   const areas: Array<{ id: ProfessionalArea; label: string; count: number | null }> = [
     { id: "records", label: "Registros compartilhados", count: sharedEntryCount },
+    { id: "accesses", label: "Acessos de pacientes", count: activePatientCount },
     { id: "invitations", label: "Convites", count: activeInvitationCount },
   ];
 
@@ -381,6 +386,155 @@ function PatientRecordsView({
   );
 }
 
+function PatientAccessView({
+  patients,
+  loading,
+  error,
+  query,
+  updatingIds,
+  onQueryChange,
+  onRefresh,
+  onChangeAccess,
+}: {
+  patients: PatientAccess[];
+  loading: boolean;
+  error: string;
+  query: string;
+  updatingIds: Set<string>;
+  onQueryChange: (value: string) => void;
+  onRefresh: () => void;
+  onChangeAccess: (patient: PatientAccess, active: boolean) => void;
+}) {
+  const visiblePatients = useMemo(
+    () => filterPatientAccesses(patients, query),
+    [patients, query],
+  );
+  const activeCount = patients.filter(
+    (patient) => patient.access_status === "active",
+  ).length;
+
+  return (
+    <section className="professional-section" aria-labelledby="patient-access-title">
+      <div className="section-heading professional-section-heading">
+        <div>
+          <p className="eyebrow">CONTROLE DE ACESSO</p>
+          <h2 id="patient-access-title">Acessos de pacientes</h2>
+          <p className="section-description">
+            {activeCount} {activeCount === 1 ? "acesso ativo" : "acessos ativos"}.
+            Use a revogação quando o acompanhamento terminar.
+          </p>
+        </div>
+        <button
+          className="secondary-button compact-button"
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+        >
+          {loading ? "Atualizando…" : "Atualizar"}
+        </button>
+      </div>
+
+      <div className="panel access-guidance">
+        <strong>O que acontece ao revogar?</strong>
+        <p>
+          O login é bloqueado e as sessões abertas são encerradas imediatamente.
+          Os registros não são apagados e o acesso pode ser restaurado se o
+          acompanhamento recomeçar.
+        </p>
+      </div>
+
+      <label className="field access-search">
+        <span>Buscar paciente</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          autoComplete="off"
+          placeholder="Digite parte do nome"
+        />
+      </label>
+
+      {error ? (
+        <div className="panel error-state">
+          <Notice tone="error" message={error} />
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : loading && patients.length === 0 ? (
+        <div className="panel loading-panel" role="status">
+          <div className="loader" />
+          <p>Carregando acessos de pacientes…</p>
+        </div>
+      ) : patients.length === 0 ? (
+        <div className="empty-state">
+          <h3>Nenhuma conta de paciente cadastrada.</h3>
+          <p>As contas aparecerão aqui depois do uso de um convite.</p>
+        </div>
+      ) : visiblePatients.length === 0 ? (
+        <div className="empty-state">
+          <h3>Nenhum paciente encontrado com esse nome.</h3>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => onQueryChange("")}
+          >
+            Limpar busca
+          </button>
+        </div>
+      ) : (
+        <div className="patient-access-list">
+          {visiblePatients.map((patient) => {
+            const active = patient.access_status === "active";
+            const updating = updatingIds.has(patient.patient_id);
+            return (
+              <article className="patient-access-card" key={patient.patient_id}>
+                <div className="patient-access-copy">
+                  <div className="patient-access-title">
+                    <h3>{displayedPatientName(patient.patient_name)}</h3>
+                    <span
+                      className={`status ${active ? "access-active" : "access-revoked"}`}
+                    >
+                      {active ? "Acesso ativo" : "Acesso revogado"}
+                    </span>
+                  </div>
+                  <p className="record-meta">
+                    Conta criada em {formatDate(patient.created_at)}
+                    {patient.last_login_at
+                      ? ` · último acesso ${formatDate(patient.last_login_at)}`
+                      : " · nenhum acesso registrado"}
+                  </p>
+                  <p className="patient-access-detail">
+                    {patient.shared_count}{" "}
+                    {patient.shared_count === 1
+                      ? "registro compartilhado preservado"
+                      : "registros compartilhados preservados"}
+                    {!active && patient.revoked_at
+                      ? ` · revogado em ${formatDate(patient.revoked_at)}`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  className={active ? "danger-button" : "secondary-button"}
+                  type="button"
+                  onClick={() => onChangeAccess(patient, !active)}
+                  disabled={updating || loading}
+                >
+                  {updating
+                    ? "Aguarde…"
+                    : active
+                      ? "Revogar acesso"
+                      : "Restaurar acesso"}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function InvitationItem({
   invitation,
   revoking,
@@ -619,6 +773,14 @@ export function ProfessionalDashboard({
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesRefreshing, setEntriesRefreshing] = useState(false);
   const [entriesError, setEntriesError] = useState("");
+  const [patientAccesses, setPatientAccesses] = useState<PatientAccess[]>([]);
+  const [patientAccessesLoaded, setPatientAccessesLoaded] = useState(false);
+  const [patientAccessesLoading, setPatientAccessesLoading] = useState(false);
+  const [patientAccessesError, setPatientAccessesError] = useState("");
+  const [accessQuery, setAccessQuery] = useState("");
+  const [updatingAccessIds, setUpdatingAccessIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitationsLoaded, setInvitationsLoaded] = useState(false);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
@@ -632,6 +794,8 @@ export function ProfessionalDashboard({
 
   const patientRequest = useRef<AbortController | null>(null);
   const patientRequestSequence = useRef(0);
+  const patientAccessRequestLock = useRef(false);
+  const patientAccessUpdateLocks = useRef<Set<string>>(new Set());
   const invitationsRequestLock = useRef(false);
   const createInvitationLock = useRef(false);
   const revokeInvitationLocks = useRef<Set<string>>(new Set());
@@ -640,6 +804,7 @@ export function ProfessionalDashboard({
     patientRequest.current?.abort();
     setPatients([]);
     setEntries([]);
+    setPatientAccesses([]);
     setInvitations([]);
     setLatestCode("");
     setNotice(null);
@@ -731,6 +896,31 @@ export function ProfessionalDashboard({
     [isSessionError],
   );
 
+  const loadPatientAccesses = useCallback(async () => {
+    if (patientAccessRequestLock.current) return;
+    patientAccessRequestLock.current = true;
+    setPatientAccessesLoading(true);
+    setPatientAccessesError("");
+    try {
+      const result = await portalRequest<{ patients: PatientAccess[] }>(
+        "/professional/accesses",
+      );
+      setPatientAccesses(result.patients);
+      setPatientAccessesLoaded(true);
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setPatientAccessesError(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível atualizar os acessos.",
+        );
+      }
+    } finally {
+      patientAccessRequestLock.current = false;
+      setPatientAccessesLoading(false);
+    }
+  }, [isSessionError]);
+
   const loadInvitations = useCallback(async () => {
     if (invitationsRequestLock.current) return;
     invitationsRequestLock.current = true;
@@ -757,6 +947,11 @@ export function ProfessionalDashboard({
     void loadPatients();
     return () => patientRequest.current?.abort();
   }, [loadPatients]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (area === "accesses" && !patientAccessesLoaded) void loadPatientAccesses();
+  }, [area, loadPatientAccesses, patientAccessesLoaded]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -787,6 +982,58 @@ export function ProfessionalDashboard({
     if (!selectedPatient) return;
     await loadPatientEntries(selectedPatient, true);
     await loadPatients(true);
+  }
+
+  async function changePatientAccess(patient: PatientAccess, active: boolean) {
+    if (patientAccessUpdateLocks.current.has(patient.patient_id)) return;
+    const name = displayedPatientName(patient.patient_name);
+    const confirmed = window.confirm(
+      active
+        ? `Restaurar o acesso de ${name}? A pessoa poderá entrar novamente com o mesmo e-mail e senha.`
+        : `Revogar o acesso de ${name}? O login será bloqueado imediatamente e qualquer sessão aberta será encerrada. Os registros não serão apagados.`,
+    );
+    if (!confirmed) return;
+
+    patientAccessUpdateLocks.current.add(patient.patient_id);
+    setUpdatingAccessIds((current) => new Set(current).add(patient.patient_id));
+    setNotice(null);
+    try {
+      await portalRequest(
+        `/professional/patients/${encodeURIComponent(patient.patient_id)}/access`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ active }),
+        },
+        csrf,
+      );
+      setNotice({
+        tone: "success",
+        message: active
+          ? `Acesso de ${name} restaurado.`
+          : `Acesso de ${name} revogado e sessões encerradas.`,
+      });
+      if (!active && selectedPatient?.patient_id === patient.patient_id) {
+        backToPatients();
+      }
+      await Promise.all([loadPatientAccesses(), loadPatients(true)]);
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setNotice({
+          tone: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível alterar o acesso.",
+        });
+      }
+    } finally {
+      patientAccessUpdateLocks.current.delete(patient.patient_id);
+      setUpdatingAccessIds((current) => {
+        const next = new Set(current);
+        next.delete(patient.patient_id);
+        return next;
+      });
+    }
   }
 
   async function createInvitation() {
@@ -860,6 +1107,9 @@ export function ProfessionalDashboard({
     (total, patient) => total + patient.shared_count,
     0,
   );
+  const activePatientCount = patientAccessesLoaded
+    ? patientAccesses.filter((patient) => patient.access_status === "active").length
+    : null;
   const activeInvitationCount = invitationsLoaded
     ? splitInvitations(invitations).active.length
     : null;
@@ -878,6 +1128,7 @@ export function ProfessionalDashboard({
       <ProfessionalNavigation
         area={area}
         sharedEntryCount={sharedEntryCount}
+        activePatientCount={activePatientCount}
         activeInvitationCount={activeInvitationCount}
         onChange={(nextArea) => {
           setArea(nextArea);
@@ -912,6 +1163,19 @@ export function ProfessionalDashboard({
             onOpen={openPatient}
           />
         )
+      ) : area === "accesses" ? (
+        <PatientAccessView
+          patients={patientAccesses}
+          loading={patientAccessesLoading}
+          error={patientAccessesError}
+          query={accessQuery}
+          updatingIds={updatingAccessIds}
+          onQueryChange={setAccessQuery}
+          onRefresh={() => void loadPatientAccesses()}
+          onChangeAccess={(patient, active) =>
+            void changePatientAccess(patient, active)
+          }
+        />
       ) : (
         <InvitationsView
           invitations={invitations}
