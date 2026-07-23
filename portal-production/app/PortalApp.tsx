@@ -4,6 +4,11 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { InstallAppButton } from "./InstallAppButton";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
+import {
+  filterPatientEntries,
+  isEntryShared,
+  type PatientEntrySharingFilter,
+} from "./patient-dashboard-data";
 import { formatDate, portalRequest } from "./portal-client";
 
 type Role = "patient" | "therapist";
@@ -356,6 +361,8 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   const [editing, setEditing] = useState<Entry | null | "new">(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [entryFilter, setEntryFilter] =
+    useState<PatientEntrySharingFilter>("all");
   const load = useCallback(async () => {
     try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
     catch (error) { if ((error as Error).message.includes("login")) onSessionLost(); else setMessage((error as Error).message); }
@@ -370,7 +377,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
     setEditing(null); setMessage("Registro salvo de forma privada."); await load();
   }
   async function sharing(entry: Entry) {
-    const shared = Boolean(entry.shared_at && !entry.revoked_at);
+    const shared = isEntryShared(entry);
     const question = shared
       ? "Mateus deixará de ver este registro. Retirar o compartilhamento?"
       : "Compartilhar este registro com Mateus? Ele poderá lê-lo no painel profissional, mas não editá-lo.";
@@ -382,7 +389,18 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
     await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf); setMessage("Registro excluído."); await load();
   }
-  const sharedCount = entries.filter((entry) => entry.shared_at && !entry.revoked_at).length;
+  const sharedCount = entries.filter(isEntryShared).length;
+  const privateCount = entries.length - sharedCount;
+  const visibleEntries = filterPatientEntries(entries, entryFilter);
+  const filterLabels: Array<{
+    value: PatientEntrySharingFilter;
+    label: string;
+    count: number;
+  }> = [
+    { value: "all", label: "Todos", count: entries.length },
+    { value: "private", label: "Privados", count: privateCount },
+    { value: "shared", label: "Compartilhados", count: sharedCount },
+  ];
   return (
     <main className="dashboard patient-dashboard" id="conteudo">
       <section className="dashboard-hero patient-hero">
@@ -404,7 +422,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
       {message ? <Notice tone="success" message={message} /> : null}
       {editing ? <EntryForm initial={editing === "new" ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} /> : null}
       <section className="records-section" aria-labelledby="records-title">
-        <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title">Seus registros</h2><p>Abra quando quiser reler, editar ou escolher o que compartilhar.</p></div><span className="count">{entries.length} {entries.length === 1 ? "registro" : "registros"}</span></div>
+        <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title">Seus registros</h2><p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p></div><span className="count">{entryFilter === "all" ? `${entries.length} ${entries.length === 1 ? "registro" : "registros"}` : `${visibleEntries.length} de ${entries.length}`}</span></div>
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
@@ -412,8 +430,36 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
             <p>Você pode começar com uma situação breve. Não precisa entender tudo antes de escrever.</p>
             <div className="empty-state-actions"><button className="primary-button" onClick={() => setEditing("new")}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url}>Explorar o Guia de Emoções</a></div>
           </div>
-        ) : <div className="record-list patient-record-list">{entries.map((entry) => {
-          const shared = Boolean(entry.shared_at && !entry.revoked_at);
+        ) : <>
+          <div className="patient-entry-toolbar" role="group" aria-label="Filtrar registros por compartilhamento">
+            {filterLabels.map((item) => (
+              <button
+                key={item.value}
+                className={entryFilter === item.value ? "active" : ""}
+                type="button"
+                aria-pressed={entryFilter === item.value}
+                onClick={() => setEntryFilter(item.value)}
+              >
+                <span>{item.label}</span>
+                <small>{item.count}</small>
+              </button>
+            ))}
+          </div>
+          <div className="sr-status" aria-live="polite">
+            {entryFilter === "all"
+              ? `Exibindo todos os ${entries.length} registros.`
+              : entryFilter === "private"
+                ? `Exibindo ${privateCount} ${privateCount === 1 ? "registro privado" : "registros privados"}.`
+                : `Exibindo ${sharedCount} ${sharedCount === 1 ? "registro compartilhado" : "registros compartilhados"}.`}
+          </div>
+          {visibleEntries.length === 0 ? (
+            <div className="empty-state patient-filter-empty">
+              <h3>{entryFilter === "shared" ? "Nenhum registro compartilhado agora." : "Nenhum registro privado agora."}</h3>
+              <p>{entryFilter === "shared" ? "Quando você decidir compartilhar um registro com Mateus, ele aparecerá aqui." : "Você pode deixar um registro privado novamente abrindo-o e retirando o compartilhamento."}</p>
+              <button className="secondary-button" type="button" onClick={() => setEntryFilter("all")}>Mostrar todos</button>
+            </div>
+          ) : <div className="record-list patient-record-list">{visibleEntries.map((entry) => {
+          const shared = isEntryShared(entry);
           return (
             <details className="record-card patient-record-card" key={entry.id}>
               <summary>
@@ -436,6 +482,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
             </details>
           );
         })}</div>}
+        </>}
       </section>
       <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} />
     </main>

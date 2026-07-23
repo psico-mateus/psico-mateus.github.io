@@ -20,6 +20,10 @@ import {
   splitInvitations,
   unreadCountLabel,
 } from "../app/professional-dashboard-data.ts";
+import {
+  filterPatientEntries,
+  isEntryShared,
+} from "../app/patient-dashboard-data.ts";
 
 test("passwords are salted and verified", async () => {
   assert.equal(PASSWORD_ITERATIONS, 310_000);
@@ -60,6 +64,9 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Privado ao salvar/);
   assert.match(app, /Compartilhado com Mateus/);
   assert.match(app, /patient-record-card/);
+  assert.match(app, /Filtrar registros por compartilhamento/);
+  assert.match(app, /Privados/);
+  assert.match(app, /Compartilhados/);
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
   assert.match(app, /InstallAppButton/);
@@ -88,6 +95,38 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(privacy, /não são usados para publicidade/);
   assert.match(worker, /Content-Security-Policy/);
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
+});
+
+test("patient history filters private and shared entries", () => {
+  const entries = [
+    { id: "private", shared_at: null, revoked_at: null },
+    {
+      id: "shared",
+      shared_at: "2026-07-23T20:00:00.000Z",
+      revoked_at: null,
+    },
+    {
+      id: "revoked",
+      shared_at: "2026-07-22T20:00:00.000Z",
+      revoked_at: "2026-07-23T20:30:00.000Z",
+    },
+  ];
+
+  assert.equal(isEntryShared(entries[0]), false);
+  assert.equal(isEntryShared(entries[1]), true);
+  assert.equal(isEntryShared(entries[2]), false);
+  assert.deepEqual(
+    filterPatientEntries(entries, "all").map((entry) => entry.id),
+    ["private", "shared", "revoked"],
+  );
+  assert.deepEqual(
+    filterPatientEntries(entries, "private").map((entry) => entry.id),
+    ["private", "revoked"],
+  );
+  assert.deepEqual(
+    filterPatientEntries(entries, "shared").map((entry) => entry.id),
+    ["shared"],
+  );
 });
 
 test("mobile layout keeps the portal within the viewport", async () => {
