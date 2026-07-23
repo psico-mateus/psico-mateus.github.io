@@ -28,9 +28,11 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page).toHaveTitle(/Mateus Ribeiro Marcos/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Mateus Ribeiro Marcos/);
   await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
-  await expect(page.getByText("Recursos para pacientes", { exact: true })).toBeVisible();
-  await expect(page.getByText("Uso imediato · sem conta", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Escolha pelo que você precisa agora" }))
+  await expect(page.getByText("Materiais de apoio", { exact: true })).toBeVisible();
+  await expect(page.getByText("Aberto a qualquer pessoa · sem conta", { exact: true })).toBeVisible();
+  await expect(page.getByText("Exclusivo para pacientes atuais · com convite", { exact: true }))
+    .toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dois recursos, com acessos diferentes" }))
     .toBeVisible();
   const resourceChooser = page.getByRole("navigation", {
     name: "Escolha entre o Guia e os Registros",
@@ -112,7 +114,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await page.getByRole("button", { name: "Compartilhar o guia" }).click();
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
-  await expect(page.getByRole("link", { name: "Entrar nos Registros", exact: true }))
+  await expect(page.getByRole("link", { name: "Acessar os Registros", exact: true }))
     .toHaveAttribute("href", "https://registros.psico-mateus.workers.dev");
 
   expect(pageErrors).toEqual([]);

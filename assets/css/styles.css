@@ -2663,7 +2663,7 @@ h2 {
 .patient-resources-heading {
   display: grid;
   max-width: 880px;
-  margin-bottom: clamp(2.75rem, 5vw, 4.5rem);
+  margin-bottom: clamp(3.25rem, 6vw, 5.25rem);
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -2681,16 +2681,16 @@ h2 {
 
 .resource-chooser {
   display: grid;
-  margin-bottom: clamp(2rem, 4vw, 3rem);
+  margin-bottom: clamp(3.5rem, 7vw, 5.5rem);
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: clamp(1.15rem, 2vw, 1.5rem);
 }
 
 .resource-choice {
   position: relative;
   display: grid;
-  min-height: 230px;
-  padding: clamp(1.5rem, 3vw, 2.25rem);
+  min-height: 275px;
+  padding: clamp(1.85rem, 3.5vw, 2.6rem);
   align-content: start;
   border: 1px solid #cbc0af;
   border-radius: 10px;
@@ -2730,7 +2730,7 @@ h2 {
 }
 
 .resource-choice-context {
-  margin-bottom: 0.8rem;
+  margin-bottom: 1rem;
   color: #7b5c29;
   font-size: 0.7rem;
   font-weight: 800;
@@ -2754,7 +2754,7 @@ h2 {
 
 .resource-choice small {
   max-width: 480px;
-  margin-top: 0.8rem;
+  margin-top: 1rem;
   color: #5b564e;
   font-size: 0.86rem;
   line-height: 1.55;
@@ -2767,7 +2767,7 @@ h2 {
 .resource-choice-action {
   display: inline-flex;
   width: fit-content;
-  margin-top: auto;
+  margin-top: 2rem;
   padding: 0.72rem 0.9rem;
   align-items: center;
   gap: 0.45rem;
@@ -2787,7 +2787,7 @@ h2 {
 .patient-resources-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: clamp(1.5rem, 3vw, 2.25rem);
+  gap: clamp(2.5rem, 5vw, 4rem);
 }
 
 .patient-resource-card {
@@ -2958,17 +2958,23 @@ h2 {
 }
 
 @media (max-width: 720px) {
+  .patient-resources-heading {
+    margin-bottom: 2.75rem;
+  }
+
   .patient-resources-heading h2 {
     font-size: clamp(2.55rem, 12vw, 3.5rem);
   }
 
   .resource-chooser {
     grid-template-columns: 1fr;
+    gap: 1.25rem;
+    margin-bottom: 3.5rem;
   }
 
   .resource-choice {
-    min-height: 210px;
-    padding: 1.5rem;
+    min-height: 260px;
+    padding: 1.75rem 1.5rem;
   }
 
   .patient-resource-card .guide-grid,
