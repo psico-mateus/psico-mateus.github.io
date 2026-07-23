@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ProfessionalDashboard } from "./ProfessionalDashboard";
+import { formatDate, portalRequest } from "./portal-client";
 
 type Role = "patient" | "therapist";
 type User = { id: string; name: string; role: Role };
@@ -26,16 +28,8 @@ type Entry = {
   updated_at: string;
   shared_at: string | null;
   revoked_at?: string | null;
-  patient_name?: string;
 };
-type Invitation = {
-  id: string;
-  expires_at: string;
-  created_at: string;
-  used_at: string | null;
-  revoked_at: string | null;
-};
-type EntryDraft = Omit<Entry, "id" | "created_at" | "updated_at" | "shared_at" | "revoked_at" | "patient_name">;
+type EntryDraft = Omit<Entry, "id" | "created_at" | "updated_at" | "shared_at" | "revoked_at">;
 
 const blankEntry: EntryDraft = {
   title: "",
@@ -47,30 +41,6 @@ const blankEntry: EntryDraft = {
   intensity: 5,
   message: "",
 };
-
-async function request<T>(path: string, init: RequestInit = {}, csrf?: string): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body) headers.set("Content-Type", "application/json");
-  if (csrf) headers.set("x-csrf-token", csrf);
-  const response = await fetch(`/api/portal${path}`, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error || "Não foi possível concluir a ação.");
-  }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
 
 function Field({
   label,
@@ -154,7 +124,7 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
     if (form.get("password") !== form.get("confirmation")) return setMessage("As senhas não coincidem.");
     setBusy(true); setMessage("");
     try {
-      const result = await request<{ recovery_code: string; totp_secret: string }>("/setup", {
+      const result = await portalRequest<{ recovery_code: string; totp_secret: string }>("/setup", {
         method: "POST",
         body: JSON.stringify({
           setup_secret: form.get("setup_secret"), name: form.get("name"), email: form.get("email"), password: form.get("password"),
@@ -173,7 +143,7 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
     const form = new FormData(event.currentTarget);
     setBusy(true); setMessage("");
     try {
-      const result = await request<{ user: User; csrf: string }>("/setup/confirm", {
+      const result = await portalRequest<{ user: User; csrf: string }>("/setup/confirm", {
         method: "POST",
         body: JSON.stringify({ setup_secret: setupSecret, email, totp: form.get("totp") }),
       });
@@ -222,12 +192,12 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
     setBusy(true); setMessage("");
     try {
       if (mode === "login") {
-        const result = await request<{ user: User; csrf: string }>("/login", {
+        const result = await portalRequest<{ user: User; csrf: string }>("/login", {
           method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password"), totp: form.get("totp") }),
         });
         onAuthenticated(result.user, result.csrf);
       } else if (mode === "register") {
-        const result = await request<{ user: User; csrf: string; recovery_code: string }>("/register", {
+        const result = await portalRequest<{ user: User; csrf: string; recovery_code: string }>("/register", {
           method: "POST",
           body: JSON.stringify({
             invitation_code: form.get("invitation_code"), name: form.get("name"), email: form.get("email"), password: form.get("password"),
@@ -236,7 +206,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
         });
         onAuthenticated(result.user, result.csrf, result.recovery_code);
       } else {
-        const result = await request<{ recovery_code: string }>("/recover", {
+        const result = await portalRequest<{ recovery_code: string }>("/recover", {
           method: "POST", body: JSON.stringify({ email: form.get("email"), recovery_code: form.get("recovery_code"), new_password: form.get("password") }),
         });
         setMode("login");
@@ -332,27 +302,27 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   const [editing, setEditing] = useState<Entry | null | "new">(null);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    try { setEntries((await request<{ entries: Entry[] }>("/entries")).entries); }
+    try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
     catch (error) { if ((error as Error).message.includes("login")) onSessionLost(); else setMessage((error as Error).message); }
   }, [onSessionLost]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   async function save(draft: EntryDraft) {
-    if (editing && editing !== "new") await request(`/entries/${editing.id}`, { method: "PATCH", body: JSON.stringify(draft) }, csrf);
-    else await request("/entries", { method: "POST", body: JSON.stringify(draft) }, csrf);
+    if (editing && editing !== "new") await portalRequest(`/entries/${editing.id}`, { method: "PATCH", body: JSON.stringify(draft) }, csrf);
+    else await portalRequest("/entries", { method: "POST", body: JSON.stringify(draft) }, csrf);
     setEditing(null); setMessage("Registro salvo de forma privada."); await load();
   }
   async function sharing(entry: Entry) {
     const shared = Boolean(entry.shared_at && !entry.revoked_at);
     const question = shared ? "Retirar o acesso de Mateus a este registro?" : "Compartilhar este registro com Mateus?";
     if (!window.confirm(question)) return;
-    await request(`/entries/${entry.id}/sharing`, { method: "PATCH", body: JSON.stringify({ shared: !shared }) }, csrf);
+    await portalRequest(`/entries/${entry.id}/sharing`, { method: "PATCH", body: JSON.stringify({ shared: !shared }) }, csrf);
     setMessage(shared ? "Compartilhamento retirado." : "Registro compartilhado com Mateus."); await load();
   }
   async function remove(entry: Entry) {
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
-    await request(`/entries/${entry.id}`, { method: "DELETE" }, csrf); setMessage("Registro excluído."); await load();
+    await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf); setMessage("Registro excluído."); await load();
   }
   return (
     <main className="dashboard" id="conteudo">
@@ -371,61 +341,23 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   );
 }
 
-function TherapistDashboard({ user, csrf, config, setRecovery }: { user: User; csrf: string; config: Config; setRecovery: (code: string) => void }) {
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [latestCode, setLatestCode] = useState("");
-  const [message, setMessage] = useState("");
-  const load = useCallback(async () => {
-    try {
-      const [entryData, inviteData] = await Promise.all([request<{ entries: Entry[] }>("/entries"), request<{ invitations: Invitation[] }>("/invitations")]);
-      setEntries(entryData.entries); setInvitations(inviteData.invitations);
-    } catch (error) { setMessage((error as Error).message); }
-  }, []);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void load(); }, [load]);
-  async function createInvite() {
-    try {
-      const result = await request<{ code: string; expires_at: string }>("/invitations", { method: "POST", body: JSON.stringify({ valid_days: 7 }) }, csrf);
-      setLatestCode(result.code); setMessage("Convite criado. Envie o código ao paciente por um canal adequado."); await load();
-    } catch (error) { setMessage((error as Error).message); }
-  }
-  async function revoke(invitation: Invitation) {
-    if (!window.confirm("Revogar este convite?")) return;
-    try { await request(`/invitations/${invitation.id}`, { method: "DELETE" }, csrf); setMessage("Convite revogado."); await load(); }
-    catch (error) { setMessage((error as Error).message); }
-  }
-  return (
-    <main className="dashboard" id="conteudo">
-      <section className="dashboard-hero professional"><div><p className="eyebrow">ACESSO PROFISSIONAL</p><h1>Olá, {user.name}.</h1><p>Aqui aparecem somente os registros que cada paciente decidiu compartilhar.</p></div><span className="secure-chip">MFA ativo</span></section>
-      {message ? <Notice tone={message.includes("não") ? "error" : "success"} message={message} /> : null}
-      <div className="professional-grid">
-        <section className="panel invite-panel"><div className="section-heading"><div><p className="eyebrow">NOVO ACESSO</p><h2>Convidar paciente</h2></div></div><p>O código vale por 7 dias e pode ser usado uma vez. A conta é criada pelo próprio paciente.</p><button className="primary-button" onClick={() => void createInvite()}>Gerar convite</button>{latestCode ? <div className="generated-code"><span>Código recém-criado</span><code>{latestCode}</code><button className="text-action" onClick={() => void navigator.clipboard.writeText(latestCode)}>Copiar código</button></div> : null}</section>
-        <section className="panel"><div className="section-heading"><div><p className="eyebrow">CONVITES</p><h2>Últimos códigos</h2></div></div><div className="invite-list">{invitations.length === 0 ? <p>Nenhum convite criado.</p> : invitations.map((invite) => { const status = invite.used_at ? "Usado" : invite.revoked_at ? "Revogado" : new Date(invite.expires_at) < new Date() ? "Expirado" : "Disponível"; return <div key={invite.id}><div><strong>{status}</strong><small>Criado em {formatDate(invite.created_at)}</small></div>{status === "Disponível" ? <button className="danger-link" onClick={() => void revoke(invite)}>Revogar</button> : null}</div>; })}</div></section>
-      </div>
-      <section className="records-section" aria-labelledby="shared-title"><div className="section-heading"><div><p className="eyebrow">COMPARTILHADOS COM VOCÊ</p><h2 id="shared-title">Registros para retomar</h2></div><span className="count">{entries.length}</span></div>{entries.length === 0 ? <div className="empty-state"><h3>Nenhum registro compartilhado agora.</h3><p>Registros privados nunca aparecem aqui.</p></div> : <div className="record-list">{entries.map((entry) => <article className="record-card professional-record" key={entry.id}><div className="record-top"><div><span className="patient-name">{entry.patient_name}</span><h3>{entry.title}</h3><p className="record-meta">Compartilhado {entry.shared_at ? formatDate(entry.shared_at) : ""} · {entry.emotion || "emoção não nomeada"} · intensidade {entry.intensity}/10</p></div></div><EntryDetails entry={entry} /><p className="read-only">Somente leitura · o texto do paciente não pode ser editado aqui.</p></article>)}</div>}</section>
-      <AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />
-    </main>
-  );
-}
-
 function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: string; config: Config; setRecovery: (code: string) => void }) {
   const [message, setMessage] = useState("");
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);
     if (form.get("new_password") !== form.get("confirmation")) return setMessage("As novas senhas não coincidem.");
-    try { await request("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setMessage("Senha alterada."); }
+    try { await portalRequest("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setMessage("Senha alterada."); }
     catch (error) { setMessage((error as Error).message); }
   }
   async function rotate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);
-    try { const result = await request<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setRecovery(result.recovery_code); }
+    try { const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setRecovery(result.recovery_code); }
     catch (error) { setMessage((error as Error).message); }
   }
   async function deleteAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!window.confirm("Excluir sua conta e todos os registros de forma permanente? Esta ação não pode ser desfeita.")) return;
     const form = new FormData(event.currentTarget);
-    try { await request("/account", { method: "DELETE", body: JSON.stringify({ current_password: form.get("current_password") }) }, csrf); window.location.reload(); }
+    try { await portalRequest("/account", { method: "DELETE", body: JSON.stringify({ current_password: form.get("current_password") }) }, csrf); window.location.reload(); }
     catch (error) { setMessage((error as Error).message); }
   }
   return (
@@ -445,16 +377,16 @@ export function PortalApp() {
   const [fatal, setFatal] = useState("");
   const clear = useCallback(() => { setUser(null); setCsrf(""); }, []);
   useEffect(() => {
-    Promise.all([request<Config>("/config"), request<{ user: User | null; csrf?: string }>("/session")])
+    Promise.all([portalRequest<Config>("/config"), portalRequest<{ user: User | null; csrf?: string }>("/session")])
       .then(([nextConfig, session]) => { setConfig(nextConfig); setUser(session.user); setCsrf(session.csrf || ""); })
       .catch((error) => setFatal((error as Error).message));
   }, []);
   const authenticated = useCallback((nextUser: User, token: string, nextRecovery?: string) => { setUser(nextUser); setCsrf(token); if (nextRecovery) setRecovery(nextRecovery); }, []);
-  async function logout() { try { await request("/logout", { method: "POST" }, csrf); } finally { clear(); } }
+  async function logout() { try { await portalRequest("/logout", { method: "POST" }, csrf); } finally { clear(); } }
   const content = (() => {
     if (!config) return <main className="loading"><div className="loader" /><p>{fatal || "Preparando seu espaço…"}</p></main>;
     if (!user) return <Guest config={config} onAuthenticated={authenticated} />;
-    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} /> : <TherapistDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />} />}<EmergencyFooter config={config} /></>;
   })();
   return <>{content}{recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}</>;
 }
