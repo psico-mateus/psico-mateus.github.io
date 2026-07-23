@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const viewport: Viewport = {
-  themeColor: "#234c42",
+  themeColor: "#242423",
 };
 
 export const metadata: Metadata = {
@@ -33,8 +33,8 @@ export const metadata: Metadata = {
     }],
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/icon-192.png",
+    shortcut: "/icon-192.png",
     apple: "/apple-touch-icon.png",
   },
 };

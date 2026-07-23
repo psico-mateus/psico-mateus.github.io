@@ -76,7 +76,7 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
     <header className="site-header">
       <Link className="brand" href="/" aria-label="Início dos Registros entre sessões">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://psico-mateus.github.io/assets/images/logo-mateus.svg" alt="" width="48" height="48" />
+        <img src="/icon-192.png" alt="" width="48" height="48" />
         <span><strong>Registros entre sessões</strong><small>Mateus Ribeiro Marcos · Psicólogo</small></span>
       </Link>
       <nav className="top-links" aria-label="Links principais">
@@ -247,7 +247,18 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
             <Field label={mode === "recover" ? "Nova senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required hint={mode !== "login" ? "Pelo menos 12 caracteres, com letras e números." : undefined} />
             {mode !== "login" ? <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required /> : null}
             {mode === "login" ? <Field label="Código do autenticador (somente acesso profissional)" name="totp" autoComplete="one-time-code" /> : null}
-            {mode === "register" ? <div className="checks"><label><input type="checkbox" name="adult_confirmation" required /> Confirmo que tenho 18 anos ou mais.</label><label><input type="checkbox" name="privacy_confirmation" required /> Li e aceito o <a href="/privacidade/" target="_blank">aviso de privacidade</a>.</label></div> : null}
+            {mode === "register" ? (
+              <div className="checks">
+                <label className="check-row">
+                  <input type="checkbox" name="adult_confirmation" required />
+                  <span>Confirmo que tenho 18 anos ou mais.</span>
+                </label>
+                <label className="check-row">
+                  <input type="checkbox" name="privacy_confirmation" required />
+                  <span>Li e aceito o <a href="/privacidade/" target="_blank" rel="noreferrer">aviso de privacidade</a>.</span>
+                </label>
+              </div>
+            ) : null}
             {message ? <Notice tone={message.startsWith("Senha alterada") ? "success" : "error"} message={message} /> : null}
             <button className="primary-button" disabled={busy}>{busy ? "Aguarde…" : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Alterar senha"}</button>
           </form>

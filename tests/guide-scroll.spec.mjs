@@ -253,17 +253,22 @@ test("guia oferece atalhos acessíveis, filtros identificáveis e PDF", async ({
 });
 
 test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", async () => {
-  const [bundle, css, brandCss, serviceWorker] = await Promise.all([
+  const [bundle, css, brandCss, serviceWorker, guideHtml] = await Promise.all([
     readFile("assets/EmotionGuideApp-BiKEL11_.js", "utf8"),
     readFile("assets/index-BBQ5DOp1.css", "utf8"),
     readFile("assets/css/guide-brand.css", "utf8"),
     readFile("guia-emocoes/sw.js", "utf8"),
+    readFile("guia-emocoes/index.html", "utf8"),
   ]);
 
   expect(bundle).not.toContain("behavior:`smooth`");
   expect(bundle).toContain("behavior:`auto`");
   expect(bundle).toContain("focus({preventScroll:!0})");
   expect(bundle).toContain("updateViaCache:`none`");
+  expect(bundle).toContain("MacBook e iMac");
+  expect(bundle).toContain("Adicionar ao Dock");
+  expect(bundle).toContain("Abrir como App da Web");
+  expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
   expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v18"');

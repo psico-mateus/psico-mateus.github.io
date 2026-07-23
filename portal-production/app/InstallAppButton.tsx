@@ -107,11 +107,16 @@ export function InstallAppButton() {
           <ol className="install-steps">
             <li>
               <strong>No iPhone ou iPad:</strong> abra no Safari, toque em
-              Compartilhar e escolha “Adicionar à Tela de Início”.
+              Compartilhar, escolha “Adicionar à Tela de Início”, ative “Abrir
+              como App da Web” e toque em “Adicionar”.
             </li>
             <li>
-              <strong>No Android ou computador:</strong> abra o menu do navegador
-              e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.
+              <strong>No MacBook ou iMac:</strong> no Safari, clique em Compartilhar,
+              escolha “Adicionar ao Dock” e confirme em “Adicionar”.
+            </li>
+            <li>
+              <strong>No Android ou Windows:</strong> abra o menu do Chrome ou
+              Edge e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.
             </li>
           </ol>
           <button type="submit" className="primary-button">
