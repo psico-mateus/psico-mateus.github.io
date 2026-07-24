@@ -713,6 +713,7 @@ input[type="range"]{accent-color:#9a6d27}
   color:var(--muted);
   padding:.65rem .8rem;
   font-weight:750;
+  transition:background-color 160ms ease,color 160ms ease,box-shadow 160ms ease;
 }
 .patient-entry-toolbar button small{
   min-width:1.65rem;
@@ -886,7 +887,7 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(prefers-reduced-motion:reduce){
-  .patient-overview>a,.patient-record-card,.optional-toggle{transition:none}
+  .patient-overview>a,.patient-record-card,.optional-toggle,.patient-entry-toolbar button{transition:none}
 }
 
 /* Explica a diferença entre o portal restrito e o Guia aberto. */

@@ -66,7 +66,7 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /patient-record-card/);
   assert.match(app, /Filtrar registros por compartilhamento/);
   assert.match(app, /Privados/);
-  assert.match(app, /Compartilhados/);
+  assert.match(app, /Com Mateus/);
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
   assert.match(app, /InstallAppButton/);

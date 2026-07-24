@@ -399,7 +399,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   }> = [
     { value: "all", label: "Todos", count: entries.length },
     { value: "private", label: "Privados", count: privateCount },
-    { value: "shared", label: "Compartilhados", count: sharedCount },
+    { value: "shared", label: "Com Mateus", count: sharedCount },
   ];
   return (
     <main className="dashboard patient-dashboard" id="conteudo">
