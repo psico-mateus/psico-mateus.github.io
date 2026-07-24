@@ -138,11 +138,82 @@ async function setAssistedRecoveryExpiration(patientId, expiresAt) {
   }
 }
 
+async function registrationState(invitationId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const count = (query) => database.prepare(query).get().value;
+    const invitation = database
+      .prepare("SELECT used_at, patient_id FROM invitations WHERE id = ?")
+      .get(invitationId);
+    return {
+      patients: count("SELECT COUNT(*) AS value FROM users WHERE role = 'patient'"),
+      links: count("SELECT COUNT(*) AS value FROM patient_links"),
+      patientSessions: count(
+        `SELECT COUNT(*) AS value
+         FROM sessions
+         JOIN users ON users.id = sessions.user_id
+         WHERE users.role = 'patient'`,
+      ),
+      registrationAudits: count(
+        "SELECT COUNT(*) AS value FROM access_logs WHERE action = 'register'",
+      ),
+      invitationUsedAt: invitation.used_at,
+      invitationPatientId: invitation.patient_id,
+    };
+  } finally {
+    database.close();
+  }
+}
+
+async function setSyntheticRegistrationFailure(target, enabled) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath);
+  const triggers = {
+    batch: {
+      name: "synthetic_registration_batch_failure",
+      sql: `CREATE TRIGGER synthetic_registration_batch_failure
+        BEFORE INSERT ON patient_links
+        WHEN NEW.patient_id LIKE 'patient_%'
+        BEGIN
+          SELECT RAISE(ABORT, 'synthetic batch failure');
+        END`,
+    },
+    session: {
+      name: "synthetic_registration_session_failure",
+      sql: `CREATE TRIGGER synthetic_registration_session_failure
+        BEFORE INSERT ON sessions
+        WHEN NEW.user_id LIKE 'patient_%'
+        BEGIN
+          SELECT RAISE(ABORT, 'synthetic session failure');
+        END`,
+    },
+    audit: {
+      name: "synthetic_registration_audit_failure",
+      sql: `CREATE TRIGGER synthetic_registration_audit_failure
+        BEFORE INSERT ON access_logs
+        WHEN NEW.action = 'register'
+        BEGIN
+          SELECT RAISE(ABORT, 'synthetic audit failure');
+        END`,
+    },
+  };
+  const trigger = triggers[target];
+  assert.ok(trigger, "a falha sintética precisa usar um alvo conhecido");
+  try {
+    database.exec(`DROP TRIGGER IF EXISTS ${trigger.name}`);
+    if (enabled) database.exec(trigger.sql);
+  } finally {
+    database.close();
+  }
+}
+
 async function registerPatient({
   invitationCode,
   email,
   password,
   adult = true,
+  privacy = true,
 }) {
   const patient = session();
   const result = await api("/register", {
@@ -153,7 +224,7 @@ async function registerPatient({
       email,
       password,
       adult_confirmation: adult,
-      privacy_confirmation: true,
+      privacy_confirmation: privacy,
     },
     auth: patient,
   });
@@ -211,7 +282,11 @@ const invitationB = await createInvitation(therapist);
 const invitationToRevoke = await createInvitation(therapist);
 const invitationForAgeCheck = await createInvitation(therapist);
 const invitationToExpire = await createInvitation(therapist);
+const invitationForDuplicateEmail = await createInvitation(therapist);
 
+const invitationBeforeValidationErrors = await registrationState(
+  invitationForAgeCheck.id,
+);
 const underageAttempt = await registerPatient({
   invitationCode: invitationForAgeCheck.code,
   email: "sem-confirmacao@example.test",
@@ -219,6 +294,43 @@ const underageAttempt = await registerPatient({
   adult: false,
 });
 expectStatus(underageAttempt.result, 400, "cadastro sem confirmação de maioridade");
+const privacyAttempt = await registerPatient({
+  invitationCode: invitationForAgeCheck.code,
+  email: "sem-privacidade@example.test",
+  password: "SenhaSemPrivacidade123",
+  privacy: false,
+});
+expectStatus(privacyAttempt.result, 400, "cadastro sem aceite da privacidade");
+const weakPasswordAttempt = await registerPatient({
+  invitationCode: invitationForAgeCheck.code,
+  email: "senha-invalida@example.test",
+  password: "curta1",
+});
+expectStatus(weakPasswordAttempt.result, 400, "cadastro com senha inválida");
+const invalidInvitation = await registerPatient({
+  invitationCode: "CODIGO-INVALIDO",
+  email: "convite-invalido@example.test",
+  password: "SenhaConviteInvalido123",
+});
+expectStatus(invalidInvitation.result, 400, "cadastro com convite inválido");
+assert.deepEqual(
+  await registrationState(invitationForAgeCheck.id),
+  invitationBeforeValidationErrors,
+  "erros de validação não podem consumir o convite",
+);
+
+for (let attempt = 1; attempt <= 7; attempt += 1) {
+  const limited = await registerPatient({
+    invitationCode: "CODIGO-INVALIDO",
+    email: "limite-cadastro@example.test",
+    password: "SenhaLimiteCadastro123",
+  });
+  expectStatus(
+    limited.result,
+    attempt === 7 ? 429 : 400,
+    `limite de cadastro na tentativa ${attempt}`,
+  );
+}
 
 const registeredA = await registerPatient({
   invitationCode: invitationA.code.replaceAll("-", " "),
@@ -228,6 +340,18 @@ const registeredA = await registerPatient({
 expectStatus(registeredA.result, 201, "cadastro do paciente A");
 const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
+
+const duplicateEmail = await registerPatient({
+  invitationCode: invitationForDuplicateEmail.code,
+  email: synthetic.patientEmailA,
+  password: "OutraSenhaPaciente123",
+});
+expectStatus(duplicateEmail.result, 409, "cadastro com e-mail duplicado");
+assert.equal(
+  (await registrationState(invitationForDuplicateEmail.id)).invitationUsedAt,
+  null,
+  "e-mail duplicado não pode consumir o convite",
+);
 
 const invitationReuse = await registerPatient({
   invitationCode: invitationA.code,
@@ -880,10 +1004,66 @@ const afterAccountDeletion = await api("/professional/patients", { auth: therapi
 expectStatus(afterAccountDeletion, 200, "lista após exclusão de conta");
 assert.equal(afterAccountDeletion.payload.patients.length, 0);
 
+for (const [target, suffix] of [
+  ["batch", "lote"],
+  ["session", "sessao"],
+  ["audit", "auditoria"],
+]) {
+  const invitation = await createInvitation(therapist);
+  const beforeFailure = await registrationState(invitation.id);
+  await setSyntheticRegistrationFailure(target, true);
+  let failedRegistration;
+  try {
+    failedRegistration = await registerPatient({
+      invitationCode: invitation.code,
+      email: `falha-${suffix}@example.test`,
+      password: `SenhaFalha${suffix}123`,
+    });
+  } finally {
+    await setSyntheticRegistrationFailure(target, false);
+  }
+  expectStatus(
+    failedRegistration.result,
+    500,
+    `falha sintética durante ${target}`,
+  );
+  assert.deepEqual(
+    await registrationState(invitation.id),
+    beforeFailure,
+    `a falha em ${target} não pode deixar cadastro parcial`,
+  );
+
+  const retry = await registerPatient({
+    invitationCode: invitation.code,
+    email: `falha-${suffix}@example.test`,
+    password: `SenhaFalha${suffix}123`,
+  });
+  expectStatus(retry.result, 201, `nova tentativa após falha em ${target}`);
+  const retrySession = await api("/session", { auth: retry.patient });
+  expectStatus(retrySession, 200, `sessão após nova tentativa em ${target}`);
+  assert.equal(retrySession.payload.user.role, "patient");
+  const invitationReuseAfterRetry = await registerPatient({
+    invitationCode: invitation.code,
+    email: `reuso-${suffix}@example.test`,
+    password: `SenhaReuso${suffix}123`,
+  });
+  expectStatus(
+    invitationReuseAfterRetry.result,
+    400,
+    `uso único depois da nova tentativa em ${target}`,
+  );
+  const cleanupPatient = await api("/account", {
+    method: "DELETE",
+    body: { current_password: `SenhaFalha${suffix}123` },
+    auth: retry.patient,
+  });
+  expectStatus(cleanupPatient, 204, `limpeza do paciente sintético de ${target}`);
+}
+
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 72,
+    checks: 106,
     data: "synthetic-only",
     production_requests: 0,
   }),

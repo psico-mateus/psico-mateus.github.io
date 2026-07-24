@@ -354,3 +354,50 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.doesNotMatch(dashboard, /localStorage|sessionStorage|dangerouslySetInnerHTML/);
   assert.doesNotMatch(`${route}\n${dashboard}`, /BREVO|Brevo/u);
 });
+
+test("registration commits account, invitation, link, session and audit atomically", async () => {
+  const [route, portal] = await Promise.all([
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
+  ]);
+  const registration =
+    route.match(
+      /async function register[\s\S]*?(?=\nasync function recoverAccount)/u,
+    )?.[0] ?? "";
+
+  assert.match(registration, /DB\.batch\(registrationStatements\)/);
+  assert.match(registration, /session\.statement/);
+  assert.match(registration, /prepareAudit\(patientId, "register", "account"\)/);
+  assert.match(registration, /UPDATE invitations[\s\S]*?used_at IS NULL/u);
+  assert.match(
+    registration,
+    /SELECT therapist_id[\s\S]*?patient_id = \? AND used_at = \?/u,
+  );
+  assert.doesNotMatch(registration, /SELECT \* FROM users WHERE id/);
+  assert.doesNotMatch(registration, /await createSession/);
+  assert.match(portal, /export async function prepareSession/);
+  assert.match(portal, /export function prepareAudit/);
+});
+
+test("unexpected registration errors emit only bounded technical metadata", async () => {
+  const route = await readFile(
+    new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+    "utf8",
+  );
+  const logger =
+    route.match(
+      /function logTechnicalFailure[\s\S]*?(?=\nasync function portalOperation)/u,
+    )?.[0] ?? "";
+
+  assert.match(logger, /portal_request_failed/);
+  assert.match(logger, /occurrence_id/);
+  assert.match(logger, /duration_ms/);
+  assert.doesNotMatch(
+    logger,
+    /input|email|password|invitation_code|recovery_code|cookie|token|cf-connecting-ip/u,
+  );
+  assert.doesNotMatch(logger, /console\.error\(\s*error/u);
+});
