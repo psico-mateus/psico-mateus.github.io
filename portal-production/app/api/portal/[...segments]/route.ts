@@ -24,6 +24,8 @@ import {
   createSession,
   currentSession,
   now,
+  prepareAudit,
+  prepareSession,
   readJson,
   requireCsrf,
   requireSession,
@@ -36,6 +38,75 @@ import {
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
+
+class PortalOperationError extends Error {
+  operation: string;
+
+  constructor(operation: string, cause: unknown) {
+    super("Portal operation failed.", { cause });
+    this.name = "PortalOperationError";
+    this.operation = operation;
+  }
+}
+
+function technicalErrorType(error: unknown): string {
+  if (error instanceof Error && /^[A-Za-z][A-Za-z0-9]*$/u.test(error.name)) {
+    return error.name.slice(0, 80);
+  }
+  return "UnknownError";
+}
+
+function technicalD1Code(error: unknown): string | undefined {
+  let current = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (typeof current === "object") {
+      const code = "code" in current ? String(current.code) : "";
+      if (/^[A-Za-z0-9_.:-]{1,80}$/u.test(code)) return code;
+    }
+    if (current instanceof Error) {
+      const d1Code = current.message.match(/\bD1_[A-Z0-9_]+\b/u)?.[0];
+      if (d1Code) return d1Code;
+      current = current.cause;
+    } else {
+      break;
+    }
+  }
+  return undefined;
+}
+
+function logTechnicalFailure(
+  path: string,
+  error: unknown,
+  startedAt: number,
+): void {
+  const operationError =
+    error instanceof PortalOperationError ? error : null;
+  const cause = operationError?.cause ?? error;
+  console.error(
+    JSON.stringify({
+      event: "portal_request_failed",
+      route: path,
+      operation: operationError?.operation ?? "request.dispatch",
+      error_type: technicalErrorType(cause),
+      d1_code: technicalD1Code(cause),
+      status: 500,
+      occurrence_id: identifier("incident"),
+      duration_ms: Math.max(0, Date.now() - startedAt),
+    }),
+  );
+}
+
+async function portalOperation<T>(
+  operation: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof PortalError) throw error;
+    throw new PortalOperationError(operation, error);
+  }
+}
 
 function json(payload: unknown, status = 200, headers: HeadersInit = {}): Response {
   return Response.json(payload, {
@@ -204,7 +275,9 @@ async function login(request: Request, input: Input): Promise<Response> {
 async function register(request: Request, input: Input): Promise<Response> {
   const { DB, APP_SECRET } = getPortalEnv();
   const email = validateEmail(input.email);
-  await checkRateLimit(request, "register", normalizeEmail(email), 6, 30 * 60);
+  await portalOperation("register.rate_limit", () =>
+    checkRateLimit(request, "register", normalizeEmail(email), 6, 30 * 60),
+  );
   const name = cleanText(input.name, 100).replace(/\s+/gu, " ");
   if (name.length < 2) throw new PortalError(400, "Informe como prefere ser chamado(a).");
   const password = validatePassword(input.password);
@@ -214,29 +287,53 @@ async function register(request: Request, input: Input): Promise<Response> {
   if (input.privacy_confirmation !== true) {
     throw new PortalError(400, "Leia e aceite o aviso de privacidade para criar a conta.");
   }
-  const invitationHash = await codeHash(APP_SECRET, String(input.invitation_code ?? ""), "invite");
-  const invitation = await DB.prepare(
-    `SELECT invitations.id, invitations.therapist_id
-     FROM invitations
-     JOIN users ON users.id = invitations.therapist_id
-     WHERE invitations.code_hash = ? AND invitations.used_at IS NULL
-       AND invitations.revoked_at IS NULL AND invitations.expires_at > ?
-       AND users.status = 'active'`,
-  )
-    .bind(invitationHash, now())
-    .first<{ id: string; therapist_id: string }>();
+  const invitationHash = await portalOperation("register.hash_invitation", () =>
+    codeHash(APP_SECRET, String(input.invitation_code ?? ""), "invite"),
+  );
+  const invitation = await portalOperation<{ id: string } | null>(
+    "register.validate_invitation",
+    () =>
+      DB.prepare(
+        `SELECT invitations.id
+         FROM invitations
+         JOIN users ON users.id = invitations.therapist_id
+         WHERE invitations.code_hash = ? AND invitations.used_at IS NULL
+           AND invitations.revoked_at IS NULL AND invitations.expires_at > ?
+           AND users.status = 'active'`,
+      )
+        .bind(invitationHash, now())
+        .first<{ id: string }>(),
+  );
   if (!invitation) throw new PortalError(400, "O convite é inválido ou expirou.");
-  const hashedEmail = await emailHash(APP_SECRET, email);
-  if (await DB.prepare("SELECT id FROM users WHERE email_hash = ?").bind(hashedEmail).first()) {
+  const hashedEmail = await portalOperation("register.hash_email", () =>
+    emailHash(APP_SECRET, email),
+  );
+  if (
+    await portalOperation("register.check_email", () =>
+      DB.prepare("SELECT id FROM users WHERE email_hash = ?").bind(hashedEmail).first(),
+    )
+  ) {
     throw new PortalError(409, "Já existe uma conta com este e-mail.");
   }
 
-  const passwordRecord = await derivePassword(password);
+  const passwordRecord = await portalOperation("register.hash_password", () =>
+    derivePassword(password),
+  );
   const recoveryCode = createRecoveryCode();
-  const recoveryRecord = await derivePassword(recoveryCode);
+  const recoveryRecord = await portalOperation("register.hash_recovery", () =>
+    derivePassword(recoveryCode),
+  );
   const patientId = identifier("patient");
   const timestamp = now();
-  await DB.batch([
+  const patient = {
+    id: patientId,
+    display_name: name,
+    role: "patient" as const,
+  };
+  const session = await portalOperation("register.prepare_session", () =>
+    prepareSession(request, patient),
+  );
+  const registrationStatements = [
     DB.prepare(
       `INSERT INTO users
         (id, display_name, email_hash, role, status, password_salt, password_hash,
@@ -257,18 +354,69 @@ async function register(request: Request, input: Input): Promise<Response> {
       timestamp,
     ),
     DB.prepare(
-      `INSERT INTO patient_links (id, therapist_id, patient_id, status, created_at)
-       VALUES (?, ?, ?, 'active', ?)`,
-    ).bind(identifier("link"), invitation.therapist_id, patientId, timestamp),
+      `UPDATE invitations
+       SET used_at = ?, patient_id = ?
+       WHERE id = ? AND code_hash = ? AND used_at IS NULL
+         AND revoked_at IS NULL AND expires_at > ?
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE users.id = invitations.therapist_id
+             AND users.status = 'active'
+         )`,
+    ).bind(timestamp, patientId, invitation.id, invitationHash, timestamp),
     DB.prepare(
-      "UPDATE invitations SET used_at = ?, patient_id = ? WHERE id = ? AND used_at IS NULL",
-    ).bind(timestamp, patientId, invitation.id),
-  ]);
-  const patient = (await DB.prepare("SELECT * FROM users WHERE id = ?")
-    .bind(patientId)
-    .first<UserRow>()) as UserRow;
-  const session = await createSession(request, patient);
-  await audit(patientId, "register", "account");
+      `INSERT INTO patient_links (id, therapist_id, patient_id, status, created_at)
+       VALUES (
+         ?,
+         (
+           SELECT therapist_id
+           FROM invitations
+           WHERE id = ? AND patient_id = ? AND used_at = ?
+         ),
+         ?,
+         'active',
+         ?
+       )`,
+    ).bind(
+      identifier("link"),
+      invitation.id,
+      patientId,
+      timestamp,
+      patientId,
+      timestamp,
+    ),
+    session.statement,
+    prepareAudit(patientId, "register", "account"),
+  ];
+  try {
+    await DB.batch(registrationStatements);
+  } catch (error) {
+    const [activeInvitation, existingUser] = await portalOperation<
+      [{ id: string } | null, { id: string } | null]
+    >(
+      "register.verify_failed_commit",
+      () =>
+        Promise.all([
+          DB.prepare(
+            `SELECT id FROM invitations
+             WHERE id = ? AND code_hash = ? AND used_at IS NULL
+               AND revoked_at IS NULL AND expires_at > ?`,
+          )
+            .bind(invitation.id, invitationHash, now())
+            .first<{ id: string }>(),
+          DB.prepare("SELECT id FROM users WHERE email_hash = ?")
+            .bind(hashedEmail)
+            .first<{ id: string }>(),
+        ]),
+    );
+    if (!activeInvitation) {
+      throw new PortalError(400, "O convite é inválido ou expirou.");
+    }
+    if (existingUser) {
+      throw new PortalError(409, "Já existe uma conta com este e-mail.");
+    }
+    throw new PortalOperationError("register.atomic_commit", error);
+  }
   return json(
     { user: session.user, csrf: session.csrf, recovery_code: recoveryCode },
     201,
@@ -989,6 +1137,7 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
 }
 
 async function route(request: Request, context: RouteContext): Promise<Response> {
+  const startedAt = Date.now();
   const { segments } = await context.params;
   const path = pathOf(segments);
   try {
@@ -1001,6 +1150,7 @@ async function route(request: Request, context: RouteContext): Promise<Response>
     return json({ error: "Método não permitido." }, 405, { Allow: "GET, POST, PATCH, DELETE" });
   } catch (error) {
     if (error instanceof PortalError) return json({ error: error.message }, error.status);
+    logTechnicalFailure(path, error, startedAt);
     return json({ error: "Não foi possível concluir a ação. Tente novamente." }, 500);
   }
 }

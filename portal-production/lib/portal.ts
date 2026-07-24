@@ -44,6 +44,8 @@ export interface UserRow {
   last_login_at: string | null;
 }
 
+type SessionIdentity = Pick<UserRow, "id" | "display_name" | "role">;
+
 export function now(): string {
   return new Date().toISOString();
 }
@@ -133,23 +135,31 @@ export function clearSessionCookie(request: Request): string {
   return sessionCookie(request, "", 0);
 }
 
-export async function createSession(request: Request, user: UserRow) {
+export async function prepareSession(request: Request, user: SessionIdentity) {
   const { DB } = getPortalEnv();
   const token = randomToken(32);
   const tokenHash = await sha256(token);
   const csrfToken = randomToken(24);
   const createdAt = now();
   const expiresAt = new Date(Date.now() + SESSION_SECONDS * 1_000).toISOString();
-  await DB.prepare(
-    `INSERT INTO sessions (token_hash, user_id, csrf_token, expires_at, created_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(tokenHash, user.id, csrfToken, expiresAt, createdAt, createdAt)
-    .run();
   return {
+    statement: DB.prepare(
+      `INSERT INTO sessions (token_hash, user_id, csrf_token, expires_at, created_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(tokenHash, user.id, csrfToken, expiresAt, createdAt, createdAt),
     csrf: csrfToken,
     cookie: sessionCookie(request, token),
     user: publicUser(user),
+  };
+}
+
+export async function createSession(request: Request, user: SessionIdentity) {
+  const session = await prepareSession(request, user);
+  await session.statement.run();
+  return {
+    csrf: session.csrf,
+    cookie: session.cookie,
+    user: session.user,
   };
 }
 
@@ -199,13 +209,20 @@ export async function audit(
   resourceType: string,
   resourceId: string | null = null,
 ): Promise<void> {
+  await prepareAudit(userId, action, resourceType, resourceId).run();
+}
+
+export function prepareAudit(
+  userId: string | null,
+  action: string,
+  resourceType: string,
+  resourceId: string | null = null,
+) {
   const { DB } = getPortalEnv();
-  await DB.prepare(
+  return DB.prepare(
     `INSERT INTO access_logs (id, user_id, action, resource_type, resource_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(identifier("log"), userId, action, resourceType, resourceId, now())
-    .run();
+  ).bind(identifier("log"), userId, action, resourceType, resourceId, now());
 }
 
 export async function checkRateLimit(
