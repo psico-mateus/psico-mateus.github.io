@@ -158,7 +158,7 @@ async function login(request: Request, input: Input): Promise<Response> {
   await checkRateLimit(request, "login", normalizeEmail(email));
   const user = await userByEmail(email);
   const genericError = new PortalError(401, "E-mail, senha ou código inválidos.");
-  if (!user || user.status !== "active") throw genericError;
+  if (!user) throw genericError;
   if (
     !(await passwordMatches(
       String(input.password ?? ""),
@@ -167,6 +167,15 @@ async function login(request: Request, input: Input): Promise<Response> {
       user.password_iterations,
     ))
   ) {
+    throw genericError;
+  }
+  if (user.status !== "active") {
+    if (user.role === "patient" && user.status === "disabled") {
+      throw new PortalError(
+        403,
+        "Seu acesso aos Registros foi encerrado porque este portal é exclusivo para pacientes em acompanhamento atual. Se acredita que houve um engano, fale com Mateus.",
+      );
+    }
     throw genericError;
   }
   if (user.role === "therapist") {

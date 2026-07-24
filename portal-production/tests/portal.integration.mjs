@@ -475,6 +475,24 @@ assert.equal(revokePatientA.payload.access_status, "revoked");
 
 const revokedPatientSession = await api("/entries", { auth: patientA });
 expectStatus(revokedPatientSession, 401, "sessão encerrada após revogação");
+
+const revokedPatientWrongPassword = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: "SenhaIncorreta123",
+  },
+});
+expectStatus(
+  revokedPatientWrongPassword,
+  401,
+  "login revogado com senha incorreta",
+);
+assert.equal(
+  revokedPatientWrongPassword.payload.error,
+  "E-mail, senha ou código inválidos.",
+);
+
 const revokedPatientLogin = await api("/login", {
   method: "POST",
   body: {
@@ -482,7 +500,16 @@ const revokedPatientLogin = await api("/login", {
     password: synthetic.patientPasswordA,
   },
 });
-expectStatus(revokedPatientLogin, 401, "login após revogação");
+expectStatus(revokedPatientLogin, 403, "login após revogação");
+assert.equal(
+  revokedPatientLogin.payload.error,
+  "Seu acesso aos Registros foi encerrado porque este portal é exclusivo para pacientes em acompanhamento atual. Se acredita que houve um engano, fale com Mateus.",
+);
+assert.equal(
+  revokedPatientLogin.response.headers.get("set-cookie"),
+  null,
+  "login revogado não deve criar sessão",
+);
 
 const accessesAfterRevocation = await api("/professional/accesses", {
   auth: therapist,
