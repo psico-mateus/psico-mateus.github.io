@@ -52,38 +52,66 @@ main .install-button {
   min-height: 44px;
 }
 
-/* Separa as ações do Guia dos links externos sem trocar a paleta. */
+/* Dá a cada caminho inicial um tom próprio, suave e coerente com a paleta. */
+.hero-actions > a[href="#explorar"] {
+  border-color: #354139;
+  background: #3f4c45;
+  color: #fffdf9;
+  box-shadow: 0 8px 20px rgba(46, 56, 50, 0.16);
+}
+
+.hero-actions > a[href="#explorar"]:hover {
+  border-color: #3e4c44;
+  background: #4a5a51;
+  color: #fffdf9;
+}
+
+.hero-actions > a[href="#registrar"] {
+  border-color: #cfc4d2;
+  background: #eee8f0;
+  color: #4f4554;
+  box-shadow: 0 7px 18px rgba(79, 69, 84, 0.07);
+}
+
+.hero-actions > a[href="#registrar"]:hover {
+  border-color: #aa98af;
+  background: #e5dce8;
+  color: #453b4a;
+}
+
 .hero-actions > .guide-portal-link {
-  border-color: #cbbda8;
-  background: #eee6da;
-  color: #3f3c36;
-  box-shadow: none;
+  border-color: #bdcabe;
+  background: #e5ece6;
+  color: #3e5545;
+  box-shadow: 0 7px 18px rgba(62, 85, 69, 0.07);
   font-weight: 750;
 }
 
 .hero-actions > .guide-portal-link:hover {
-  border-color: #b78336;
-  background: #e7dccd;
-  color: #292923;
+  border-color: #91a994;
+  background: #d9e4db;
+  color: #344a3b;
 }
 
-.hero-actions > a[href="/"] {
-  border-color: #a97832;
-  background: #ead2aa;
-  color: #4b3518;
-  box-shadow: 0 8px 22px rgba(117, 79, 27, 0.12);
+.hero-actions > .guide-professional-link {
+  border-color: #d6bd94;
+  background: #f1e4d0;
+  color: #5e461f;
+  box-shadow: 0 7px 18px rgba(94, 70, 31, 0.08);
   font-weight: 750;
 }
 
-.hero-actions > a[href="/"]:hover {
-  border-color: #8d6125;
-  background: #dfbf88;
-  color: #35240f;
+.hero-actions > .guide-professional-link:hover {
+  border-color: #b99154;
+  background: #e9d7bb;
+  color: #513a18;
 }
 
 @media (width <= 680px) {
+  .hero-actions > a[href="#explorar"],
+  .hero-actions > a[href="#registrar"],
   .hero-actions > .guide-portal-link,
-  .hero-actions > a[href="/"] {
+  .hero-actions > .guide-professional-link {
     width: 100%;
   }
 }

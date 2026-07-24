@@ -1,4 +1,4 @@
-const CACHE_NAME = "guia-emocoes-scoped-v21";
+const CACHE_NAME = "guia-emocoes-scoped-v22";
 const CACHE_PREFIX = "guia-emocoes-scoped-";
 const GUIDE_PATH = "/guia-emocoes/";
 const GUIDE_ASSET_PATHS = new Set([
@@ -21,7 +21,7 @@ const CORE_ASSETS = [
   `${GUIDE_PATH}index.html`,
   `${GUIDE_PATH}manifest.webmanifest`,
   "/assets/index-BBQ5DOp1.css?v=20260716-final",
-  "/assets/css/guide-brand.css?v=20260723-balanced",
+  "/assets/css/guide-brand.css?v=20260723-tonal",
   ...GUIDE_ASSET_PATHS,
 ];
 

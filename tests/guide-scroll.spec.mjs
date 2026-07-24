@@ -26,6 +26,23 @@ function expectUnlocked(state) {
   expect(state.htmlStyle ?? "").not.toMatch(/overflow\s*:\s*hidden|position\s*:\s*fixed/i);
 }
 
+function contrastRatio(background, foreground) {
+  const luminance = (value) => {
+    const channels = value.match(/\d+(?:\.\d+)?/g).slice(0, 3).map(Number);
+    const linear = channels.map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.03928
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+  };
+
+  const first = luminance(background);
+  const second = luminance(foreground);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 async function expectPageStillScrolls(page) {
   const before = await page.evaluate(() => window.scrollY);
   await page.evaluate(() => window.scrollBy(0, 420));
@@ -211,6 +228,37 @@ test("guia apresenta os Registros entre sessões sem esconder o site profissiona
   expect(size?.height).toBeGreaterThanOrEqual(44);
 });
 
+test("ações iniciais usam quatro tons distintos e confortáveis para leitura", async ({ page }) => {
+  await page.goto(guidePath);
+
+  const labels = [
+    "Explorar emoções",
+    "Ainda não sei o que sinto",
+    "Registros entre sessões",
+    "Site profissional",
+  ];
+  const tones = [];
+
+  for (const label of labels) {
+    const link = page.getByRole("link", { name: label, exact: true }).first();
+    await expect(link).toBeVisible();
+    tones.push(
+      await link.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          background: style.backgroundColor,
+          foreground: style.color,
+        };
+      }),
+    );
+  }
+
+  expect(new Set(tones.map(({ background }) => background)).size).toBe(4);
+  for (const tone of tones) {
+    expect(contrastRatio(tone.background, tone.foreground)).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
 test("guia oferece atalhos acessíveis, filtros identificáveis e PDF", async ({ page }, testInfo) => {
   await page.goto(guidePath);
 
@@ -271,7 +319,7 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v18"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v22"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',
