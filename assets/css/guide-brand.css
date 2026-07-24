@@ -52,41 +52,27 @@ main .install-button {
   min-height: 44px;
 }
 
-/* Mantém a saída para o site profissional clara, sem competir com o Guia. */
-.hero-actions > a[href="/"] {
-  border-color: #a97832;
-  background: #ead2aa;
-  color: #4b3518;
-  box-shadow: 0 8px 22px rgba(117, 79, 27, 0.14);
-  font-weight: 800;
-}
-
-.hero-actions > a[href="/"]:hover {
-  border-color: #8d6125;
-  background: #dfbf88;
-}
-
+/* Separa as ações do Guia dos links externos sem trocar a paleta. */
+.hero-actions > a[href="/"],
 .hero-actions > .guide-portal-link {
-  border-color: #292923;
-  background: #292923;
-  color: #fffdf9;
-  box-shadow: 0 8px 22px rgba(41, 41, 35, 0.16);
-  font-weight: 800;
+  border-color: #cbbda8;
+  background: #f4eee5;
+  color: #3f3c36;
+  box-shadow: none;
+  font-weight: 700;
 }
 
+.hero-actions > a[href="/"]:hover,
 .hero-actions > .guide-portal-link:hover {
-  border-color: #403f37;
-  background: #403f37;
+  border-color: #b78336;
+  background: #eee6da;
+  color: #292923;
 }
 
 @media (width <= 680px) {
-  .hero-actions > .guide-portal-link {
-    order: -2;
-    width: 100%;
-  }
-
+  .hero-actions > .guide-portal-link,
   .hero-actions > a[href="/"] {
-    order: -1;
+    width: 100%;
   }
 }
 
