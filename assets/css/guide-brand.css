@@ -53,20 +53,32 @@ main .install-button {
 }
 
 /* Separa as ações do Guia dos links externos sem trocar a paleta. */
-.hero-actions > a[href="/"],
 .hero-actions > .guide-portal-link {
   border-color: #cbbda8;
-  background: #f4eee5;
+  background: #eee6da;
   color: #3f3c36;
   box-shadow: none;
-  font-weight: 700;
+  font-weight: 750;
 }
 
-.hero-actions > a[href="/"]:hover,
 .hero-actions > .guide-portal-link:hover {
   border-color: #b78336;
-  background: #eee6da;
+  background: #e7dccd;
   color: #292923;
+}
+
+.hero-actions > a[href="/"] {
+  border-color: #a97832;
+  background: #ead2aa;
+  color: #4b3518;
+  box-shadow: 0 8px 22px rgba(117, 79, 27, 0.12);
+  font-weight: 750;
+}
+
+.hero-actions > a[href="/"]:hover {
+  border-color: #8d6125;
+  background: #dfbf88;
+  color: #35240f;
 }
 
 @media (width <= 680px) {
