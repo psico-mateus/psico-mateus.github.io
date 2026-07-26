@@ -26,10 +26,15 @@ import {
 } from "../app/patient-dashboard-data.ts";
 
 test("passwords are salted and verified", async () => {
-  assert.equal(PASSWORD_ITERATIONS, 310_000);
+  assert.equal(PASSWORD_ITERATIONS, 100_000);
   const record = await derivePassword("SenhaDeTeste123", undefined, 10_000);
   assert.equal(await passwordMatches("SenhaDeTeste123", record.salt, record.hash, record.iterations), true);
   assert.equal(await passwordMatches("SenhaErrada123", record.salt, record.hash, record.iterations), false);
+});
+
+test("password derivation stays compatible with PBKDF2-HMAC-SHA256", async () => {
+  const record = await derivePassword("password", "c2FsdA", 1);
+  assert.equal(record.hash, "Eg-2z_z4syxD5yJSVsT4N6hlSMkszDVICAWYfLcL4Xs");
 });
 
 test("TOTP accepts an RFC vector once and blocks replay", async () => {

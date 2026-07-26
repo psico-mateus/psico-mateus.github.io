@@ -1,7 +1,7 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const BASE32 = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-export const PASSWORD_ITERATIONS = 310_000;
+export const PASSWORD_ITERATIONS = 100_000;
 
 export function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
