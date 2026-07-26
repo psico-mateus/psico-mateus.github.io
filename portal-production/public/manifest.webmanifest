@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Registros entre sessões",
-  "short_name": "Registros",
-  "description": "Um espaço privado para organizar o que você deseja levar para a sessão.",
+  "name": "Área do paciente",
+  "short_name": "Área do paciente",
+  "description": "Registros e materiais de apoio que complementam a psicoterapia.",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",

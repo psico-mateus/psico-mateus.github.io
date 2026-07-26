@@ -23,8 +23,10 @@ import {
 import {
   filterPatientEntries,
   isEntryShared,
+  patientEntryViewStatus,
 } from "../app/patient-dashboard-data.ts";
 import { copyText } from "../app/copy-text.ts";
+import { formatViewTimestamp } from "../app/portal-client.ts";
 
 test("passwords are salted and verified", async () => {
   assert.equal(PASSWORD_ITERATIONS, 100_000);
@@ -87,6 +89,8 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(installButton, /getInstalledRelatedApps/);
   assert.match(installButton, /install-device-grid/);
   const parsedManifest = JSON.parse(manifest);
+  assert.equal(parsedManifest.name, "Área do paciente");
+  assert.equal(parsedManifest.short_name, "Área do paciente");
   assert.equal(parsedManifest.display, "standalone");
   assert.deepEqual(parsedManifest.related_applications, [
     {
@@ -100,7 +104,78 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.doesNotMatch(installButton, /localStorage|sessionStorage/);
   assert.match(privacy, /não são usados para publicidade/);
   assert.match(worker, /Content-Security-Policy/);
+  assert.match(worker, /X-Robots-Tag/);
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
+});
+
+test("patient sees an honest view status only for currently shared entries", () => {
+  const base = {
+    shared_at: "2026-07-26T12:00:00.000Z",
+    updated_at: "2026-07-26T11:00:00.000Z",
+    revoked_at: null,
+  };
+  assert.deepEqual(
+    patientEntryViewStatus({ ...base, shared_at: null, viewed_at: null }),
+    { kind: "private" },
+  );
+  assert.deepEqual(patientEntryViewStatus({ ...base, viewed_at: null }), {
+    kind: "unseen",
+  });
+  assert.deepEqual(
+    patientEntryViewStatus({
+      ...base,
+      viewed_at: "2026-07-26T12:30:00.000Z",
+    }),
+    { kind: "viewed" },
+  );
+  assert.deepEqual(
+    patientEntryViewStatus({
+      ...base,
+      updated_at: "2026-07-26T13:00:00.000Z",
+      viewed_at: "2026-07-26T12:30:00.000Z",
+    }),
+    { kind: "updated" },
+  );
+  assert.deepEqual(
+    patientEntryViewStatus({
+      ...base,
+      shared_at: "2026-07-26T14:00:00.000Z",
+      updated_at: "2026-07-26T11:00:00.000Z",
+      viewed_at: "2026-07-26T12:30:00.000Z",
+    }),
+    { kind: "reshared" },
+  );
+  assert.match(
+    formatViewTimestamp("2026-07-26T12:30:00.000Z"),
+    /^\d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}$/u,
+  );
+});
+
+test("patient view state is server-derived and excluded from the data export", async () => {
+  const [route, app, privacy] = await Promise.all([
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
+  ]);
+  const patientList =
+    route.match(
+      /if \(session\.role === "patient"\)[\s\S]*?return result\.results;/u,
+    )?.[0] ?? "";
+  const exportHandler =
+    route.match(
+      /if \(path === "\/export"\)[\s\S]*?(?=\n  throw new PortalError)/u,
+    )?.[0] ?? "";
+
+  assert.match(patientList, /entry_views\.viewed_at/);
+  assert.match(patientList, /WHERE entries\.patient_id = \?/);
+  assert.match(app, /Ainda não visualizado por Mateus/);
+  assert.match(app, /Visualizado por Mateus em/);
+  assert.match(app, /não é acompanhada em tempo real/);
+  assert.match(privacy, /Essa informação também aparece para você/);
+  assert.match(exportHandler, /delete exportedEntry\.viewed_at/);
 });
 
 test("patient history filters private and shared entries", () => {

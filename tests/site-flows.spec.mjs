@@ -28,14 +28,14 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page).toHaveTitle(/Mateus Ribeiro Marcos/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Mateus Ribeiro Marcos/);
   await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
-  await expect(page.getByText("Materiais de apoio", { exact: true })).toBeVisible();
+  await expect(page.locator(".patient-resources-heading .eyebrow")).toHaveText("Materiais de apoio");
   await expect(page.getByText("Aberto a qualquer pessoa · sem conta", { exact: true })).toBeVisible();
   await expect(page.getByText("Exclusivo para pacientes atuais · com convite", { exact: true }))
     .toBeVisible();
-  await expect(page.getByRole("heading", { name: "Dois recursos, com acessos diferentes" }))
+  await expect(page.getByRole("heading", { name: "Dois recursos, com funções e acessos diferentes" }))
     .toBeVisible();
   const resourceChooser = page.getByRole("navigation", {
-    name: "Escolha entre o Guia e os Registros",
+    name: "Escolha entre o Guia de Emoções e a Área do paciente",
   });
   await expect(resourceChooser).toBeVisible();
   await expect(resourceChooser.locator(".resource-choice-guide")).toHaveAttribute("href", "#guia");
@@ -44,7 +44,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
     .toBeVisible();
   await expect(
     page.locator(".hero-actions, .hero-copy .button-row").getByRole("link", {
-      name: "Registros entre sessões",
+      name: "Área do paciente",
       exact: true,
     }),
   ).toBeVisible();
@@ -84,7 +84,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
     { name: "Abordagem", hash: "#abordagem" },
     { name: "Atendimentos", hash: "#atendimentos" },
     { name: "Guia de Emoções", hash: "#guia" },
-    { name: "Registros entre sessões", hash: "#espaco" },
+    { name: "Área do paciente", hash: "#espaco" },
     { name: "Dúvidas", hash: "#duvidas" },
     { name: "Contato", hash: "#contato" },
   ]) {
@@ -114,7 +114,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await page.getByRole("button", { name: "Compartilhar o guia" }).click();
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
-  await expect(page.getByRole("link", { name: "Acessar os Registros", exact: true }))
+  await expect(page.getByRole("link", { name: "Acessar a Área do paciente", exact: true }))
     .toHaveAttribute("href", "https://registros.psico-mateus.workers.dev");
 
   expect(pageErrors).toEqual([]);
@@ -183,8 +183,10 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   await expect(page.getByText(/não é necessário relatar detalhes\s+clínicos/i)).toBeVisible();
 
   await page.goto("/cuidados/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cuidados e emergências");
-  await expect(page.getByText(/não funcionam como atendimento de crise/)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cuidados e ajuda imediata");
+  await expect(page.locator(".legal-hero")).toContainText("não são serviços de emergência");
+  await expect(page.locator(".legal-body")).toContainText("SAMU pelo número 192");
+  await expect(page.locator(".legal-body")).toContainText("apoio emocional gratuito pelo telefone 188");
 
   await page.goto("/404.html");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Página não encontrada");

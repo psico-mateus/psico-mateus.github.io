@@ -4,21 +4,25 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
+import { PatientEducation } from "./PatientEducation";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import {
   filterPatientEntries,
+  patientEntryViewStatus,
   isEntryShared,
   type PatientEntrySharingFilter,
 } from "./patient-dashboard-data";
-import { formatDate, portalRequest } from "./portal-client";
+import { formatDate, formatViewTimestamp, portalRequest } from "./portal-client";
 
 type Role = "patient" | "therapist";
+type PatientArea = "home" | "records" | "education";
 type User = { id: string; name: string; role: Role };
 type Config = {
   configured: boolean;
   pending: boolean;
   public_site_url: string;
   guide_url: string;
+  care_url: string;
   privacy_version: string;
 };
 type Entry = {
@@ -35,6 +39,7 @@ type Entry = {
   updated_at: string;
   shared_at: string | null;
   revoked_at?: string | null;
+  viewed_at?: string | null;
 };
 type EntryDraft = Omit<Entry, "id" | "created_at" | "updated_at" | "shared_at" | "revoked_at">;
 
@@ -48,6 +53,23 @@ const blankEntry: EntryDraft = {
   intensity: 5,
   message: "",
 };
+
+// Desative esta flag depois que pacientes recorrentes tiverem visto a mudança.
+const SHOW_AREA_NAME_CHANGE_NOTICE = true;
+
+function NameChangeNotice() {
+  if (!SHOW_AREA_NAME_CHANGE_NOTICE) return null;
+  return (
+    <aside className="name-change-notice" aria-label="Mudança de nome">
+      <p>
+        <strong>Nome novo, mesmo espaço.</strong> Os Registros entre sessões
+        agora fazem parte da Área do paciente. Sua conta, seus registros e suas
+        escolhas de privacidade continuam iguais. A mudança de nome não altera
+        quem pode ver o que você escreve.
+      </p>
+    </aside>
+  );
+}
 
 function Field({
   label,
@@ -80,10 +102,10 @@ function Notice({ message, tone = "info" }: { message: string; tone?: "info" | "
 function Header({ config, user, onLogout }: { config: Config; user?: User | null; onLogout?: () => void }) {
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="Início dos Registros entre sessões">
+      <Link className="brand" href="/" aria-label="Início da Área do paciente">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-192.png" alt="" width="48" height="48" />
-        <span><strong>Registros entre sessões</strong><small>Mateus Ribeiro Marcos · Psicólogo</small></span>
+        <span><strong>Área do paciente</strong><small>Mateus Ribeiro Marcos · Psicólogo</small></span>
       </Link>
       <nav className="top-links" aria-label="Links principais">
         <a href={config.public_site_url}>Site profissional</a>
@@ -243,15 +265,21 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
       <Header config={config} />
       <main className="guest-layout" id="conteudo">
         <section className="guest-intro">
-          <p className="eyebrow">REGISTROS ENTRE SESSÕES</p>
-          <h1>Anote o que aconteceu. <em>Você decide o que compartilhar.</em></h1>
-          <p className="lead">Um espaço para guardar situações, pensamentos e emoções que você queira retomar depois, no seu tempo.</p>
-          <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> Este portal é reservado a pessoas em acompanhamento com Mateus. A criação da conta acontece somente por convite.</p>
+          <p className="eyebrow">ÁREA DO PACIENTE</p>
+          <h1>Guarde o que aconteceu. <em>Retome quando fizer sentido.</em></h1>
+          <p className="lead">Um espaço privado para organizar situações, pensamentos e emoções, consultar materiais e levar o que fizer sentido para a psicoterapia.</p>
+          <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> O acesso é reservado a pessoas em acompanhamento com Mateus e a criação da conta acontece somente por convite.</p>
           <div className="principles">
-            <article><span>01</span><div><strong>Privado ao salvar</strong><p>Mateus só vê um registro quando você o compartilha.</p></div></article>
+            <article><span>01</span><div><strong>Privado ao salvar</strong><p>Mateus só vê um registro quando você decide compartilhá-lo.</p></div></article>
             <article><span>02</span><div><strong>Compartilhar é opcional</strong><p>Você pode permitir ou retirar o acesso a cada registro.</p></div></article>
             <article><span>03</span><div><strong>Sem acompanhamento imediato</strong><p>Este espaço não é monitorado em tempo real.</p></div></article>
           </div>
+          <p className="education-public-note">
+            Os materiais da área “Leitura complementar” são informativos. Abrir ou
+            pesquisar um conteúdo não confirma diagnóstico e não é informado a
+            Mateus.
+          </p>
+          <NameChangeNotice />
           <a className="guide-callout" href={config.guide_url}><span>Aberto a qualquer pessoa, sem conta</span><strong>Usar o Guia de Emoções →</strong></a>
         </section>
 
@@ -302,7 +330,17 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
   );
 }
 
-function EntryForm({ initial, onSave, onCancel }: { initial?: Entry; onSave: (entry: EntryDraft) => Promise<void>; onCancel: () => void }) {
+function EntryForm({
+  initial,
+  guidance,
+  onSave,
+  onCancel,
+}: {
+  initial?: Entry;
+  guidance?: string;
+  onSave: (entry: EntryDraft) => Promise<void>;
+  onCancel: () => void;
+}) {
   const [draft, setDraft] = useState<EntryDraft>(initial ? {
     title: initial.title, happened: initial.happened, body: initial.body, thoughts: initial.thoughts, urge: initial.urge,
     emotion: initial.emotion, intensity: initial.intensity, message: initial.message,
@@ -317,6 +355,11 @@ function EntryForm({ initial, onSave, onCancel }: { initial?: Entry; onSave: (en
   }
   return (
     <form className="entry-form panel patient-entry-form" id="entry-editor" onSubmit={submit}>
+      {guidance ? (
+        <p className="education-entry-guidance" id="education-entry-guidance">
+          {guidance}
+        </p>
+      ) : null}
       <div className="section-heading entry-form-heading">
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
@@ -331,7 +374,7 @@ function EntryForm({ initial, onSave, onCancel }: { initial?: Entry; onSave: (en
           <span aria-hidden="true">01</span>
           <div><h3 id="entry-step-one">Comece pela situação</h3><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
         </div>
-        <label className="field"><span>Título breve</span><input value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required /></label>
+        <label className="field"><span>Título breve</span><input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required aria-describedby={guidance ? "education-entry-guidance" : undefined} /></label>
         <label className="field"><span>O que aconteceu?</span><textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required /></label>
       </section>
 
@@ -373,6 +416,9 @@ function EntryDetails({ entry }: { entry: Entry }) {
 }
 
 function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { user: User; csrf: string; config: Config; setRecovery: (code: string) => void; onSessionLost: () => void }) {
+  const [area, setArea] = useState<PatientArea>("home");
+  const [selectedEducationSlug, setSelectedEducationSlug] = useState<string | null>(null);
+  const [educationReturnSlug, setEducationReturnSlug] = useState<string | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editing, setEditing] = useState<Entry | null | "new">(null);
   const [message, setMessage] = useState("");
@@ -387,10 +433,15 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (area !== "records" || editing !== "new" || !educationReturnSlug) return;
+    window.requestAnimationFrame(() => document.getElementById("entry-title")?.focus());
+  }, [area, editing, educationReturnSlug]);
+
   async function save(draft: EntryDraft) {
     if (editing && editing !== "new") await portalRequest(`/entries/${editing.id}`, { method: "PATCH", body: JSON.stringify(draft) }, csrf);
     else await portalRequest("/entries", { method: "POST", body: JSON.stringify(draft) }, csrf);
-    setEditing(null); setMessage("Registro salvo de forma privada."); await load();
+    setEditing(null); setEducationReturnSlug(null); setMessage("Registro salvo de forma privada."); await load();
   }
   async function sharing(entry: Entry) {
     const shared = isEntryShared(entry);
@@ -404,6 +455,58 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   async function remove(entry: Entry) {
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
     await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf); setMessage("Registro excluído."); await load();
+  }
+  function openNewRecord() {
+    setArea("records");
+    setEducationReturnSlug(null);
+    setEditing("new");
+  }
+  function createRecordFromEducation(slug: string) {
+    setSelectedEducationSlug(slug);
+    setEducationReturnSlug(slug);
+    setArea("records");
+    setEditing("new");
+    setMessage("");
+  }
+  function cancelEntry() {
+    if (!educationReturnSlug) {
+      setEditing(null);
+      return;
+    }
+    setSelectedEducationSlug(educationReturnSlug);
+    setEditing(null);
+    setEducationReturnSlug(null);
+    setArea("education");
+  }
+  function changeArea(nextArea: PatientArea) {
+    if (area === nextArea) return;
+    if (
+      editing &&
+      !window.confirm("Sair do formulário? O que ainda não foi salvo será perdido.")
+    ) {
+      return;
+    }
+    setEditing(null);
+    setEducationReturnSlug(null);
+    setArea(nextArea);
+    window.requestAnimationFrame(() => {
+      const targetId =
+        nextArea === "home"
+          ? "patient-home-title"
+          : nextArea === "records"
+            ? "records-title"
+            : selectedEducationSlug
+              ? "education-article-title"
+              : "education-title";
+      document.getElementById(targetId)?.focus();
+    });
+  }
+  function openEducationLibrary() {
+    setSelectedEducationSlug(null);
+    setArea("education");
+    window.requestAnimationFrame(() =>
+      document.getElementById("education-title")?.focus(),
+    );
   }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
@@ -419,32 +522,93 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   ];
   return (
     <main className="dashboard patient-dashboard" id="conteudo">
-      <section className="dashboard-hero patient-hero">
-        <div className="patient-hero-copy">
-          <p className="eyebrow">SEU ESPAÇO</p>
-          <h1>Olá, {user.name}.</h1>
-          <p>Guarde situações, pensamentos e emoções que você queira retomar depois. Nada é compartilhado automaticamente.</p>
-          <span className="patient-privacy-chip"><span aria-hidden="true" /> Privado por padrão</span>
-        </div>
-        <button className="primary-button" onClick={() => setEditing("new")}>Registrar algo</button>
-      </section>
+      <NameChangeNotice />
+      <nav className="patient-navigation" aria-label="Navegação da Área do paciente">
+        <button
+          type="button"
+          className={area === "home" ? "active" : ""}
+          aria-current={area === "home" ? "page" : undefined}
+          onClick={() => changeArea("home")}
+        >
+          Início
+        </button>
+        <button
+          type="button"
+          className={area === "records" ? "active" : ""}
+          aria-current={area === "records" ? "page" : undefined}
+          onClick={() => changeArea("records")}
+        >
+          Meus registros
+        </button>
+        <button
+          type="button"
+          className={area === "education" ? "active" : ""}
+          aria-current={area === "education" ? "page" : undefined}
+          onClick={() => changeArea("education")}
+        >
+          Leitura complementar
+        </button>
+      </nav>
 
-      <section className="patient-overview" aria-label="Resumo dos seus registros">
-        <article><span className="overview-number">{entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
-        <article><span className="overview-number">{sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado" : "compartilhados"}</strong><small>Visíveis para Mateus agora</small></div></article>
-        <a href={config.guide_url}><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções →</strong></a>
-      </section>
+      {area === "home" ? (
+        <section className="patient-home" aria-labelledby="patient-home-title">
+          <section className="dashboard-hero patient-hero">
+            <div className="patient-hero-copy">
+              <p className="eyebrow">SUA ÁREA DO PACIENTE</p>
+              <h1 id="patient-home-title" tabIndex={-1}>Olá, {user.name}.</h1>
+              <p>Use esta área quando algo merecer ser guardado, quando quiser voltar ao seu histórico ou quando um material puder ajudar a organizar uma dúvida. Nada é compartilhado automaticamente.</p>
+              <span className="patient-privacy-chip"><span aria-hidden="true" /> Privado por padrão</span>
+            </div>
+            <div className="patient-home-actions">
+              <button className="primary-button" onClick={openNewRecord}>Registrar algo</button>
+              <button className="secondary-button" onClick={openEducationLibrary}>Leitura complementar</button>
+            </div>
+          </section>
 
-      {message ? <Notice tone="success" message={message} /> : null}
-      {editing ? <EntryForm initial={editing === "new" ? undefined : editing} onSave={save} onCancel={() => setEditing(null)} /> : null}
-      <section className="records-section" aria-labelledby="records-title">
-        <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title">Seus registros</h2><p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p></div><span className="count">{entryFilter === "all" ? `${entries.length} ${entries.length === 1 ? "registro" : "registros"}` : `${visibleEntries.length} de ${entries.length}`}</span></div>
+          <section className="patient-overview" aria-label="Resumo da Área do paciente">
+            <article><span className="overview-number">{loading ? "…" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
+            <article><span className="overview-number">{loading ? "…" : sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado" : "compartilhados"}</strong><small>Visíveis para Mateus agora</small></div></article>
+            <a href={config.guide_url}><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções →</strong></a>
+          </section>
+
+          <details className="patient-how-to">
+            <summary>Como usar esta área</summary>
+            <div>
+              <p>Você não precisa escrever toda semana nem preencher todos os campos. Pode registrar uma situação breve, consultar um conteúdo ou apenas voltar ao que já guardou. Cada registro nasce privado. Você escolhe se quer compartilhá-lo com Mateus. As leituras e buscas da área “Leitura complementar” não são informadas a ele.</p>
+              <p>Esta área ajuda a organizar assuntos para a psicoterapia, mas não é acompanhada em tempo real e não substitui ajuda imediata. <a href={config.care_url}>Consulte Cuidados e ajuda imediata.</a></p>
+            </div>
+          </details>
+        </section>
+      ) : area === "records" ? (
+        <>
+          {message ? <Notice tone="success" message={message} /> : null}
+          {editing ? (
+            <EntryForm
+              key={
+                editing === "new"
+                  ? educationReturnSlug
+                    ? `education-${educationReturnSlug}`
+                    : "new"
+                  : editing.id
+              }
+              initial={editing === "new" ? undefined : editing}
+              guidance={
+                educationReturnSlug
+                  ? "O que chamou sua atenção neste texto? Registre somente o que fizer sentido para você."
+                  : undefined
+              }
+              onSave={save}
+              onCancel={cancelEntry}
+            />
+          ) : null}
+          <section className="records-section" aria-labelledby="records-title">
+        <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title" tabIndex={-1}>Meus registros</h2><p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p></div><span className="count">{entryFilter === "all" ? `${entries.length} ${entries.length === 1 ? "registro" : "registros"}` : `${visibleEntries.length} de ${entries.length}`}</span></div>
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
             <h3>Seu histórico começa quando você quiser.</h3>
             <p>Você pode começar com uma situação breve. Não precisa entender tudo antes de escrever.</p>
-            <div className="empty-state-actions"><button className="primary-button" onClick={() => setEditing("new")}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url}>Explorar o Guia de Emoções</a></div>
+            <div className="empty-state-actions"><button className="primary-button" onClick={openNewRecord}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url}>Explorar o Guia de Emoções</a></div>
           </div>
         ) : <>
           <div className="patient-entry-toolbar" role="group" aria-label="Filtrar registros por compartilhamento">
@@ -476,6 +640,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
             </div>
           ) : <div className="record-list patient-record-list">{visibleEntries.map((entry) => {
           const shared = isEntryShared(entry);
+          const viewStatus = patientEntryViewStatus(entry);
           return (
             <details className="record-card patient-record-card" key={entry.id}>
               <summary>
@@ -488,10 +653,24 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
                 <span className="patient-record-toggle" aria-hidden="true"><span className="when-closed">Abrir</span><span className="when-open">Fechar</span></span>
               </summary>
               <div className="patient-record-content">
+                {shared ? (
+                  <>
+                    <p className={`patient-view-status ${viewStatus.kind}`}>
+                      {viewStatus.kind === "unseen"
+                        ? "Ainda não visualizado por Mateus"
+                        : viewStatus.kind === "updated"
+                          ? `Atualizado após a última visualização de Mateus em ${formatViewTimestamp(entry.viewed_at!)}`
+                          : viewStatus.kind === "reshared"
+                            ? `Visualizado anteriormente por Mateus em ${formatViewTimestamp(entry.viewed_at!)}; ainda não visualizado após o compartilhamento atual`
+                            : `Visualizado por Mateus em ${formatViewTimestamp(entry.viewed_at!)}`}
+                    </p>
+                    <p className="patient-view-explanation">A visualização indica apenas que o registro foi aberto. A Área do paciente não é acompanhada em tempo real e não é um canal de emergência.</p>
+                  </>
+                ) : null}
                 <EntryDetails entry={entry} />
                 <div className="record-actions">
                   <button className={shared ? "secondary-button" : "share-button"} onClick={() => void sharing(entry)}>{shared ? "Deixar privado novamente" : "Compartilhar com Mateus"}</button>
-                  <button className="quiet-button" onClick={() => setEditing(entry)}>Editar</button>
+                  <button className="quiet-button" onClick={() => { setEducationReturnSlug(null); setEditing(entry); }}>Editar</button>
                   <button className="danger-link" onClick={() => void remove(entry)}>Excluir</button>
                 </div>
               </div>
@@ -499,7 +678,17 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
           );
         })}</div>}
         </>}
-      </section>
+          </section>
+        </>
+      ) : (
+        <PatientEducation
+          guideUrl={config.guide_url}
+          careUrl={config.care_url}
+          selectedSlug={selectedEducationSlug}
+          onArticleChange={setSelectedEducationSlug}
+          onCreateRecord={createRecordFromEducation}
+        />
+      )}
       <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} />
     </main>
   );

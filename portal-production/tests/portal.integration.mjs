@@ -563,6 +563,18 @@ assert.equal(
   ).unread_count,
   0,
 );
+const patientEntriesAfterViewed = await api("/entries", { auth: patientA });
+expectStatus(
+  patientEntriesAfterViewed,
+  200,
+  "paciente consulta a situação de visualização",
+);
+assert.equal(
+  patientEntriesAfterViewed.payload.entries.find(
+    (entry) => entry.id === sharedEntryA,
+  ).viewed_at,
+  markEntryAViewed.payload.viewed_at,
+);
 assert.equal(
   summariesAfterViewed.payload.patients.find(
     (patient) => patient.patient_id === patientB.user.id,
@@ -644,7 +656,7 @@ const revokedPatientLogin = await api("/login", {
 expectStatus(revokedPatientLogin, 403, "login após revogação");
 assert.equal(
   revokedPatientLogin.payload.error,
-  "Seu acesso aos Registros foi encerrado porque este portal é exclusivo para pacientes em acompanhamento atual. Se acredita que houve um engano, fale com Mateus.",
+  "Seu acesso à Área do paciente foi encerrado porque este recurso é exclusivo para pacientes em acompanhamento atual. Se acredita que houve um engano, fale com Mateus.",
 );
 assert.equal(
   revokedPatientLogin.response.headers.get("set-cookie"),
@@ -798,6 +810,11 @@ expectStatus(exportResult, 200, "exportação do paciente");
 assert.match(
   exportResult.response.headers.get("content-disposition") ?? "",
   /meus-registros\.json/u,
+);
+assert.ok(
+  exportResult.payload.entries.every(
+    (entry) => !Object.hasOwn(entry, "viewed_at"),
+  ),
 );
 
 const invitations = await api("/invitations", { auth: therapist });

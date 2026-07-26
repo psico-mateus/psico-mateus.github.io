@@ -40,3 +40,18 @@ export function formatDate(value: string): string {
     timeStyle: "short",
   }).format(date);
 }
+
+export function formatViewTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "data indisponível";
+  const day = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+  return `${day} às ${time}`;
+}

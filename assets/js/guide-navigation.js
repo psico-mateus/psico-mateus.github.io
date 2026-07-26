@@ -120,14 +120,22 @@
       const portalLink = document.createElement("a");
       portalLink.className = "button button-secondary guide-portal-link";
       portalLink.href = PORTAL_PATH;
-      portalLink.textContent = "Registros entre sessões";
+      portalLink.textContent = "Área do paciente";
+      portalLink.setAttribute(
+        "aria-label",
+        "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
+      );
       heroActions.insertBefore(portalLink, professionalSiteLink || null);
     }
 
     if (footerLinks && !footerLinks.querySelector(`a[href="${PORTAL_PATH}"]`)) {
       const portalLink = document.createElement("a");
       portalLink.href = PORTAL_PATH;
-      portalLink.textContent = "Acessar meus registros";
+      portalLink.textContent = "Acessar a Área do paciente";
+      portalLink.setAttribute(
+        "aria-label",
+        "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
+      );
       footerLinks.append(portalLink);
     }
   };

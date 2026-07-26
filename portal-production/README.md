@@ -1,4 +1,4 @@
-# Registros entre sessões
+# Área do paciente
 
 Portal privado de apoio à psicoterapia de Mateus Ribeiro Marcos, Psicólogo Clínico (CRP 08/38930). Pacientes convidados podem guardar registros, mantê-los privados e escolher individualmente quais compartilhar. O acesso profissional é somente leitura.
 
@@ -9,6 +9,9 @@ O portal não é prontuário, chat, canal de emergência, monitoramento em tempo
 ```text
 app/
   PortalApp.tsx                         Fluxos públicos e dashboard do paciente
+  PatientEducation.tsx                 Biblioteca de apoio exclusiva do paciente
+  education-content.ts                 Catálogo tipado dos textos e referências
+  education-search.ts                  Busca local e cálculo de tempo de leitura
   ProfessionalDashboard.tsx            Dashboard profissional
   professional-dashboard-data.ts       Busca, ordenação e helpers de apresentação
   portal-client.ts                      Cliente HTTP e tratamento de erros
@@ -75,7 +78,29 @@ O portal usa Cloudflare D1. As relações principais são:
 
 O cadastro de paciente exige convite, confirmação de 18 anos ou mais e aceite do aviso de privacidade. Registros nascem privados. O servidor filtra o acesso profissional por vínculo ativo e compartilhamento atual. O acesso profissional exige MFA.
 
-O painel profissional marca um registro como visto depois que Mateus abre o conteúdo e conclui a leitura. Uma edição ou um novo compartilhamento posterior faz o registro voltar à lista de pendências. Esse estado organiza a leitura e não permite editar, responder ou transformar o texto do paciente em prontuário.
+O painel profissional marca um registro como visto depois que Mateus abre o conteúdo e conclui a leitura. Uma edição ou um novo compartilhamento posterior faz o registro voltar à lista de pendências. Esse estado organiza a leitura e não permite editar, responder ou transformar o texto do paciente em prontuário. O paciente vê a data da visualização apenas nos próprios registros compartilhados; registros privados não exibem estado profissional.
+
+A área “Leitura complementar” reúne conteúdo estático de psicoeducação para pacientes
+autenticados. Busca, filtros e páginas abertas existem somente no estado em
+memória da interface: não criam dados no D1, não entram na exportação e não
+aparecem no painel profissional. Quando o paciente decide escrever a partir de
+um texto, o portal abre o mesmo formulário vazio dos demais registros, que
+continua privado ao salvar.
+
+O aviso temporário da troca de nome é controlado pela constante
+`SHOW_AREA_NAME_CHANGE_NOTICE`, em `app/PortalApp.tsx`. Defina-a como `false`
+quando a transição tiver terminado; o aviso não grava aceite nem estado no D1.
+
+O catálogo central registra instituição, jurisdição, tipo, exibição ao paciente e
+data de verificação de cada fonte. As referências clínicas combinam OMS/CID-11,
+NICE, NIMH, Judith Beck e documentos específicos do Ministério da Saúde quando
+eles sustentam diretamente o tema. O portal geral de PCDTs, a LGPD e as
+Resoluções CFP nº 9/2024 e nº 7/2025 orientam a implementação, mas não aparecem
+automaticamente como fontes clínicas. Na verificação de 26/07/2026, a revisão
+brasileira do guia de cuidado integral para TEA continuava apenas como consulta
+pública encerrada; por isso, a biblioteca mantém a diretriz oficialmente
+disponível e a página atual do Ministério da Saúde, sem tratar o caderno da
+consulta como versão vigente.
 
 Se um paciente perder a senha e o próprio código de recuperação, ele pode pedir ajuda diretamente a Mateus. No painel profissional, a emissão de um código temporário exige a senha profissional e um novo código do autenticador. O código vale por 24 horas, substitui o anterior e encerra todas as sessões abertas do paciente. O portal não envia e-mails e não depende de um serviço externo para essa recuperação.
 

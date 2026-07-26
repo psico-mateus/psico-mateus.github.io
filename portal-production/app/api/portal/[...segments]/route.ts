@@ -244,7 +244,7 @@ async function login(request: Request, input: Input): Promise<Response> {
     if (user.role === "patient" && user.status === "disabled") {
       throw new PortalError(
         403,
-        "Seu acesso aos Registros foi encerrado porque este portal é exclusivo para pacientes em acompanhamento atual. Se acredita que houve um engano, fale com Mateus.",
+        "Seu acesso à Área do paciente foi encerrado porque este recurso é exclusivo para pacientes em acompanhamento atual. Se acredita que houve um engano, fale com Mateus.",
       );
     }
     throw genericError;
@@ -474,9 +474,19 @@ async function listEntries(session: Awaited<ReturnType<typeof requireSession>>) 
   const { DB } = getPortalEnv();
   if (session.role === "patient") {
     const result = await DB.prepare(
-      `SELECT id, title, happened, body, thoughts, urge, emotion, intensity, message,
-              created_at, updated_at, shared_at, revoked_at
-       FROM entries WHERE patient_id = ? ORDER BY created_at DESC`,
+      `SELECT entries.id, entries.title, entries.happened, entries.body,
+              entries.thoughts, entries.urge, entries.emotion, entries.intensity,
+              entries.message, entries.created_at, entries.updated_at,
+              entries.shared_at, entries.revoked_at, entry_views.viewed_at
+       FROM entries
+       LEFT JOIN patient_links
+         ON patient_links.patient_id = entries.patient_id
+        AND patient_links.status = 'active'
+       LEFT JOIN entry_views
+         ON entry_views.entry_id = entries.id
+        AND entry_views.therapist_id = patient_links.therapist_id
+       WHERE entries.patient_id = ?
+       ORDER BY entries.created_at DESC`,
     )
       .bind(session.userId)
       .all();
@@ -685,11 +695,14 @@ async function handleGet(request: Request, path: string): Promise<Response> {
   const { DB, PUBLIC_SITE_URL, GUIDE_URL } = getPortalEnv();
   if (path === "/health") return json({ ok: true, mode: "production" });
   if (path === "/config") {
+    const publicSiteUrl =
+      PUBLIC_SITE_URL ?? "https://psico-mateus.github.io/";
     return json({
       ...(await setupStatus()),
       privacy_version: PRIVACY_VERSION,
-      public_site_url: PUBLIC_SITE_URL ?? "https://psico-mateus.github.io/",
+      public_site_url: publicSiteUrl,
       guide_url: GUIDE_URL ?? "https://psico-mateus.github.io/guia-emocoes/",
+      care_url: new URL("cuidados/", publicSiteUrl).toString(),
     });
   }
   if (path === "/session") {
@@ -746,12 +759,16 @@ async function handleGet(request: Request, path: string): Promise<Response> {
   }
   if (path === "/export") {
     const session = await requireSession(request, "patient");
-    const entries = await listEntries(session);
+    const entries = (await listEntries(session)).map((entry) => {
+      const exportedEntry = { ...(entry as Record<string, unknown>) };
+      delete exportedEntry.viewed_at;
+      return exportedEntry;
+    });
     await audit(session.userId, "export", "entry_list");
     return json(
       {
         exported_at: now(),
-        description: "Cópia dos Registros entre sessões exportada pelo titular.",
+        description: "Cópia dos registros da Área do paciente exportada pelo titular.",
         entries,
       },
       200,
@@ -1101,14 +1118,14 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
     const timestamp = now();
     if (input.shared) {
       await DB.prepare(
-        "UPDATE entries SET shared_at = ?, revoked_at = NULL, updated_at = ? WHERE id = ?",
+        "UPDATE entries SET shared_at = ?, revoked_at = NULL WHERE id = ?",
       )
-        .bind(timestamp, timestamp, entry.id)
+        .bind(timestamp, entry.id)
         .run();
       await audit(session.userId, "share", "entry", entry.id);
     } else {
-      await DB.prepare("UPDATE entries SET revoked_at = ?, updated_at = ? WHERE id = ?")
-        .bind(timestamp, timestamp, entry.id)
+      await DB.prepare("UPDATE entries SET revoked_at = ? WHERE id = ?")
+        .bind(timestamp, entry.id)
         .run();
       await audit(session.userId, "revoke_sharing", "entry", entry.id);
     }

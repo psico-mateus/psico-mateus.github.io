@@ -7,23 +7,23 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Registros entre sessões | Mateus Ribeiro Marcos",
-    template: "%s | Registros entre sessões",
+    default: "Área do paciente | Mateus Ribeiro Marcos",
+    template: "%s | Área do paciente",
   },
   description:
-    "Um espaço privado para organizar situações, pensamentos e emoções e escolher o que levar para a sessão.",
+    "Um espaço privado com registros e materiais de apoio que complementam a psicoterapia.",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
-  applicationName: "Registros entre sessões",
+  applicationName: "Área do paciente",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Registros",
+    title: "Área do paciente",
   },
   openGraph: {
-    title: "Registros entre sessões",
-    description: "Você guarda. Você escolhe o que compartilhar.",
+    title: "Área do paciente",
+    description: "Registros privados e materiais de apoio que complementam a psicoterapia.",
     type: "website",
     images: [{
       url: "https://psico-mateus.github.io/assets/images/social-preview-registros.png",

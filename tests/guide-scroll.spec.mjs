@@ -218,9 +218,9 @@ test("a abertura do guia também identifica o site profissional", async ({ page 
   expect(size?.height).toBeGreaterThanOrEqual(44);
 });
 
-test("guia apresenta os Registros entre sessões sem esconder o site profissional", async ({ page }) => {
+test("guia apresenta a Área do paciente sem esconder o site profissional", async ({ page }) => {
   await page.goto(guidePath);
-  const portalLink = page.getByRole("link", { name: "Registros entre sessões", exact: true }).first();
+  const portalLink = page.getByRole("link", { name: /Acessar a Área do paciente/ }).first();
 
   await expect(portalLink).toBeVisible();
   await expect(portalLink).toHaveAttribute("href", "https://registros.psico-mateus.workers.dev");
@@ -234,13 +234,15 @@ test("ações iniciais usam quatro tons distintos e confortáveis para leitura",
   const labels = [
     "Explorar emoções",
     "Ainda não sei o que sinto",
-    "Registros entre sessões",
+    "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
     "Site profissional",
   ];
   const tones = [];
 
   for (const label of labels) {
-    const link = page.getByRole("link", { name: label, exact: true }).first();
+    const link = page
+      .locator(".hero-actions")
+      .getByRole("link", { name: label, exact: true });
     await expect(link).toBeVisible();
     tones.push(
       await link.evaluate((element) => {

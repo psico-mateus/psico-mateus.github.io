@@ -130,7 +130,7 @@ export function InstallAppButton() {
           <div className="install-dialog-heading">
             <div>
               <p className="eyebrow">ACESSO PELO APARELHO</p>
-              <h2 id="install-dialog-title">Instalar Registros</h2>
+              <h2 id="install-dialog-title">Instalar Área do paciente</h2>
             </div>
             <button
               type="submit"

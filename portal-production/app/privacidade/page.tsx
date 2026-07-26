@@ -3,13 +3,13 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Privacidade",
-  description: "Como os Registros entre sessões tratam seus dados.",
+  description: "Como a Área do paciente trata seus dados.",
 };
 
 export default function PrivacyPage() {
   return (
     <main className="dashboard privacy-page">
-      <a href="/">← Voltar aos Registros</a>
+      <a href="/">← Voltar à Área do paciente</a>
       <p className="eyebrow" style={{ marginTop: "3rem" }}>
         AVISO DE PRIVACIDADE
       </p>
@@ -44,6 +44,14 @@ export default function PrivacyPage() {
           pertencendo a você e não pode ser editado no acesso profissional. Quando
           Mateus abre um registro compartilhado, o portal guarda a data dessa
           leitura para organizar o que já foi visto e o que ainda está pendente.
+          Essa informação também aparece para você no próprio registro.
+        </p>
+        <h2>Conteúdos de apoio e buscas</h2>
+        <p>
+          A área “Leitura complementar” reúne materiais de psicoeducação. O portal
+          não guarda quais conteúdos você abriu, as palavras que pesquisou nem
+          os filtros que utilizou. Essas informações não aparecem no painel
+          profissional e não entram na cópia dos seus dados.
         </p>
         <h2>Onde e por quanto tempo</h2>
         <p>
