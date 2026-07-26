@@ -134,6 +134,36 @@ test("patient history filters private and shared entries", () => {
   );
 });
 
+test("copy buttons support Safari fallback and keep codes selectable", async () => {
+  const [app, clipboard, dashboard, styles] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/copy-text.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/ProfessionalDashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(app, /copyText\(code\)/);
+  assert.match(dashboard, /copyText\(latestCode\)/);
+  assert.match(dashboard, /copyText\(recovery\.code\)/);
+  assert.match(clipboard, /navigator\.clipboard\?\.writeText/);
+  assert.match(clipboard, /document\.execCommand\("copy"\)/);
+  assert.match(styles, /-webkit-user-select:all;user-select:all/);
+});
+
+test("professional activity exposes counts without private record fields", async () => {
+  const [dashboard, route, privacy] = await Promise.all([
+    readFile(new URL("../app/ProfessionalDashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/portal/[...segments]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(dashboard, /Mantidos privados/);
+  assert.match(dashboard, /patient\.private_count/);
+  assert.match(route, /AS private_count/);
+  assert.match(route, /HAVING COUNT\(entries\.id\) > 0/);
+  assert.match(privacy, /não vê título, emoção,\s+data nem qualquer parte do conteúdo dos privados/);
+});
+
 test("mobile layout keeps the portal within the viewport", async () => {
   const styles = await readFile(
     new URL("../app/globals.css", import.meta.url),
@@ -312,7 +342,7 @@ test("professional API groups by stable patient id and filters every detail quer
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(route, /GROUP BY entries\.patient_id, users\.display_name/);
+  assert.match(route, /GROUP BY users\.id, users\.display_name/);
   assert.match(route, /patient_links\.therapist_id = \?/);
   assert.match(route, /entries\.shared_at IS NOT NULL AND entries\.revoked_at IS NULL/);
   assert.match(route, /patient_links\.patient_id = \?/);

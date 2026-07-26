@@ -8,8 +8,9 @@ export type PatientSummary = {
   patient_id: string;
   patient_name: string;
   shared_count: number;
+  private_count: number;
   unread_count: number;
-  latest_shared_at: string;
+  latest_shared_at: string | null;
 };
 
 export type SharedEntry = {
@@ -93,8 +94,8 @@ export function filterAndSortPatients(
           if (unreadComparison !== 0) return unreadComparison;
         }
         const dateComparison =
-          new Date(second.latest_shared_at).getTime() -
-          new Date(first.latest_shared_at).getTime();
+          (second.latest_shared_at ? new Date(second.latest_shared_at).getTime() : 0) -
+          (first.latest_shared_at ? new Date(first.latest_shared_at).getTime() : 0);
         if (dateComparison !== 0) return dateComparison;
       }
       return first.patient_id.localeCompare(second.patient_id);

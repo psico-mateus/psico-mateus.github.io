@@ -462,6 +462,23 @@ assert.equal(new Set(summaries.payload.patients.map((item) => item.patient_id)).
 assert.ok(summaries.payload.patients.every((item) => item.patient_name === synthetic.sharedName));
 assert.ok(summaries.payload.patients.every((item) => item.shared_count === 1));
 assert.ok(summaries.payload.patients.every((item) => item.unread_count === 1));
+assert.deepEqual(summaries.payload.activity, {
+  total_count: 3,
+  shared_count: 2,
+  private_count: 1,
+});
+assert.equal(
+  summaries.payload.patients.find(
+    (patient) => patient.patient_id === patientA.user.id,
+  ).private_count,
+  1,
+);
+assert.equal(
+  summaries.payload.patients.find(
+    (patient) => patient.patient_id === patientB.user.id,
+  ).private_count,
+  0,
+);
 assert.doesNotMatch(JSON.stringify(summaries.payload), /example\.test|password|recovery|totp/iu);
 
 const entriesForA = await api(
@@ -754,6 +771,14 @@ const afterRevocation = await api(
   { auth: therapist },
 );
 assert.deepEqual(afterRevocation.payload.entries, []);
+const activityAfterRevocation = await api("/professional/patients", {
+  auth: therapist,
+});
+const patientAActivity = activityAfterRevocation.payload.patients.find(
+  (patient) => patient.patient_id === patientA.user.id,
+);
+assert.equal(patientAActivity.shared_count, 0);
+assert.equal(patientAActivity.private_count, 2);
 
 const sharedAgain = await api(`/entries/${sharedEntryA}/sharing`, {
   method: "PATCH",
@@ -1002,7 +1027,10 @@ const deleteAccountB = await api("/account", {
 expectStatus(deleteAccountB, 204, "exclusão da conta do paciente B");
 const afterAccountDeletion = await api("/professional/patients", { auth: therapist });
 expectStatus(afterAccountDeletion, 200, "lista após exclusão de conta");
-assert.equal(afterAccountDeletion.payload.patients.length, 0);
+assert.equal(afterAccountDeletion.payload.patients.length, 1);
+assert.equal(afterAccountDeletion.payload.patients[0].patient_id, patientA.user.id);
+assert.equal(afterAccountDeletion.payload.patients[0].shared_count, 0);
+assert.equal(afterAccountDeletion.payload.patients[0].private_count, 1);
 
 for (const [target, suffix] of [
   ["batch", "lote"],

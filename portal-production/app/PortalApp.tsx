@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import {
@@ -95,10 +96,14 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
 }
 
 function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   async function copy() {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
+    try {
+      await copyText(code);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
   }
   return (
     <div className="modal-backdrop" role="presentation">
@@ -108,9 +113,20 @@ function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) 
         <p>Com ele, você pode redefinir sua senha por conta própria. Guarde em um local seguro. Se perdê-lo, peça a Mateus uma recuperação assistida. O código anterior deixa de funcionar.</p>
         <code className="secret-code">{code}</code>
         <div className="button-row">
-          <button className="secondary-button" type="button" onClick={copy}>{copied ? "Copiado" : "Copiar código"}</button>
+          <button className="secondary-button" type="button" onClick={() => void copy()}>{copyStatus === "copied" ? "Copiado" : "Copiar código"}</button>
           <button className="primary-button" type="button" onClick={onClose}>Já guardei</button>
         </div>
+        <p
+          className={copyStatus === "error" ? "copy-error" : "sr-status"}
+          role={copyStatus === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {copyStatus === "copied"
+            ? "Código de recuperação copiado."
+            : copyStatus === "error"
+              ? "O navegador bloqueou a cópia. Toque e segure o código para copiá-lo."
+              : ""}
+        </p>
       </section>
     </div>
   );

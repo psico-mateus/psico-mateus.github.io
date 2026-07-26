@@ -26,6 +26,7 @@ import {
   splitInvitations,
   unreadCountLabel,
 } from "./professional-dashboard-data";
+import { copyText } from "./copy-text";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
 
 type User = { id: string; name: string; role: "therapist" };
@@ -42,6 +43,12 @@ type IssuedRecovery = {
   patientName: string;
   code: string;
   expiresAt: string;
+};
+
+type ProfessionalActivity = {
+  total_count: number;
+  shared_count: number;
+  private_count: number;
 };
 
 function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone }) {
@@ -168,7 +175,7 @@ function IssuedRecoveryDialog({
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -176,8 +183,12 @@ function IssuedRecoveryDialog({
   }, []);
 
   async function copy() {
-    await navigator.clipboard.writeText(recovery.code);
-    setCopied(true);
+    try {
+      await copyText(recovery.code);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
   }
 
   return (
@@ -215,14 +226,22 @@ function IssuedRecoveryDialog({
         </p>
         <div className="button-row">
           <button className="secondary-button" type="button" onClick={() => void copy()}>
-            {copied ? "Código copiado" : "Copiar código"}
+            {copyStatus === "copied" ? "Código copiado" : "Copiar código"}
           </button>
           <button className="primary-button" type="button" onClick={onClose}>
             Já entreguei ou guardei
           </button>
         </div>
-        <p className="sr-status" role="status" aria-live="polite">
-          {copied ? "Código de recuperação copiado." : ""}
+        <p
+          className={copyStatus === "error" ? "copy-error" : "sr-status"}
+          role={copyStatus === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {copyStatus === "copied"
+            ? "Código de recuperação copiado."
+            : copyStatus === "error"
+              ? "O navegador bloqueou a cópia. Toque e segure o código para copiá-lo."
+              : ""}
         </p>
       </div>
     </dialog>
@@ -392,6 +411,7 @@ function RecordDisclosure({
 
 function PatientList({
   patients,
+  activity,
   loading,
   refreshing,
   error,
@@ -403,6 +423,7 @@ function PatientList({
   onOpen,
 }: {
   patients: PatientSummary[];
+  activity: ProfessionalActivity;
   loading: boolean;
   refreshing: boolean;
   error: string;
@@ -425,12 +446,13 @@ function PatientList({
     >
       <div className="section-heading professional-section-heading">
         <div>
-          <p className="eyebrow">COMPARTILHADOS COM VOCÊ</p>
+          <p className="eyebrow">ATIVIDADE DOS REGISTROS</p>
           <h2 id="professional-patient-list-title" tabIndex={-1}>
             Pacientes com registros
           </h2>
           <p className="section-description">
-            Somente pessoas com algum registro compartilhado neste momento.
+            Por paciente, você vê quantos registros foram compartilhados e quantos
+            continuam privados. Dos privados, nenhum conteúdo ou data é exibido.
           </p>
         </div>
         <button
@@ -442,6 +464,25 @@ function PatientList({
           {refreshing ? "Atualizando…" : "Atualizar"}
         </button>
       </div>
+
+      <section className="professional-activity-summary" aria-label="Uso geral do portal">
+        <div>
+          <span>Registros criados</span>
+          <strong>{activity.total_count}</strong>
+        </div>
+        <div>
+          <span>Compartilhados com você</span>
+          <strong>{activity.shared_count}</strong>
+        </div>
+        <div>
+          <span>Mantidos privados</span>
+          <strong>{activity.private_count}</strong>
+        </div>
+        <p>
+          A soma geral oferece uma visão rápida. Abaixo, a contagem é separada por
+          paciente, sem mostrar qualquer conteúdo privado.
+        </p>
+      </section>
 
       <div className="professional-tools">
         <label className="field search-field">
@@ -485,8 +526,8 @@ function PatientList({
         </div>
       ) : patients.length === 0 ? (
         <div className="empty-state">
-          <h3>Nenhum registro compartilhado agora.</h3>
-          <p>Registros privados não aparecem aqui.</p>
+          <h3>Nenhum registro criado agora.</h3>
+          <p>As contas continuam disponíveis na área “Pacientes”.</p>
         </div>
       ) : visiblePatients.length === 0 ? (
         <div className="empty-state">
@@ -507,7 +548,11 @@ function PatientList({
               <div className="patient-summary-copy">
                 <h3>{displayedPatientName(patient.patient_name)}</h3>
                 <p className="patient-summary-count">
-                  {sharedCountLabel(patient.shared_count)}
+                  {sharedCountLabel(patient.shared_count)} ·{" "}
+                  {patient.private_count}{" "}
+                  {patient.private_count === 1
+                    ? "registro privado"
+                    : "registros privados"}
                 </p>
                 <p
                   className={`patient-summary-view-count${
@@ -517,16 +562,22 @@ function PatientList({
                   {unreadCountLabel(patient.unread_count)}
                 </p>
                 <p className="record-meta">
-                  Último compartilhamento: {formatDate(patient.latest_shared_at)}
+                  {patient.latest_shared_at
+                    ? `Último compartilhamento: ${formatDate(patient.latest_shared_at)}`
+                    : "Nenhum conteúdo compartilhado"}
                 </p>
               </div>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => onOpen(patient)}
-              >
-                {patient.unread_count > 0 ? "Ver pendentes" : "Abrir registros"}
-              </button>
+              {patient.shared_count > 0 ? (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => onOpen(patient)}
+                >
+                  {patient.unread_count > 0 ? "Ver pendentes" : "Abrir registros"}
+                </button>
+              ) : (
+                <span className="private-only-note">Sem conteúdo disponível</span>
+              )}
             </article>
           ))}
         </div>
@@ -1066,6 +1117,11 @@ export function ProfessionalDashboard({
 }: ProfessionalDashboardProps) {
   const [area, setArea] = useState<ProfessionalArea>("records");
   const [patients, setPatients] = useState<PatientSummary[]>([]);
+  const [activity, setActivity] = useState<ProfessionalActivity>({
+    total_count: 0,
+    shared_count: 0,
+    private_count: 0,
+  });
   const [patientsLoading, setPatientsLoading] = useState(true);
   const [patientsRefreshing, setPatientsRefreshing] = useState(false);
   const [patientsError, setPatientsError] = useState("");
@@ -1112,6 +1168,7 @@ export function ProfessionalDashboard({
   const expireSession = useCallback(() => {
     patientRequest.current?.abort();
     setPatients([]);
+    setActivity({ total_count: 0, shared_count: 0, private_count: 0 });
     setEntries([]);
     setViewingEntryIds(new Set());
     setPatientAccesses([]);
@@ -1140,10 +1197,12 @@ export function ProfessionalDashboard({
       else setPatientsLoading(true);
       setPatientsError("");
       try {
-        const result = await portalRequest<{ patients: PatientSummary[] }>(
-          "/professional/patients",
-        );
+        const result = await portalRequest<{
+          patients: PatientSummary[];
+          activity: ProfessionalActivity;
+        }>("/professional/patients");
         setPatients(result.patients);
+        setActivity(result.activity);
         setSelectedPatient((current) => {
           if (!current) return null;
           return (
@@ -1476,7 +1535,7 @@ export function ProfessionalDashboard({
 
   async function copyLatestCode() {
     if (!latestCode) throw new Error("Não há código para copiar.");
-    await navigator.clipboard.writeText(latestCode);
+    await copyText(latestCode);
   }
 
   async function revokeInvitation(invitation: Invitation) {
@@ -1562,6 +1621,7 @@ export function ProfessionalDashboard({
         ) : (
           <PatientList
             patients={patients}
+            activity={activity}
             loading={patientsLoading}
             refreshing={patientsRefreshing}
             error={patientsError}

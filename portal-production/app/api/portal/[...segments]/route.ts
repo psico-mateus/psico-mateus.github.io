@@ -505,38 +505,100 @@ async function listSharedPatients(
 ) {
   const { DB } = getPortalEnv();
   const result = await DB.prepare(
-    `SELECT entries.patient_id,
+    `SELECT users.id AS patient_id,
             users.display_name AS patient_name,
-            COUNT(entries.id) AS shared_count,
-            SUM(
+            COALESCE(SUM(
               CASE
-                WHEN entry_views.viewed_at IS NULL
-                  OR entry_views.viewed_at < CASE
-                    WHEN entries.updated_at > entries.shared_at
-                      THEN entries.updated_at
-                    ELSE entries.shared_at
-                  END
+                WHEN entries.id IS NOT NULL
+                  AND entries.shared_at IS NOT NULL
+                  AND entries.revoked_at IS NULL
                 THEN 1
                 ELSE 0
               END
-            ) AS unread_count,
-            MAX(entries.shared_at) AS latest_shared_at
-     FROM entries
-     JOIN users ON users.id = entries.patient_id
-     JOIN patient_links ON patient_links.patient_id = entries.patient_id
+            ), 0) AS shared_count,
+            COALESCE(SUM(
+              CASE
+                WHEN entries.id IS NOT NULL
+                  AND (entries.shared_at IS NULL OR entries.revoked_at IS NOT NULL)
+                THEN 1
+                ELSE 0
+              END
+            ), 0) AS private_count,
+            COALESCE(SUM(
+              CASE
+                WHEN entries.shared_at IS NOT NULL
+                  AND entries.revoked_at IS NULL
+                  AND (
+                    entry_views.viewed_at IS NULL
+                    OR entry_views.viewed_at < CASE
+                      WHEN entries.updated_at > entries.shared_at
+                        THEN entries.updated_at
+                      ELSE entries.shared_at
+                    END
+                  )
+                THEN 1
+                ELSE 0
+              END
+            ), 0) AS unread_count,
+            MAX(
+              CASE
+                WHEN entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
+                  THEN entries.shared_at
+                ELSE NULL
+              END
+            ) AS latest_shared_at
+     FROM patient_links
+     JOIN users ON users.id = patient_links.patient_id
+     LEFT JOIN entries ON entries.patient_id = users.id
      LEFT JOIN entry_views
        ON entry_views.entry_id = entries.id
       AND entry_views.therapist_id = ?
      WHERE patient_links.therapist_id = ? AND patient_links.status = 'active'
        AND users.status = 'active'
-       AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
-     GROUP BY entries.patient_id, users.display_name
+       AND users.role = 'patient'
+     GROUP BY users.id, users.display_name
+     HAVING COUNT(entries.id) > 0
      ORDER BY unread_count DESC, latest_shared_at DESC`,
   )
     .bind(session.userId, session.userId)
     .all();
   await audit(session.userId, "view_shared_patients", "patient_list");
   return result.results;
+}
+
+async function professionalActivitySummary(
+  session: Awaited<ReturnType<typeof requireSession>>,
+) {
+  const { DB } = getPortalEnv();
+  return (
+    await DB.prepare(
+      `SELECT COUNT(entries.id) AS total_count,
+              COALESCE(SUM(
+                CASE
+                  WHEN entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
+                    THEN 1
+                  ELSE 0
+                END
+              ), 0) AS shared_count,
+              COALESCE(SUM(
+                CASE
+                  WHEN entries.id IS NOT NULL
+                    AND (entries.shared_at IS NULL OR entries.revoked_at IS NOT NULL)
+                    THEN 1
+                  ELSE 0
+                END
+              ), 0) AS private_count
+       FROM patient_links
+       JOIN users ON users.id = patient_links.patient_id
+       LEFT JOIN entries ON entries.patient_id = users.id
+       WHERE patient_links.therapist_id = ?
+         AND patient_links.status = 'active'
+         AND users.status = 'active'
+         AND users.role = 'patient'`,
+    )
+      .bind(session.userId)
+      .first()
+  ) ?? { total_count: 0, shared_count: 0, private_count: 0 };
 }
 
 async function listPatientAccesses(
@@ -644,7 +706,11 @@ async function handleGet(request: Request, path: string): Promise<Response> {
   }
   if (path === "/professional/patients") {
     const session = await requireSession(request, "therapist");
-    return json({ patients: await listSharedPatients(session) });
+    const [patients, activity] = await Promise.all([
+      listSharedPatients(session),
+      professionalActivitySummary(session),
+    ]);
+    return json({ patients, activity });
   }
   if (path === "/professional/accesses") {
     const session = await requireSession(request, "therapist");
