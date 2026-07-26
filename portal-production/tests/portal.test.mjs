@@ -24,6 +24,7 @@ import {
   filterPatientEntries,
   isEntryShared,
 } from "../app/patient-dashboard-data.ts";
+import { copyText } from "../app/copy-text.ts";
 
 test("passwords are salted and verified", async () => {
   assert.equal(PASSWORD_ITERATIONS, 100_000);
@@ -148,6 +149,81 @@ test("copy buttons support Safari fallback and keep codes selectable", async () 
   assert.match(clipboard, /navigator\.clipboard\?\.writeText/);
   assert.match(clipboard, /document\.execCommand\("copy"\)/);
   assert.match(styles, /-webkit-user-select:all;user-select:all/);
+});
+
+test("copy falls back to a temporary selection when Clipboard API is blocked", async () => {
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const originalHTMLElement = Object.getOwnPropertyDescriptor(globalThis, "HTMLElement");
+  let clipboardAttempted = false;
+  let legacyCopyCalled = false;
+
+  class TestElement {
+    focus() {}
+  }
+  class TestTextArea extends TestElement {
+    value = "";
+    readOnly = false;
+    style = {};
+    setAttribute() {}
+    select() {}
+    setSelectionRange() {}
+    remove() {}
+  }
+
+  const selection = {
+    rangeCount: 0,
+    getRangeAt() {
+      throw new Error("No range");
+    },
+    removeAllRanges() {},
+    addRange() {},
+  };
+
+  try {
+    Object.defineProperty(globalThis, "HTMLElement", {
+      configurable: true,
+      value: TestElement,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        clipboard: {
+          async writeText() {
+            clipboardAttempted = true;
+            throw new Error("NotAllowedError");
+          },
+        },
+      },
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        activeElement: null,
+        getSelection: () => selection,
+        createElement: () => new TestTextArea(),
+        body: { appendChild() {} },
+        execCommand(command) {
+          assert.equal(command, "copy");
+          legacyCopyCalled = true;
+          return true;
+        },
+      },
+    });
+
+    await copyText("TESTE-1234");
+    assert.equal(clipboardAttempted, true);
+    assert.equal(legacyCopyCalled, true);
+  } finally {
+    for (const [name, descriptor] of [
+      ["navigator", originalNavigator],
+      ["document", originalDocument],
+      ["HTMLElement", originalHTMLElement],
+    ]) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    }
+  }
 });
 
 test("professional activity exposes counts without private record fields", async () => {
