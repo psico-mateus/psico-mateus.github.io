@@ -42,7 +42,10 @@ const educationCategoryDescriptions: Record<EducationCategory, string> = {
 function ArticleReferences({ article }: { article: EducationArticle }) {
   return (
     <details className="education-references">
-      <summary>Fontes consultadas</summary>
+      <summary>
+        <span>Fontes consultadas</span>
+        <span className="education-disclosure-arrow" aria-hidden="true">▾</span>
+      </summary>
       <ul>
         {article.references.map((referenceId) => {
           const reference: EducationReference =
@@ -64,11 +67,15 @@ function ArticleReferences({ article }: { article: EducationArticle }) {
                 <>
                   {" "}
                   <a
+                    className="education-reference-link"
                     href={reference.url}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Abrir fonte <span className="external-link-note">(nova aba)</span>
+                    <span>
+                      Abrir fonte <span className="external-link-note">(nova aba)</span>
+                    </span>
+                    <span className="education-reference-arrow" aria-hidden="true">↗</span>
                   </a>
                 </>
               ) : null}
@@ -207,7 +214,8 @@ function EducationArticleView({
                       type="button"
                       onClick={() => onOpenRelated(relatedArticle.slug)}
                     >
-                      {relatedArticle.title}
+                      <span>{relatedArticle.title}</span>
+                      <span className="education-related-arrow" aria-hidden="true">→</span>
                     </button>
                   </li>
                 );
@@ -425,7 +433,8 @@ export function PatientEducation({
                       type="button"
                       onClick={() => onArticleChange(article.slug)}
                     >
-                      Ler
+                      <span>Ler texto</span>
+                      <span aria-hidden="true">→</span>
                     </button>
                   </article>
                 ))}

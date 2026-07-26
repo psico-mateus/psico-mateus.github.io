@@ -221,9 +221,17 @@ test("a abertura do guia também identifica o site profissional", async ({ page 
 test("guia apresenta a Área do paciente sem esconder o site profissional", async ({ page }) => {
   await page.goto(guidePath);
   const portalLink = page.getByRole("link", { name: /Acessar a Área do paciente/ }).first();
+  const heroPortalLink = page.locator(
+    '.hero-actions a[href="https://registros.psico-mateus.workers.dev"]',
+  );
+  const footerPortalLink = page.locator(
+    'main > footer a[href="https://registros.psico-mateus.workers.dev"]',
+  );
 
   await expect(portalLink).toBeVisible();
   await expect(portalLink).toHaveAttribute("href", "https://registros.psico-mateus.workers.dev");
+  await expect(heroPortalLink).toHaveText("Área do paciente");
+  await expect(footerPortalLink).toHaveText("Acessar a Área do paciente");
   const size = await portalLink.boundingBox();
   expect(size?.height).toBeGreaterThanOrEqual(44);
 });

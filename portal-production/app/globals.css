@@ -1303,7 +1303,13 @@ input[type="range"]{accent-color:#9a6d27}
   color:var(--muted);
   line-height:1.65;
 }
-.education-card .secondary-button{margin-top:auto}
+.education-card .secondary-button{
+  margin-top:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.6rem;
+}
 .education-empty-state{background:#fbf5ed}
 
 .education-article{
@@ -1434,10 +1440,18 @@ input[type="range"]{accent-color:#9a6d27}
   min-height:44px;
   display:flex;
   align-items:center;
+  justify-content:space-between;
+  gap:1rem;
   cursor:pointer;
   color:var(--green-2);
   font-weight:750;
 }
+.education-disclosure-arrow{
+  flex:0 0 auto;
+  font-size:1rem;
+  transition:transform .18s ease;
+}
+.education-references[open] .education-disclosure-arrow{transform:rotate(180deg)}
 .education-references ul{
   gap:.75rem;
   margin:.4rem 0 .7rem;
@@ -1453,6 +1467,16 @@ input[type="range"]{accent-color:#9a6d27}
   color:var(--green-2);
   font-weight:720;
   text-underline-offset:2px;
+}
+.education-reference-link{
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+}
+.education-reference-arrow{
+  flex:0 0 auto;
+  font-size:.9rem;
+  text-decoration:none;
 }
 .external-link-note{font-weight:500}
 .education-diagnostic-note{
@@ -1527,6 +1551,7 @@ input[type="range"]{accent-color:#9a6d27}
 @media(prefers-reduced-motion:reduce){
   .patient-navigation button,.education-category-filters button,.education-card{transition:none}
   .education-card:hover,.education-card:focus-within{transform:none}
+  .education-disclosure-arrow{transition:none}
 }
 
 /* Identidade pública e início da Área do paciente. */
@@ -1647,6 +1672,10 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .education-related button{
   min-height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
   border:1px solid var(--line);
   border-radius:999px;
   background:var(--card);
@@ -1655,6 +1684,7 @@ input[type="range"]{accent-color:#9a6d27}
   font-weight:750;
   text-align:left;
 }
+.education-related-arrow{flex:0 0 auto}
 .education-related button:hover{border-color:var(--green-2)}
 
 @media(max-width:700px){

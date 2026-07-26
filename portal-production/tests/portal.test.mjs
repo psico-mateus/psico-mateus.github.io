@@ -105,6 +105,8 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(privacy, /não são usados para publicidade/);
   assert.match(worker, /Content-Security-Policy/);
   assert.match(worker, /X-Robots-Tag/);
+  assert.match(app, /Acompanhe seu processo/);
+  assert.doesNotMatch(app, /Guarde o que aconteceu/);
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
 });
 

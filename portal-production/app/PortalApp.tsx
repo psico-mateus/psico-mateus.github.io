@@ -266,7 +266,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
       <main className="guest-layout" id="conteudo">
         <section className="guest-intro">
           <p className="eyebrow">ÁREA DO PACIENTE</p>
-          <h1>Guarde o que aconteceu. <em>Retome quando fizer sentido.</em></h1>
+          <h1>Acompanhe seu processo. <em>Use este espaço no seu tempo.</em></h1>
           <p className="lead">Um espaço privado para organizar situações, pensamentos e emoções, consultar materiais e levar o que fizer sentido para a psicoterapia.</p>
           <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> O acesso é reservado a pessoas em acompanhamento com Mateus e a criação da conta acontece somente por convite.</p>
           <div className="principles">

@@ -490,6 +490,10 @@ test("education keeps the Guide URL configurable and external sources safe", asy
   assert.match(education, /href=\{guideUrl\}/);
   assert.match(education, /target="_blank"/);
   assert.match(education, /rel="noopener noreferrer"/);
+  assert.match(education, /education-disclosure-arrow/);
+  assert.match(education, /education-reference-arrow/);
+  assert.match(education, /education-related-arrow/);
+  assert.match(education, /Ler texto/);
   assert.doesNotMatch(education, /localStorage|sessionStorage/);
 });
 

@@ -116,27 +116,32 @@
       professionalSiteLink.textContent = "Site profissional";
     }
 
-    if (heroActions && !heroActions.querySelector(`a[href="${PORTAL_PATH}"]`)) {
-      const portalLink = document.createElement("a");
-      portalLink.className = "button button-secondary guide-portal-link";
+    const heroPortalLink = heroActions?.querySelector(`a[href="${PORTAL_PATH}"]`);
+    if (heroActions) {
+      const portalLink = heroPortalLink || document.createElement("a");
+      portalLink.classList.add("button", "button-secondary", "guide-portal-link");
+      portalLink.classList.remove("button-quiet");
       portalLink.href = PORTAL_PATH;
       portalLink.textContent = "Área do paciente";
       portalLink.setAttribute(
         "aria-label",
         "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
       );
-      heroActions.insertBefore(portalLink, professionalSiteLink || null);
+      if (!heroPortalLink) {
+        heroActions.insertBefore(portalLink, professionalSiteLink || null);
+      }
     }
 
-    if (footerLinks && !footerLinks.querySelector(`a[href="${PORTAL_PATH}"]`)) {
-      const portalLink = document.createElement("a");
+    const footerPortalLink = footerLinks?.querySelector(`a[href="${PORTAL_PATH}"]`);
+    if (footerLinks) {
+      const portalLink = footerPortalLink || document.createElement("a");
       portalLink.href = PORTAL_PATH;
       portalLink.textContent = "Acessar a Área do paciente";
       portalLink.setAttribute(
         "aria-label",
         "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
       );
-      footerLinks.append(portalLink);
+      if (!footerPortalLink) footerLinks.append(portalLink);
     }
   };
 
@@ -242,12 +247,17 @@
   });
 
   const startSemanticEnhancements = () => {
-    window.setTimeout(() => {
-      semanticsReady = true;
-      enhanceGuideSemantics();
-    }, 150);
+    if (semanticsReady) return;
+    semanticsReady = true;
+    enhanceGuideSemantics();
+    window.setTimeout(enhanceGuideSemantics, 150);
   };
 
-  if (document.readyState === "complete") startSemanticEnhancements();
-  else window.addEventListener("load", startSemanticEnhancements, { once: true });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startSemanticEnhancements, {
+      once: true,
+    });
+  } else {
+    startSemanticEnhancements();
+  }
 })();
