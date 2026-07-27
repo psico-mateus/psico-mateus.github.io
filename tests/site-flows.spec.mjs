@@ -115,7 +115,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page.getByRole("status")).toContainText(/Link do guia copiado|Copie este endereço/);
 
   await expect(page.getByRole("link", { name: "Acessar a Área do paciente", exact: true }))
-    .toHaveAttribute("href", "https://registros.psico-mateus.workers.dev");
+    .toHaveAttribute("href", "https://area-do-paciente.psico-mateus.workers.dev");
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -199,7 +199,7 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   expect(manifest.display).toBe("standalone");
 
   const guideWorker = await readFile("guia-emocoes/sw.js", "utf8");
-  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v22"');
+  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v23"');
   expect(guideWorker).toContain('const GUIDE_PATH = "/guia-emocoes/"');
   expect(guideWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

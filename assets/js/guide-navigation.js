@@ -2,7 +2,7 @@
   "use strict";
 
   const PDF_PATH = "/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf";
-  const PORTAL_PATH = "https://registros.psico-mateus.workers.dev";
+  const PORTAL_PATH = "https://area-do-paciente.psico-mateus.workers.dev";
 
   const hashTarget = (hash) => {
     if (!hash || hash === "#") return document.documentElement;
@@ -119,10 +119,19 @@
     const heroPortalLink = heroActions?.querySelector(`a[href="${PORTAL_PATH}"]`);
     if (heroActions) {
       const portalLink = heroPortalLink || document.createElement("a");
-      portalLink.classList.add("button", "button-secondary", "guide-portal-link");
-      portalLink.classList.remove("button-quiet");
+      if (
+        !portalLink.classList.contains("button") ||
+        !portalLink.classList.contains("button-secondary") ||
+        !portalLink.classList.contains("guide-portal-link") ||
+        portalLink.classList.contains("button-quiet")
+      ) {
+        portalLink.classList.add("button", "button-secondary", "guide-portal-link");
+        portalLink.classList.remove("button-quiet");
+      }
       portalLink.href = PORTAL_PATH;
-      portalLink.textContent = "Área do paciente";
+      if (portalLink.textContent !== "Área do paciente") {
+        portalLink.textContent = "Área do paciente";
+      }
       portalLink.setAttribute(
         "aria-label",
         "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
@@ -136,7 +145,9 @@
     if (footerLinks) {
       const portalLink = footerPortalLink || document.createElement("a");
       portalLink.href = PORTAL_PATH;
-      portalLink.textContent = "Acessar a Área do paciente";
+      if (portalLink.textContent !== "Acessar a Área do paciente") {
+        portalLink.textContent = "Acessar a Área do paciente";
+      }
       portalLink.setAttribute(
         "aria-label",
         "Acessar a Área do paciente, espaço exclusivo para pacientes atuais",
@@ -253,11 +264,25 @@
     window.setTimeout(enhanceGuideSemantics, 150);
   };
 
+  const waitForHydration = (startedAt = performance.now()) => {
+    const hydratedAt = Number(window.__VINEXT_HYDRATED_AT || 0);
+    if (
+      (hydratedAt > 0 && performance.now() - hydratedAt >= 250) ||
+      performance.now() - startedAt >= 5_000
+    ) {
+      startSemanticEnhancements();
+      return;
+    }
+    window.requestAnimationFrame(() => waitForHydration(startedAt));
+  };
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startSemanticEnhancements, {
-      once: true,
-    });
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => waitForHydration(),
+      { once: true },
+    );
   } else {
-    startSemanticEnhancements();
+    waitForHydration();
   }
 })();

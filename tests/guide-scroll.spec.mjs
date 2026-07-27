@@ -222,14 +222,14 @@ test("guia apresenta a Área do paciente sem esconder o site profissional", asyn
   await page.goto(guidePath);
   const portalLink = page.getByRole("link", { name: /Acessar a Área do paciente/ }).first();
   const heroPortalLink = page.locator(
-    '.hero-actions a[href="https://registros.psico-mateus.workers.dev"]',
+    '.hero-actions a[href="https://area-do-paciente.psico-mateus.workers.dev"]',
   );
   const footerPortalLink = page.locator(
-    'main > footer a[href="https://registros.psico-mateus.workers.dev"]',
+    'main > footer a[href="https://area-do-paciente.psico-mateus.workers.dev"]',
   );
 
   await expect(portalLink).toBeVisible();
-  await expect(portalLink).toHaveAttribute("href", "https://registros.psico-mateus.workers.dev");
+  await expect(portalLink).toHaveAttribute("href", "https://area-do-paciente.psico-mateus.workers.dev");
   await expect(heroPortalLink).toHaveText("Área do paciente");
   await expect(footerPortalLink).toHaveText("Acessar a Área do paciente");
   const size = await portalLink.boundingBox();
@@ -329,7 +329,7 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v22"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v23"');
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',
