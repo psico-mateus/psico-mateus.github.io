@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "area-do-paciente",
+  "name": "registros",
   "main": "dist/server/index.js",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
@@ -26,11 +26,5 @@
     "PUBLIC_SITE_URL": "https://psico-mateus.github.io/",
     "GUIDE_URL": "https://psico-mateus.github.io/guia-emocoes/"
   },
-  "services": [
-    {
-      "binding": "LEGACY_PORTAL",
-      "service": "registros"
-    }
-  ],
   "observability": { "enabled": true }
 }
