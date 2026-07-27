@@ -5,5 +5,11 @@
   "compatibility_date": "2026-05-15",
   "workers_dev": true,
   "preview_urls": false,
+  "services": [
+    {
+      "binding": "PATIENT_AREA",
+      "service": "area-do-paciente"
+    }
+  ],
   "observability": { "enabled": true }
 }
