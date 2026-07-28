@@ -87,10 +87,6 @@ aparecem no painel profissional. Quando o paciente decide escrever a partir de
 um texto, o portal abre o mesmo formulário vazio dos demais registros, que
 continua privado ao salvar.
 
-O aviso temporário da troca de nome é controlado pela constante
-`SHOW_AREA_NAME_CHANGE_NOTICE`, em `app/PortalApp.tsx`. Defina-a como `false`
-quando a transição tiver terminado; o aviso não grava aceite nem estado no D1.
-
 O catálogo central registra instituição, jurisdição, tipo, exibição ao paciente e
 data de verificação de cada fonte. As referências clínicas combinam OMS/CID-11,
 NICE, NIMH, Judith Beck e documentos específicos do Ministério da Saúde quando
