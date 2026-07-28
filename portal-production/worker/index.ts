@@ -9,7 +9,8 @@ interface Env {
   SETUP_SECRET: string;
   PUBLIC_SITE_URL?: string;
   GUIDE_URL?: string;
-  LEGACY_PORTAL: Fetcher;
+  PORTAL_API_MODE?: "local" | "proxy";
+  LEGACY_PORTAL?: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -35,14 +36,34 @@ const worker = {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/portal")) {
-      const legacyUrl = new URL(
-        url.pathname + url.search,
-        "https://registros.psico-mateus.workers.dev",
-      );
-      return withSecurityHeaders(
-        await env.LEGACY_PORTAL.fetch(new Request(legacyUrl, request)),
-        url.pathname,
-      );
+      if (env.PORTAL_API_MODE === "proxy") {
+        if (!env.LEGACY_PORTAL) {
+          return withSecurityHeaders(
+            Response.json(
+              { error: "O acesso protegido está temporariamente indisponível." },
+              { status: 503 },
+            ),
+            url.pathname,
+          );
+        }
+        const legacyUrl = new URL(
+          url.pathname + url.search,
+          "https://registros.psico-mateus.workers.dev",
+        );
+        return withSecurityHeaders(
+          await env.LEGACY_PORTAL.fetch(new Request(legacyUrl, request)),
+          url.pathname,
+        );
+      }
+      if (env.PORTAL_API_MODE !== "local") {
+        return withSecurityHeaders(
+          Response.json(
+            { error: "O acesso protegido está temporariamente indisponível." },
+            { status: 503 },
+          ),
+          url.pathname,
+        );
+      }
     }
 
     if (url.pathname === "/_vinext/image") {

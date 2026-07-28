@@ -24,7 +24,8 @@
   ],
   "vars": {
     "PUBLIC_SITE_URL": "https://psico-mateus.github.io/",
-    "GUIDE_URL": "https://psico-mateus.github.io/guia-emocoes/"
+    "GUIDE_URL": "https://psico-mateus.github.io/guia-emocoes/",
+    "PORTAL_API_MODE": "local"
   },
   "observability": { "enabled": true }
 }
