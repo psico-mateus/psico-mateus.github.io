@@ -21,6 +21,7 @@ import {
   unreadCountLabel,
 } from "../app/professional-dashboard-data.ts";
 import {
+  filterAndSortPatientEntries,
   filterPatientEntries,
   isEntryShared,
   patientEntryViewStatus,
@@ -306,6 +307,62 @@ test("patient history filters private and shared entries", () => {
   );
 });
 
+test("patient history search stays local, ignores accents and supports ordering", () => {
+  const entries = [
+    {
+      id: "older",
+      title: "Reunião difícil",
+      emotion: "frustração",
+      happened: "Conversa no trabalho",
+      body: "",
+      thoughts: "",
+      urge: "",
+      message: "",
+      created_at: "2026-07-20T20:00:00.000Z",
+      shared_at: null,
+      revoked_at: null,
+    },
+    {
+      id: "newer",
+      title: "Caminhada",
+      emotion: "alívio",
+      happened: "Volta no parque",
+      body: "",
+      thoughts: "",
+      urge: "",
+      message: "",
+      created_at: "2026-07-27T20:00:00.000Z",
+      shared_at: "2026-07-27T20:30:00.000Z",
+      revoked_at: null,
+    },
+  ];
+
+  assert.deepEqual(
+    filterAndSortPatientEntries(entries, "all", "reuniao", "newest").map(
+      (entry) => entry.id,
+    ),
+    ["older"],
+  );
+  assert.deepEqual(
+    filterAndSortPatientEntries(entries, "shared", "ALIVIO", "newest").map(
+      (entry) => entry.id,
+    ),
+    ["newer"],
+  );
+  assert.deepEqual(
+    filterAndSortPatientEntries(entries, "all", "", "newest").map(
+      (entry) => entry.id,
+    ),
+    ["newer", "older"],
+  );
+  assert.deepEqual(
+    filterAndSortPatientEntries(entries, "all", "", "oldest").map(
+      (entry) => entry.id,
+    ),
+    ["older", "newer"],
+  );
+});
+
 test("copy buttons support Safari fallback and keep codes selectable", async () => {
   const [app, clipboard, dashboard, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
@@ -437,6 +494,10 @@ test("public Worker build does not duplicate the Sites database binding", async 
 
   assert.match(viteConfig, /CLOUDFLARE_PUBLIC_DEPLOY === "1"/);
   assert.match(viteConfig, /d1 && !isPublicWorkerBuild/);
+  assert.match(
+    viteConfig,
+    /\.\.\.\(!isPublicWorkerBuild[\s\S]*?PORTAL_API_MODE: "local"/u,
+  );
   assert.match(scripts["build:worker"], /CLOUDFLARE_PUBLIC_DEPLOY=1/);
   assert.match(scripts["deploy:worker"], /pnpm build:worker && wrangler deploy/);
 });

@@ -14,6 +14,15 @@ const isPublicWorkerBuild = process.env.CLOUDFLARE_PUBLIC_DEPLOY === "1";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
+  ...(!isPublicWorkerBuild
+    ? {
+        vars: {
+          PORTAL_API_MODE: "local",
+          PUBLIC_SITE_URL: "https://psico-mateus.github.io/",
+          GUIDE_URL: "https://psico-mateus.github.io/guia-emocoes/",
+        },
+      }
+    : {}),
   d1_databases: d1 && !isPublicWorkerBuild
     ? [
         {
