@@ -61,9 +61,10 @@ test("protected values round-trip and one-time codes are well formed", async () 
 });
 
 test("public UI keeps privacy and safety boundaries visible", async () => {
-  const [app, installButton, manifest, privacy, serviceWorker, worker] = await Promise.all([
+  const [app, installButton, layout, manifest, privacy, serviceWorker, worker] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/InstallAppButton.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
@@ -99,6 +100,10 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   const parsedManifest = JSON.parse(manifest);
   assert.equal(parsedManifest.name, "Área do paciente");
   assert.equal(parsedManifest.short_name, "Área do paciente");
+  assert.equal(
+    parsedManifest.description,
+    "Registros privados, compartilhamento opcional e leitura complementar para pacientes atuais.",
+  );
   assert.equal(parsedManifest.display, "standalone");
   assert.deepEqual(parsedManifest.related_applications, [
     {
@@ -109,6 +114,9 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   ]);
   assert.match(serviceWorker, /respondWith\(fetch\(request\)\)/);
   assert.doesNotMatch(serviceWorker, /caches\./);
+  assert.match(layout, /Espaço exclusivo para pacientes atuais/);
+  assert.match(layout, /compartilhamento opcional e leitura complementar/);
+  assert.doesNotMatch(layout, /materiais de apoio/);
   assert.doesNotMatch(installButton, /localStorage|sessionStorage/);
   assert.match(privacy, /não são usados para publicidade/);
   assert.match(worker, /Content-Security-Policy/);

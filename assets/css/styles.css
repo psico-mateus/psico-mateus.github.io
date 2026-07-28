@@ -2564,7 +2564,7 @@ h2 {
   }
 }
 
-/* Entrada opcional para os Registros entre sessões. */
+/* Entrada para a Área do paciente, exclusiva para pacientes atuais. */
 .portal-section {
   background: #292923;
   color: #f8f3eb;

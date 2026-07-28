@@ -50,6 +50,9 @@ test("Guia se apresenta como recurso público de educação emocional", async ({
 test("fonte do preview social preserva o posicionamento público do Guia", async ({}, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Verificação estrutural única.");
   const source = await readFile("assets/images/sources/generate_assets.py", "utf8");
+  const mainScript = await readFile("assets/js/main.js", "utf8");
   expect(source).toContain("Recurso aberto de educação emocional");
   expect(source).not.toContain("Material de apoio para psicoterapia");
+  expect(mainScript).toContain("Recurso aberto para reconhecer emoções");
+  expect(mainScript).not.toContain("Material de apoio para reconhecer emoções");
 });

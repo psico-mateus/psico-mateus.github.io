@@ -139,7 +139,7 @@
   shareButton?.addEventListener("click", async () => {
     const shareData = {
       title: "Guia Prático para Reconhecer Emoções",
-      text: "Material de apoio para reconhecer emoções, por Mateus Ribeiro Marcos.",
+      text: "Recurso aberto para reconhecer emoções, por Mateus Ribeiro Marcos.",
       url: config.canonicalGuide,
     };
 

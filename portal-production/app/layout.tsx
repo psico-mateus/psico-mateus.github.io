@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | Área do paciente",
   },
   description:
-    "Um espaço privado com registros e materiais de apoio que complementam a psicoterapia.",
+    "Espaço exclusivo para pacientes atuais, com registros privados, compartilhamento opcional e leitura complementar.",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
   applicationName: "Área do paciente",
@@ -23,7 +23,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Área do paciente",
-    description: "Registros privados e materiais de apoio que complementam a psicoterapia.",
+    description:
+      "Espaço exclusivo para pacientes atuais, com registros privados, compartilhamento opcional e leitura complementar.",
     type: "website",
     images: [{
       url: "https://psico-mateus.github.io/assets/images/social-preview-registros.png",
