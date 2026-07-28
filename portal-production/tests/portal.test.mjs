@@ -145,10 +145,11 @@ test("patient access and editing refinements remain accessible and loss-aware", 
 });
 
 test("new and legacy workers have explicit, fail-closed API modes", async () => {
-  const [worker, currentConfigText, legacyConfigText] = await Promise.all([
+  const [worker, currentConfigText, legacyConfigText, viteConfig] = await Promise.all([
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.legacy.jsonc", import.meta.url), "utf8"),
+    readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
   ]);
   const currentConfig = JSON.parse(currentConfigText);
   const legacyConfig = JSON.parse(legacyConfigText);
@@ -163,6 +164,8 @@ test("new and legacy workers have explicit, fail-closed API modes", async () => 
   assert.match(worker, /env\.PORTAL_API_MODE !== "local"/u);
   assert.match(worker, /if \(!env\.LEGACY_PORTAL\)/u);
   assert.match(worker, /status: 503/u);
+  assert.match(viteConfig, /PORTAL_TEST_PERSIST_PATH/u);
+  assert.match(viteConfig, /persistState: isolatedTestStatePath/u);
 });
 
 test("mutable portal requests require a trusted origin and JSON bodies", async () => {

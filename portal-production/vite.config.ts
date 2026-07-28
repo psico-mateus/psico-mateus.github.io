@@ -11,6 +11,7 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const isPublicWorkerBuild = process.env.CLOUDFLARE_PUBLIC_DEPLOY === "1";
+const isolatedTestStatePath = process.env.PORTAL_TEST_PERSIST_PATH;
 
 const localBindingConfig = {
   main: "./worker/index.ts",
@@ -62,6 +63,11 @@ export default defineConfig(async () => {
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         config: localBindingConfig,
+        // Integration tests can use a disposable D1 without touching the
+        // developer's normal synthetic local state.
+        persistState: isolatedTestStatePath
+          ? { path: isolatedTestStatePath }
+          : true,
       }),
     ],
   };
