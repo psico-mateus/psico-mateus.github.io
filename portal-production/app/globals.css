@@ -697,7 +697,7 @@ input[type="range"]{accent-color:#9a6d27}
   margin:0 0 3rem;
   padding:clamp(1.35rem,4vw,2.5rem);
   border-radius:24px;
-  scroll-margin-top:1rem;
+  scroll-margin-top:7rem;
 }
 .entry-form-heading{align-items:flex-start;margin-bottom:.5rem}
 .entry-form-heading>div>p:last-child{max-width:680px;margin:0;color:var(--muted)}
@@ -727,8 +727,17 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .entry-step-heading h3{margin:0 0 .2rem;font-size:1.35rem}
 .entry-step-heading p{margin:0;color:var(--muted);font-size:.88rem}
-.patient-entry-form .field>span{font-size:.84rem}
+.patient-entry-form .field>span,.patient-entry-form .field>label{font-size:.84rem;font-weight:700}
 .patient-entry-form textarea{line-height:1.6}
+.field-help-link{
+  width:fit-content;
+  color:var(--green-2);
+  font-size:.82rem;
+  text-decoration:underline;
+  text-decoration-thickness:1px;
+  text-underline-offset:3px;
+}
+.field-help-link:hover{color:var(--ink)}
 .range-field{align-content:end}
 .range-field input[type="range"]{min-height:34px}
 .range-scale{
@@ -738,6 +747,30 @@ input[type="range"]{accent-color:#9a6d27}
   color:var(--muted);
   font-size:.72rem;
   font-weight:500;
+}
+.range-adjustments{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  gap:.45rem;
+  align-items:center;
+  margin-top:.35rem;
+}
+.range-adjustments button{
+  min-height:44px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  padding:.5rem .7rem;
+  color:var(--ink);
+  font-size:.78rem;
+  font-weight:750;
+}
+.range-adjustments button:disabled{cursor:default;opacity:.45}
+.range-adjustments output{
+  min-width:3.2rem;
+  color:var(--green-2);
+  text-align:center;
+  font-weight:800;
 }
 .entry-optional{
   margin-top:1.4rem;
@@ -986,6 +1019,7 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-overview{grid-template-columns:1fr;margin-top:-.3rem}
   .patient-overview>a{grid-column:auto}
   .patient-entry-form{padding:1.1rem}
+  .patient-entry-form{scroll-margin-top:9.2rem}
   .entry-form-heading{display:grid;grid-template-columns:minmax(0,1fr) auto}
   .entry-form-heading .icon-button{grid-column:2;grid-row:1}
   .entry-form-heading>div{grid-column:1;grid-row:1}
@@ -1441,7 +1475,7 @@ input[type="range"]{accent-color:#9a6d27}
   width:min(100%,850px);
   margin-right:auto;
   margin-left:auto;
-  scroll-margin-top:1rem;
+  scroll-margin-top:7rem;
 }
 .education-article>.back-button{margin-bottom:1.25rem}
 .education-article-header{
@@ -1656,6 +1690,7 @@ input[type="range"]{accent-color:#9a6d27}
   }
   .education-discovery .secondary-button{width:100%;white-space:normal}
   .education-library,.education-article{margin-top:1.6rem}
+  .education-article{scroll-margin-top:9.2rem}
   .education-library-header h2{font-size:2.7rem}
   .education-tools{padding:1rem}
   .education-category-filters{display:grid}
@@ -1680,17 +1715,15 @@ input[type="range"]{accent-color:#9a6d27}
   .education-disclosure-arrow{transition:none}
 }
 
-/* Identidade pública e início da Área do paciente. */
-.name-change-notice{
-  margin:1.1rem 0 1.35rem;
-  border:1px solid rgba(121,90,35,.24);
-  border-left:4px solid var(--gold);
-  border-radius:14px;
-  background:#f7eee3;
-  padding:.9rem 1rem;
-  color:#554d43;
+.loading-error{
+  width:min(100% - 2rem,520px);
+  margin:auto;
+  align-content:center;
+  justify-items:center;
 }
-.name-change-notice p{margin:0;font-size:.9rem;line-height:1.6}
+.loading-error .notice{max-width:520px;text-align:left}
+
+/* Identidade pública e início da Área do paciente. */
 .education-public-note{
   max-width:670px;
   margin:-.7rem 0 1.2rem;
@@ -1698,7 +1731,6 @@ input[type="range"]{accent-color:#9a6d27}
   font-size:.88rem;
   line-height:1.65;
 }
-.patient-dashboard>.name-change-notice{margin:0 0 1.2rem}
 .patient-home-actions{
   position:relative;
   z-index:1;

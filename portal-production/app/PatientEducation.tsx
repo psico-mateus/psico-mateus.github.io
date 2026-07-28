@@ -156,17 +156,22 @@ function EducationArticleView({
   onOpenRelated: (slug: string) => void;
   onCreateRecord: () => void;
 }) {
+  const articleRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     window.requestAnimationFrame(() => {
-      titleRef.current?.scrollIntoView({ block: "start" });
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      articleRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
       titleRef.current?.focus({ preventScroll: true });
+      root.style.scrollBehavior = previousScrollBehavior;
     });
   }, [article.slug]);
 
   return (
-    <article className="education-article" aria-labelledby="education-article-title">
+    <article ref={articleRef} className="education-article" aria-labelledby="education-article-title">
       <button className="back-button" type="button" onClick={onBack}>
         ← Voltar à Leitura complementar
       </button>
@@ -233,8 +238,14 @@ function EducationArticleView({
               Se estiver difícil nomear a emoção, o Guia pode ajudar nessa etapa.
               Ele funciona separado da Área do paciente.
             </p>
-            <a className="secondary-button" href={guideUrl}>
+            <a
+              className="secondary-button"
+              href={guideUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Abrir o Guia de Emoções
+              <span className="external-link-note"> (nova aba)</span>
             </a>
           </aside>
         ) : null}
@@ -301,8 +312,12 @@ export function PatientEducation({
       const trigger = document.getElementById(`education-read-${articleSlug}`);
       const target =
         trigger instanceof HTMLButtonElement ? trigger : libraryTitleRef.current;
-      target?.scrollIntoView({ block: "center" });
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      target?.scrollIntoView({ block: "center", behavior: "auto" });
       target?.focus({ preventScroll: true });
+      root.style.scrollBehavior = previousScrollBehavior;
     });
   }, [selectedArticle]);
 

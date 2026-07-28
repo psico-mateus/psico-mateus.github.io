@@ -518,8 +518,16 @@ test("education mobile and focus rules preserve a usable 390px layout", async ()
   assert.match(education, /aria-labelledby=\{`education-group-\$\{groupIndex\}`\}/);
   assert.match(education, /restoreArticleSlug/);
   assert.match(education, /education-read-\$\{articleSlug\}/);
-  assert.match(education, /scrollIntoView\(\{ block: "start" \}\)/);
-  assert.match(education, /target\?\.scrollIntoView\(\{ block: "center" \}\)/);
+  assert.match(
+    education,
+    /articleRef\.current\?\.scrollIntoView\(\{ block: "start", behavior: "auto" \}\)/,
+  );
+  assert.match(
+    education,
+    /target\?\.scrollIntoView\(\{ block: "center", behavior: "auto" \}\)/,
+  );
+  assert.match(education, /root\.style\.scrollBehavior = "auto"/);
+  assert.match(mobileEducation, /\.education-article\{scroll-margin-top:9\.2rem\}/);
   assert.match(education, /focus\(\{ preventScroll: true \}\)/);
   assert.match(education, /aria-pressed=\{category === option\.value\}/);
   assert.match(education, /aria-live="polite"/);

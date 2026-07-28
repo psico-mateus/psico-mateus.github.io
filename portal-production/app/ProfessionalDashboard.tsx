@@ -52,10 +52,17 @@ type ProfessionalActivity = {
 };
 
 function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone }) {
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (tone === "error") noticeRef.current?.focus();
+  }, [message, tone]);
   return (
     <p
+      ref={noticeRef}
       className={`notice notice-${tone}`}
       role={tone === "error" ? "alert" : "status"}
+      aria-atomic="true"
+      tabIndex={tone === "error" ? -1 : undefined}
     >
       {message}
     </p>
@@ -142,11 +149,12 @@ function RecoveryAuthorizationDialog({
             name="totp"
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={6}
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={12}
             required
           />
-          <small>Se acabou de entrar, aguarde o próximo código de 6 dígitos.</small>
+          <small>Se acabou de entrar, aguarde o próximo código. Você pode colar com espaços ou hífens.</small>
         </label>
         {error ? <Notice tone="error" message={error} /> : null}
         <div className="button-row">

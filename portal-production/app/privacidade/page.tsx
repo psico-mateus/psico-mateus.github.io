@@ -30,9 +30,9 @@ export default function PrivacyPage() {
           permitir que você compartilhe registros específicos com Mateus Ribeiro
           Marcos. Eles não são usados para publicidade, venda de dados, diagnóstico
           automático ou treinamento de inteligência artificial. As quantidades de
-          registros privados e compartilhados por paciente também ajudam a
-          acompanhar a adesão ao recurso e avaliar, junto com você, se ele continua
-          sendo útil.
+          registros privados e compartilhados ajudam a entender se o recurso está
+          sendo utilizado e se continua fazendo sentido para você, sem mostrar o
+          conteúdo dos registros privados.
         </p>
         <h2>Quem pode ver</h2>
         <p>
@@ -42,9 +42,10 @@ export default function PrivacyPage() {
           paciente estão compartilhados ou privados, mas não vê título, emoção,
           data nem qualquer parte do conteúdo dos privados. O texto continua
           pertencendo a você e não pode ser editado no acesso profissional. Quando
-          Mateus abre um registro compartilhado, o portal guarda a data dessa
-          leitura para organizar o que já foi visto e o que ainda está pendente.
-          Essa informação também aparece para você no próprio registro.
+          Mateus conclui deliberadamente a visualização de um registro compartilhado,
+          o portal guarda a data dessa confirmação. Essa informação também aparece
+          para você no próprio registro e não significa resposta ou acompanhamento
+          em tempo real.
         </p>
         <h2>Conteúdos de apoio e buscas</h2>
         <p>

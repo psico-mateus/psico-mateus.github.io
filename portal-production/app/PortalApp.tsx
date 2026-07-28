@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useId, useState } from "react";
+import {
+  FormEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import { PatientEducation } from "./PatientEducation";
@@ -54,23 +62,6 @@ const blankEntry: EntryDraft = {
   message: "",
 };
 
-// Desative esta flag depois que pacientes recorrentes tiverem visto a mudança.
-const SHOW_AREA_NAME_CHANGE_NOTICE = true;
-
-function NameChangeNotice() {
-  if (!SHOW_AREA_NAME_CHANGE_NOTICE) return null;
-  return (
-    <aside className="name-change-notice" aria-label="Mudança de nome">
-      <p>
-        <strong>Nome novo, mesmo espaço.</strong> Os Registros entre sessões
-        agora fazem parte da Área do paciente. Sua conta, seus registros e suas
-        escolhas de privacidade continuam iguais. A mudança de nome não altera
-        quem pode ver o que você escreve.
-      </p>
-    </aside>
-  );
-}
-
 function Field({
   label,
   name,
@@ -79,6 +70,10 @@ function Field({
   required = false,
   hint,
   passwordRequirements = false,
+  inputMode,
+  autoCapitalize,
+  spellCheck,
+  maxLength,
 }: {
   label: string;
   name: string;
@@ -87,6 +82,10 @@ function Field({
   required?: boolean;
   hint?: string;
   passwordRequirements?: boolean;
+  inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+  autoCapitalize?: string;
+  spellCheck?: boolean;
+  maxLength?: number;
 }) {
   const inputId = useId();
   const hintId = useId();
@@ -119,10 +118,11 @@ function Field({
           autoComplete={autoComplete}
           required={required}
           minLength={passwordRequirements ? 12 : undefined}
-          maxLength={passwordRequirements ? 128 : undefined}
+          maxLength={isPassword ? 128 : maxLength}
           aria-describedby={describedBy}
-          autoCapitalize={isPassword ? "none" : undefined}
-          spellCheck={isPassword ? false : undefined}
+          inputMode={inputMode}
+          autoCapitalize={isPassword ? "none" : autoCapitalize}
+          spellCheck={isPassword ? false : spellCheck}
           onChange={passwordRequirements ? (event) => setTypedValue(event.target.value) : undefined}
         />
         {isPassword ? (
@@ -152,8 +152,30 @@ function Field({
   );
 }
 
-function Notice({ message, tone = "info" }: { message: string; tone?: "info" | "error" | "success" }) {
-  return <p className={`notice notice-${tone}`} role={tone === "error" ? "alert" : "status"}>{message}</p>;
+function Notice({
+  message,
+  tone = "info",
+  focusOnMount = tone === "error",
+}: {
+  message: string;
+  tone?: "info" | "error" | "success";
+  focusOnMount?: boolean;
+}) {
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (focusOnMount) noticeRef.current?.focus();
+  }, [focusOnMount, message]);
+  return (
+    <p
+      ref={noticeRef}
+      className={`notice notice-${tone}`}
+      role={tone === "error" ? "alert" : "status"}
+      aria-atomic="true"
+      tabIndex={focusOnMount ? -1 : undefined}
+    >
+      {message}
+    </p>
+  );
 }
 
 function Header({ config, user, onLogout }: { config: Config; user?: User | null; onLogout?: () => void }) {
@@ -165,8 +187,12 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
         <span><strong>Área do paciente</strong><small>Mateus Ribeiro Marcos · Psicólogo</small></span>
       </Link>
       <nav className="top-links" aria-label="Links principais">
-        <a href={config.public_site_url}>Site profissional</a>
-        <a href={config.guide_url}>Guia de Emoções</a>
+        <a href={config.public_site_url} target="_blank" rel="noopener noreferrer">
+          Site profissional<span className="sr-status"> (abre em nova aba)</span>
+        </a>
+        <a href={config.guide_url} target="_blank" rel="noopener noreferrer">
+          Guia de Emoções<span className="sr-status"> (abre em nova aba)</span>
+        </a>
         {user?.role !== "therapist" ? <InstallAppButton /> : null}
         {user && onLogout ? <button type="button" className="link-button" onClick={onLogout}>Sair</button> : null}
       </nav>
@@ -176,6 +202,32 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
 
 function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    titleRef.current?.focus();
+    return () => {
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, []);
+  function keepFocusInside(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? [],
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === titleRef.current)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
   async function copy() {
     try {
       await copyText(code);
@@ -186,10 +238,18 @@ function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) 
   }
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
+      <section
+        ref={dialogRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recovery-title"
+        aria-describedby="recovery-description"
+        onKeyDown={keepFocusInside}
+      >
         <p className="eyebrow">GUARDE AGORA</p>
-        <h2 id="recovery-title">Seu código de recuperação</h2>
-        <p>Com ele, você pode redefinir sua senha por conta própria. Guarde em um local seguro. Se perdê-lo, peça a Mateus uma recuperação assistida. O código anterior deixa de funcionar.</p>
+        <h2 id="recovery-title" ref={titleRef} tabIndex={-1}>Seu código de recuperação</h2>
+        <p id="recovery-description">Com ele, você pode redefinir sua senha por conta própria. Guarde em um local seguro. Se perdê-lo, peça a Mateus uma recuperação assistida. O código anterior deixa de funcionar.</p>
         <code className="secret-code">{code}</code>
         <div className="button-row">
           <button className="secondary-button" type="button" onClick={() => void copy()}>{copyStatus === "copied" ? "Copiado" : "Copiar código"}</button>
@@ -259,7 +319,17 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
       <p>Adicione uma conta manualmente no seu aplicativo autenticador usando esta chave:</p>
       <code className="secret-code">{totpSecret}</code>
       <Notice tone="info" message={`Antes de continuar, guarde também o código de recuperação: ${recovery}`} />
-      <Field label="Código de 6 dígitos do autenticador" name="totp" autoComplete="one-time-code" required />
+      <Field
+        label="Código de 6 dígitos do autenticador"
+        name="totp"
+        autoComplete="one-time-code"
+        inputMode="numeric"
+        autoCapitalize="none"
+        spellCheck={false}
+        maxLength={12}
+        hint="Digite ou cole os 6 números. Espaços e hífens são ignorados."
+        required
+      />
       {message ? <Notice tone="error" message={message} /> : null}
       <button className="primary-button" disabled={busy}>{busy ? "Confirmando…" : "Confirmar e entrar"}</button>
     </form>
@@ -336,8 +406,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
             pesquisar um conteúdo não confirma diagnóstico e não é informado a
             Mateus.
           </p>
-          <NameChangeNotice />
-          <a className="guide-callout" href={config.guide_url}><span>Aberto a qualquer pessoa, sem conta</span><strong>Usar o Guia de Emoções →</strong></a>
+          <a className="guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer"><span>Aberto a qualquer pessoa, sem conta</span><strong>Usar o Guia de Emoções → <span className="sr-status">(abre em nova aba)</span></strong></a>
         </section>
 
         <section className="auth-card" aria-labelledby="auth-title">
@@ -352,17 +421,53 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
               esse código, peça a Mateus um novo código de recuperação.
             </p>
           ) : null}
-          <div className="tab-list" role="tablist" aria-label="Forma de acesso">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
-            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
+          <div className="tab-list" role="group" aria-label="Forma de acesso">
+            <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
+            <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
           </div>
           <form className="stack" onSubmit={submit}>
-            {mode === "register" ? <><Field label="Código de convite entregue por Mateus" name="invitation_code" required /><Field label="Como prefere ser chamado(a)" name="name" autoComplete="name" required /></> : null}
+            {mode === "register" ? (
+              <>
+                <Field
+                  label="Código de convite entregue por Mateus"
+                  name="invitation_code"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  maxLength={32}
+                  hint="Você pode colar o código com ou sem espaços e hífens."
+                  required
+                />
+                <Field label="Como prefere ser chamado(a)" name="name" autoComplete="name" required />
+              </>
+            ) : null}
             <Field label="E-mail" name="email" type="email" autoComplete="username" required />
-            {mode === "recover" ? <Field label="Código de recuperação" name="recovery_code" autoComplete="off" required /> : null}
+            {mode === "recover" ? (
+              <Field
+                label="Código de recuperação"
+                name="recovery_code"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={32}
+                hint="Você pode colar o código com ou sem espaços e hífens."
+                required
+              />
+            ) : null}
             <Field label={mode === "recover" ? "Nova senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required passwordRequirements={mode !== "login"} hint={mode !== "login" ? "Use uma frase fácil de lembrar. Ela pode ter espaços e precisa incluir pelo menos um número." : undefined} />
             {mode !== "login" ? <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required /> : null}
-            {mode === "login" ? <Field label="Código do autenticador (somente acesso profissional)" name="totp" autoComplete="one-time-code" /> : null}
+            {mode === "login" ? (
+              <Field
+                label="Código do autenticador (somente acesso profissional)"
+                name="totp"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={12}
+                hint="Pacientes deixam este campo vazio. No acesso profissional, espaços e hífens são ignorados."
+              />
+            ) : null}
             {mode === "register" ? (
               <div className="checks">
                 <label className="check-row">
@@ -387,24 +492,47 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
   );
 }
 
+function entryDraftFrom(initial?: Entry): EntryDraft {
+  return initial
+    ? {
+        title: initial.title,
+        happened: initial.happened,
+        body: initial.body,
+        thoughts: initial.thoughts,
+        urge: initial.urge,
+        emotion: initial.emotion,
+        intensity: initial.intensity,
+        message: initial.message,
+      }
+    : { ...blankEntry };
+}
+
 function EntryForm({
   initial,
   guidance,
+  guideUrl,
   onSave,
   onCancel,
+  onDirtyChange,
 }: {
   initial?: Entry;
   guidance?: string;
+  guideUrl: string;
   onSave: (entry: EntryDraft) => Promise<void>;
   onCancel: () => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
-  const [draft, setDraft] = useState<EntryDraft>(initial ? {
-    title: initial.title, happened: initial.happened, body: initial.body, thoughts: initial.thoughts, urge: initial.urge,
-    emotion: initial.emotion, intensity: initial.intensity, message: initial.message,
-  } : blankEntry);
+  const [originalDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
+  const [draft, setDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [optionalOpen, setOptionalOpen] = useState(Boolean(initial && (initial.body || initial.thoughts || initial.urge || initial.message)));
+  const dirty = (Object.keys(originalDraft) as Array<keyof EntryDraft>).some(
+    (key) => draft[key] !== originalDraft[key],
+  );
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
   function update(name: keyof EntryDraft, value: string | number) { setDraft((current) => ({ ...current, [name]: value })); }
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -420,7 +548,7 @@ function EntryForm({
       <div className="section-heading entry-form-heading">
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
-          <h2>{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
+          <h2 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
           <p>Não precisa preencher tudo. Comece pelo que estiver mais claro agora.</p>
         </div>
         <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">×</button>
@@ -441,12 +569,41 @@ function EntryForm({
           <div><h3 id="entry-step-two">Como isso chegou em você?</h3><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
         </div>
         <div className="emotion-row">
-          <label className="field"><span>Emoção principal, se souber</span><input value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} /></label>
-          <label className="field range-field">
-            <span>Intensidade percebida: <strong>{draft.intensity}</strong>/10</span>
-            <input type="range" min="0" max="10" value={draft.intensity} onChange={(e) => update("intensity", Number(e.target.value))} />
+          <div className="field">
+            <label htmlFor="entry-emotion"><span>Emoção principal, se souber</span></label>
+            <input id="entry-emotion" value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} />
+            <a
+              className="field-help-link"
+              href={guideUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Não sabe como nomear? Abrir o Guia de Emoções
+              <span className="external-link-note"> (nova aba)</span>
+            </a>
+          </div>
+          <div className="field range-field">
+            <label htmlFor="entry-intensity">Intensidade percebida: <strong>{draft.intensity}</strong>/10</label>
+            <input id="entry-intensity" type="range" min="0" max="10" value={draft.intensity} onChange={(e) => update("intensity", Number(e.target.value))} />
             <small className="range-scale"><span>0 · muito leve</span><span>10 · muito intensa</span></small>
-          </label>
+            <div className="range-adjustments" aria-label="Ajustar intensidade sem arrastar">
+              <button
+                type="button"
+                onClick={() => update("intensity", Math.max(0, draft.intensity - 1))}
+                disabled={draft.intensity === 0}
+              >
+                − Diminuir
+              </button>
+              <output htmlFor="entry-intensity" aria-live="polite">{draft.intensity}/10</output>
+              <button
+                type="button"
+                onClick={() => update("intensity", Math.min(10, draft.intensity + 1))}
+                disabled={draft.intensity === 10}
+              >
+                Aumentar +
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -472,38 +629,118 @@ function EntryDetails({ entry }: { entry: Entry }) {
   return <div className="entry-details">{items.filter(([, value]) => value).map(([label, value]) => <div key={label}><strong>{label}</strong><p>{value}</p></div>)}</div>;
 }
 
-function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { user: User; csrf: string; config: Config; setRecovery: (code: string) => void; onSessionLost: () => void }) {
+function PatientDashboard({
+  user,
+  csrf,
+  config,
+  setRecovery,
+  onSessionLost,
+  onDraftStateChange,
+}: {
+  user: User;
+  csrf: string;
+  config: Config;
+  setRecovery: (code: string) => void;
+  onSessionLost: () => void;
+  onDraftStateChange: (dirty: boolean) => void;
+}) {
   const [area, setArea] = useState<PatientArea>("home");
   const [selectedEducationSlug, setSelectedEducationSlug] = useState<string | null>(null);
   const [educationReturnSlug, setEducationReturnSlug] = useState<string | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editing, setEditing] = useState<Entry | null | "new">(null);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "success">("success");
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [editorAnnouncement, setEditorAnnouncement] = useState("");
   const [loading, setLoading] = useState(true);
   const [entryFilter, setEntryFilter] =
     useState<PatientEntrySharingFilter>("all");
+  const editorOriginRef = useRef<{
+    entryId: string;
+    scrollY: number;
+    trigger: HTMLButtonElement;
+  } | null>(null);
+  const initialScrollResetRef = useRef(false);
   const load = useCallback(async () => {
     try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
-    catch (error) { if ((error as Error).message.includes("login")) onSessionLost(); else setMessage((error as Error).message); }
+    catch (error) {
+      if ((error as Error).message.includes("login")) onSessionLost();
+      else {
+        setMessageTone("error");
+        setMessage((error as Error).message);
+      }
+    }
     finally { setLoading(false); }
   }, [onSessionLost]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
+    if (loading || initialScrollResetRef.current) return;
+    initialScrollResetRef.current = true;
+    scrollPageToTop();
+  }, [loading]);
+
+  useEffect(() => {
     if (area !== "records" || !editing) return;
     window.requestAnimationFrame(() => {
       const editor = document.getElementById("entry-editor");
       const title = document.getElementById("entry-title");
-      editor?.scrollIntoView({ block: "start" });
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      editor?.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
       title?.focus({ preventScroll: true });
     });
   }, [area, editing]);
 
+  useEffect(() => {
+    const hasUnsavedChanges = Boolean(editing && editorDirty);
+    onDraftStateChange(hasUnsavedChanges);
+    if (!hasUnsavedChanges) return;
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [editing, editorDirty, onDraftStateChange]);
+
   async function save(draft: EntryDraft) {
-    if (editing && editing !== "new") await portalRequest(`/entries/${editing.id}`, { method: "PATCH", body: JSON.stringify(draft) }, csrf);
-    else await portalRequest("/entries", { method: "POST", body: JSON.stringify(draft) }, csrf);
-    setEditing(null); setEducationReturnSlug(null); setMessage("Registro salvo de forma privada."); await load();
+    const editedEntry = editing && editing !== "new" ? editing : null;
+    let savedId = editedEntry?.id ?? "";
+    if (editedEntry) {
+      await portalRequest(`/entries/${editedEntry.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(draft),
+      }, csrf);
+    } else {
+      const result = await portalRequest<{ id: string }>("/entries", {
+        method: "POST",
+        body: JSON.stringify(draft),
+      }, csrf);
+      savedId = result.id;
+    }
+    setEditing(null);
+    setEditorDirty(false);
+    setEditorAnnouncement("");
+    setEducationReturnSlug(null);
+    setMessageTone("success");
+    setMessage(
+      editedEntry
+        ? isEntryShared(editedEntry)
+          ? "Alterações salvas. O compartilhamento com Mateus foi mantido."
+          : "Registro atualizado. Ele continua privado."
+        : "Registro salvo de forma privada.",
+    );
+    await load();
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const card = document.getElementById(`record-${savedId}`);
+        const summary = card?.querySelector<HTMLElement>("summary");
+        card?.scrollIntoView({ block: "center", behavior: "auto" });
+        summary?.focus({ preventScroll: true });
+      });
+    });
   }
   async function sharing(entry: Entry) {
     const shared = isEntryShared(entry);
@@ -511,44 +748,93 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
       ? "Mateus deixará de ver este registro. Retirar o compartilhamento?"
       : "Compartilhar este registro com Mateus? Ele poderá lê-lo no painel profissional, mas não editá-lo.";
     if (!window.confirm(question)) return;
-    await portalRequest(`/entries/${entry.id}/sharing`, { method: "PATCH", body: JSON.stringify({ shared: !shared }) }, csrf);
-    setMessage(shared ? "Compartilhamento retirado." : "Registro compartilhado com Mateus."); await load();
+    try {
+      await portalRequest(`/entries/${entry.id}/sharing`, { method: "PATCH", body: JSON.stringify({ shared: !shared }) }, csrf);
+      setMessageTone("success");
+      setMessage(shared ? "Compartilhamento retirado." : "Registro compartilhado com Mateus.");
+      await load();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage((error as Error).message);
+    }
   }
   async function remove(entry: Entry) {
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
-    await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf); setMessage("Registro excluído."); await load();
+    try {
+      await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf);
+      setMessageTone("success");
+      setMessage("Registro excluído.");
+      await load();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage((error as Error).message);
+    }
   }
   function openNewRecord() {
     setArea("records");
     setEducationReturnSlug(null);
+    editorOriginRef.current = null;
+    setEditorDirty(false);
+    setEditorAnnouncement("Formulário para um novo registro aberto.");
+    setMessage("");
     setEditing("new");
   }
   function createRecordFromEducation(slug: string) {
     setSelectedEducationSlug(slug);
     setEducationReturnSlug(slug);
     setArea("records");
+    editorOriginRef.current = null;
+    setEditorDirty(false);
+    setEditorAnnouncement("Formulário para um novo registro aberto.");
     setEditing("new");
     setMessage("");
   }
+  function confirmDiscard(): boolean {
+    return !editorDirty || window.confirm("Descartar as alterações que ainda não foram salvas?");
+  }
   function cancelEntry() {
+    if (!confirmDiscard()) return;
+    const origin = editorOriginRef.current;
     if (!educationReturnSlug) {
       setEditing(null);
+      setEditorDirty(false);
+      setEditorAnnouncement("");
+      editorOriginRef.current = null;
+      if (origin) {
+        window.requestAnimationFrame(() => {
+          window.scrollTo({ top: origin.scrollY, behavior: "auto" });
+          origin.trigger.focus({ preventScroll: true });
+        });
+      }
       return;
     }
     setSelectedEducationSlug(educationReturnSlug);
     setEditing(null);
+    setEditorDirty(false);
+    setEditorAnnouncement("");
     setEducationReturnSlug(null);
+    editorOriginRef.current = null;
     setArea("education");
+  }
+  function openEditRecord(entry: Entry, trigger: HTMLButtonElement) {
+    editorOriginRef.current = {
+      entryId: entry.id,
+      scrollY: window.scrollY,
+      trigger,
+    };
+    setEducationReturnSlug(null);
+    setEditorDirty(false);
+    setEditorAnnouncement(`Edição do registro “${entry.title}” aberta.`);
+    setMessage("");
+    setEditing(entry);
   }
   function changeArea(nextArea: PatientArea) {
     if (area === nextArea) return;
-    if (
-      editing &&
-      !window.confirm("Sair do formulário? O que ainda não foi salvo será perdido.")
-    ) {
-      return;
-    }
+    if (editing && !confirmDiscard()) return;
     setEditing(null);
+    setEditorDirty(false);
+    setEditorAnnouncement("");
+    editorOriginRef.current = null;
     setEducationReturnSlug(null);
     setArea(nextArea);
     window.requestAnimationFrame(() => {
@@ -572,11 +858,29 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
-  const awaitingViewCount = entries.filter(
-    (entry) =>
-      isEntryShared(entry) && patientEntryViewStatus(entry).kind !== "viewed",
-  ).length;
-  const viewedSharedCount = sharedCount - awaitingViewCount;
+  const sharedViewCounts = entries.reduce(
+    (counts, entry) => {
+      if (isEntryShared(entry)) {
+        counts[patientEntryViewStatus(entry).kind] += 1;
+      }
+      return counts;
+    },
+    { unseen: 0, viewed: 0, updated: 0, reshared: 0 },
+  );
+  const sharedOverview = [
+    sharedViewCounts.viewed
+      ? `${sharedViewCounts.viewed} ${sharedViewCounts.viewed === 1 ? "visualizado" : "visualizados"}`
+      : "",
+    sharedViewCounts.unseen
+      ? `${sharedViewCounts.unseen} ${sharedViewCounts.unseen === 1 ? "ainda não visualizado" : "ainda não visualizados"}`
+      : "",
+    sharedViewCounts.updated
+      ? `${sharedViewCounts.updated} ${sharedViewCounts.updated === 1 ? "atualizado após visualização" : "atualizados após visualização"}`
+      : "",
+    sharedViewCounts.reshared
+      ? `${sharedViewCounts.reshared} ${sharedViewCounts.reshared === 1 ? "compartilhado novamente" : "compartilhados novamente"}`
+      : "",
+  ].filter(Boolean).join(" · ");
   const visibleEntries = filterPatientEntries(entries, entryFilter);
   const filterLabels: Array<{
     value: PatientEntrySharingFilter;
@@ -589,7 +893,6 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   ];
   return (
     <main className="dashboard patient-dashboard" id="conteudo">
-      <NameChangeNotice />
       <nav className="patient-navigation" aria-label="Navegação da Área do paciente">
         <button
           type="button"
@@ -634,8 +937,8 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <article><span className="overview-number">{loading ? "…" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
-            <article><span className="overview-number">{loading ? "…" : sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong><small>{loading ? "Consultando visualizações…" : sharedCount === 0 ? "Nenhum conteúdo visível para ele" : `${viewedSharedCount} ${viewedSharedCount === 1 ? "visualizado" : "visualizados"} · ${awaitingViewCount} aguardando`}</small></div></article>
-            <a href={config.guide_url}><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções →</strong></a>
+            <article><span className="overview-number">{loading ? "…" : sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong><small>{loading ? "Consultando visualizações…" : sharedCount === 0 ? "Nenhum conteúdo visível para ele" : sharedOverview}</small></div></article>
+            <a href={config.guide_url} target="_blank" rel="noopener noreferrer"><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções → <span className="sr-status">(abre em nova aba)</span></strong></a>
           </section>
 
           <details className="patient-how-to">
@@ -648,7 +951,10 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
         </section>
       ) : area === "records" ? (
         <>
-          {message ? <Notice tone="success" message={message} /> : null}
+          <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+            {editorAnnouncement}
+          </p>
+          {message ? <Notice tone={messageTone} message={message} /> : null}
           {editing ? (
             <EntryForm
               key={
@@ -659,6 +965,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
                   : editing.id
               }
               initial={editing === "new" ? undefined : editing}
+              guideUrl={config.guide_url}
               guidance={
                 educationReturnSlug
                   ? "O que chamou sua atenção neste texto? Registre somente o que fizer sentido para você."
@@ -666,20 +973,21 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
               }
               onSave={save}
               onCancel={cancelEntry}
+              onDirtyChange={setEditorDirty}
             />
           ) : null}
           <section className="records-section" aria-labelledby="records-title">
         <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title" tabIndex={-1}>Meus registros</h2><p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p></div><span className="count">{entryFilter === "all" ? `${entries.length} ${entries.length === 1 ? "registro" : "registros"}` : `${visibleEntries.length} de ${entries.length}`}</span></div>
-        <a className="records-guide-callout" href={config.guide_url}>
+        <a className="records-guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer">
           <span>Está difícil nomear o que sentiu?</span>
-          <strong>Consultar o Guia de Emoções →</strong>
+          <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>
         </a>
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
             <h3>Seu histórico começa quando você quiser.</h3>
             <p>Você pode começar com uma situação breve. Não precisa entender tudo antes de escrever.</p>
-            <div className="empty-state-actions"><button className="primary-button" onClick={openNewRecord}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url}>Explorar o Guia de Emoções</a></div>
+            <div className="empty-state-actions"><button className="primary-button" onClick={openNewRecord}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url} target="_blank" rel="noopener noreferrer">Explorar o Guia de Emoções <span className="sr-status">(abre em nova aba)</span></a></div>
           </div>
         ) : <>
           <div className="patient-entry-toolbar" role="group" aria-label="Filtrar registros por compartilhamento">
@@ -713,7 +1021,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
           const shared = isEntryShared(entry);
           const viewStatus = patientEntryViewStatus(entry);
           return (
-            <details className="record-card patient-record-card" key={entry.id}>
+            <details className="record-card patient-record-card" id={`record-${entry.id}`} key={entry.id}>
               <summary>
                 <span className="record-summary-marker" aria-hidden="true" />
                 <span className="patient-record-summary-copy">
@@ -741,7 +1049,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
                 <EntryDetails entry={entry} />
                 <div className="record-actions">
                   <button className={shared ? "secondary-button" : "share-button"} onClick={() => void sharing(entry)}>{shared ? "Deixar privado novamente" : "Compartilhar com Mateus"}</button>
-                  <button className="quiet-button" onClick={() => { setEducationReturnSlug(null); setEditing(entry); }}>Editar</button>
+                  <button className="quiet-button" onClick={(event) => openEditRecord(entry, event.currentTarget)}>Editar</button>
                   <button className="danger-link" onClick={() => void remove(entry)}>Excluir</button>
                 </div>
               </div>
@@ -787,13 +1095,26 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
   return (
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
       <summary><span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>{role === "patient" ? <small>Senha, recuperação, exportação e exclusão</small> : null}</summary>
-      <div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase fácil de lembrar pode ter espaços; inclua pelo menos um número." /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div>
+      <div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase fácil de lembrar pode ter espaços; inclua pelo menos um número." /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div>
     </details>
   );
 }
 
 function EmergencyFooter({ config }: { config: Config }) {
-  return <footer className="site-footer"><div><strong>Este espaço não é acompanhado em tempo real.</strong><p>Não use os registros para pedir ajuda urgente. Em risco imediato, procure um serviço de emergência da sua região ou ligue 192.</p></div><nav aria-label="Links do rodapé"><a href={config.public_site_url}>Site profissional</a><a href={config.guide_url}>Guia de Emoções</a><a href="/privacidade/">Privacidade</a></nav></footer>;
+  return <footer className="site-footer"><div><strong>Este espaço não é acompanhado em tempo real.</strong><p>Não use os registros para pedir ajuda urgente. Em risco imediato, procure um serviço de emergência da sua região ou ligue 192.</p></div><nav aria-label="Links do rodapé"><a href={config.public_site_url} target="_blank" rel="noopener noreferrer">Site profissional<span className="sr-status"> (abre em nova aba)</span></a><a href={config.guide_url} target="_blank" rel="noopener noreferrer">Guia de Emoções<span className="sr-status"> (abre em nova aba)</span></a><a href="/privacidade/">Privacidade</a></nav></footer>;
+}
+
+function scrollPageToTop() {
+  const root = document.documentElement;
+  const previousScrollBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      root.style.scrollBehavior = previousScrollBehavior;
+    });
+  });
 }
 
 export function PortalApp() {
@@ -802,18 +1123,91 @@ export function PortalApp() {
   const [csrf, setCsrf] = useState("");
   const [recovery, setRecovery] = useState("");
   const [fatal, setFatal] = useState("");
-  const clear = useCallback(() => { setUser(null); setCsrf(""); }, []);
-  useEffect(() => {
-    Promise.all([portalRequest<Config>("/config"), portalRequest<{ user: User | null; csrf?: string }>("/session")])
-      .then(([nextConfig, session]) => { setConfig(nextConfig); setUser(session.user); setCsrf(session.csrf || ""); })
-      .catch((error) => setFatal((error as Error).message));
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
+  const clear = useCallback(() => {
+    setUser(null);
+    setCsrf("");
+    setHasUnsavedDraft(false);
+    scrollPageToTop();
   }, []);
-  const authenticated = useCallback((nextUser: User, token: string, nextRecovery?: string) => { setUser(nextUser); setCsrf(token); if (nextRecovery) setRecovery(nextRecovery); }, []);
-  async function logout() { try { await portalRequest("/logout", { method: "POST" }, csrf); } finally { clear(); } }
+  const loadInitial = useCallback(async () => {
+    setFatal("");
+    setInitialLoading(true);
+    try {
+      const [nextConfig, session] = await Promise.all([
+        portalRequest<Config>("/config"),
+        portalRequest<{ user: User | null; csrf?: string }>("/session"),
+      ]);
+      setConfig(nextConfig);
+      setUser(session.user);
+      setCsrf(session.csrf || "");
+    } catch (error) {
+      setFatal((error as Error).message);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      portalRequest<Config>("/config"),
+      portalRequest<{ user: User | null; csrf?: string }>("/session"),
+    ])
+      .then(([nextConfig, session]) => {
+        if (!active) return;
+        setConfig(nextConfig);
+        setUser(session.user);
+        setCsrf(session.csrf || "");
+      })
+      .catch((error) => {
+        if (active) setFatal((error as Error).message);
+      })
+      .finally(() => {
+        if (active) setInitialLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const authenticated = useCallback((nextUser: User, token: string, nextRecovery?: string) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    scrollPageToTop();
+    setUser(nextUser);
+    setCsrf(token);
+    if (nextRecovery) setRecovery(nextRecovery);
+    scrollPageToTop();
+  }, []);
+  async function logout() {
+    if (
+      hasUnsavedDraft &&
+      !window.confirm("Sair da conta? As alterações que ainda não foram salvas serão perdidas.")
+    ) {
+      return;
+    }
+    try { await portalRequest("/logout", { method: "POST" }, csrf); } finally { clear(); }
+  }
   const content = (() => {
-    if (!config) return <main className="loading"><div className="loader" /><p>{fatal || "Preparando seu espaço…"}</p></main>;
+    if (!config && fatal) {
+      return (
+        <main className="loading loading-error">
+          <Notice tone="error" message={`${fatal} Verifique sua conexão e tente novamente.`} />
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => void loadInitial()}
+            disabled={initialLoading}
+          >
+            {initialLoading ? "Tentando novamente…" : "Tentar novamente"}
+          </button>
+        </main>
+      );
+    }
+    if (!config) return <main className="loading"><div className="loader" /><p>Preparando seu espaço…</p></main>;
     if (!user) return <Guest config={config} onAuthenticated={authenticated} />;
-    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />} />}<EmergencyFooter config={config} /></>;
   })();
   return <>{content}{recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}</>;
 }
