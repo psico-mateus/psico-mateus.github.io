@@ -72,7 +72,7 @@ export function validatePassword(value: unknown): string {
   ) {
     throw new PortalError(
       400,
-      "Use uma senha com 12 a 128 caracteres, incluindo letras e números.",
+      "Use de 12 a 128 caracteres. Pode ser uma frase com espaços; inclua pelo menos uma letra e um número.",
     );
   }
   return password;

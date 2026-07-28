@@ -93,6 +93,7 @@ function Field({
   const inputId = useId();
   const hintId = useId();
   const requirementsId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const isPassword = type === "password";
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [typedValue, setTypedValue] = useState("");
@@ -104,17 +105,30 @@ function Field({
     .join(" ") || undefined;
   const requirements = passwordRequirements
     ? [
-        { label: "12 caracteres ou mais", met: typedValue.length >= 12 },
+        { label: "12 caracteres; espaços também contam", met: typedValue.length >= 12 },
         { label: "pelo menos uma letra", met: /[A-Za-zÀ-ÿ]/u.test(typedValue) },
         { label: "pelo menos um número", met: /\d/u.test(typedValue) },
       ]
     : [];
+
+  useEffect(() => {
+    if (!passwordRequirements) return;
+    const form = inputRef.current?.form;
+    if (!form) return;
+    const clearRequirements = () => {
+      setTypedValue("");
+      setPasswordVisible(false);
+    };
+    form.addEventListener("reset", clearRequirements);
+    return () => form.removeEventListener("reset", clearRequirements);
+  }, [passwordRequirements]);
 
   return (
     <div className="field">
       <label htmlFor={inputId}><span>{label}</span></label>
       <div className={isPassword ? "password-input-control" : undefined}>
         <input
+          ref={inputRef}
           id={inputId}
           name={name}
           type={isPassword && passwordVisible ? "text" : type}
@@ -345,7 +359,7 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
       <Field label="Código de configuração" name="setup_secret" type="password" autoComplete="off" required />
       <Field label="Nome profissional" name="name" autoComplete="name" required />
       <Field label="E-mail de acesso" name="email" type="email" autoComplete="username" required />
-      <Field label="Crie uma senha" name="password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase que só faça sentido para você costuma ser mais fácil de lembrar. Espaços são permitidos." />
+      <Field label="Crie uma senha ou frase-senha" name="password" type="password" autoComplete="new-password" required passwordRequirements hint="Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." />
       <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required />
       {message ? <Notice tone="error" message={message} /> : null}
       <button className="primary-button" disabled={busy}>{busy ? "Preparando…" : "Continuar"}</button>
@@ -457,7 +471,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
                 required
               />
             ) : null}
-            <Field label={mode === "recover" ? "Nova senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required passwordRequirements={mode !== "login"} hint={mode !== "login" ? "Use uma frase fácil de lembrar. Ela pode ter espaços e precisa incluir pelo menos um número." : undefined} />
+            <Field label={mode === "recover" ? "Nova senha ou frase-senha" : mode === "register" ? "Crie uma senha ou frase-senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required passwordRequirements={mode !== "login"} hint={mode !== "login" ? "Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." : undefined} />
             {mode !== "login" ? <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required /> : null}
             {mode === "login" ? (
               <Field
@@ -1195,7 +1209,7 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
         <form className="stack panel" onSubmit={password}>
           <h3>Alterar senha</h3>
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
-          <Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase fácil de lembrar pode ter espaços; inclua pelo menos um número." />
+          <Field label="Nova senha ou frase-senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." />
           <Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
           <button className="secondary-button">Alterar senha</button>

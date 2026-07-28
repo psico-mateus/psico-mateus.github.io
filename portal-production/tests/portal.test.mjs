@@ -83,6 +83,9 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /não é acompanhado em tempo real/i);
   assert.match(app, /Guia de Emoções/);
   assert.match(app, /InstallAppButton/);
+  assert.match(app, /Não são 12 dígitos/);
+  assert.match(app, /12 caracteres; espaços também contam/);
+  assert.match(app, /addEventListener\("reset", clearRequirements\)/);
   assert.match(app, /user\?\.role !== "therapist"/);
   assert.match(app, /Para pacientes atuais/);
   assert.match(app, /Aberto a qualquer pessoa, sem conta/);
