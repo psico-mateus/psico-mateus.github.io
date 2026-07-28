@@ -29,6 +29,7 @@ import {
   readJson,
   requireCsrf,
   requireSession,
+  requireTrustedOrigin,
   userByEmail,
   validateEmail,
   validateEntry,
@@ -1227,6 +1228,7 @@ async function route(request: Request, context: RouteContext): Promise<Response>
     await ensureSchema();
     if (Math.random() < 0.01) await cleanupExpired();
     if (request.method === "GET") return await handleGet(request, path);
+    requireTrustedOrigin(request);
     if (request.method === "POST") return await handlePost(request, path);
     if (request.method === "PATCH") return await handlePatch(request, path);
     if (request.method === "DELETE") return await handleDelete(request, path);

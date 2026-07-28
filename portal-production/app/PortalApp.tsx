@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useId, useState } from "react";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import { PatientEducation } from "./PatientEducation";
@@ -78,6 +78,7 @@ function Field({
   autoComplete,
   required = false,
   hint,
+  passwordRequirements = false,
 }: {
   label: string;
   name: string;
@@ -85,13 +86,69 @@ function Field({
   autoComplete?: string;
   required?: boolean;
   hint?: string;
+  passwordRequirements?: boolean;
 }) {
+  const inputId = useId();
+  const hintId = useId();
+  const requirementsId = useId();
+  const isPassword = type === "password";
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [typedValue, setTypedValue] = useState("");
+  const describedBy = [
+    hint ? hintId : "",
+    passwordRequirements ? requirementsId : "",
+  ]
+    .filter(Boolean)
+    .join(" ") || undefined;
+  const requirements = passwordRequirements
+    ? [
+        { label: "12 caracteres ou mais", met: typedValue.length >= 12 },
+        { label: "pelo menos uma letra", met: /[A-Za-zÀ-ÿ]/u.test(typedValue) },
+        { label: "pelo menos um número", met: /\d/u.test(typedValue) },
+      ]
+    : [];
+
   return (
-    <label className="field">
-      <span>{label}</span>
-      <input name={name} type={type} autoComplete={autoComplete} required={required} />
-      {hint ? <small>{hint}</small> : null}
-    </label>
+    <div className="field">
+      <label htmlFor={inputId}><span>{label}</span></label>
+      <div className={isPassword ? "password-input-control" : undefined}>
+        <input
+          id={inputId}
+          name={name}
+          type={isPassword && passwordVisible ? "text" : type}
+          autoComplete={autoComplete}
+          required={required}
+          minLength={passwordRequirements ? 12 : undefined}
+          maxLength={passwordRequirements ? 128 : undefined}
+          aria-describedby={describedBy}
+          autoCapitalize={isPassword ? "none" : undefined}
+          spellCheck={isPassword ? false : undefined}
+          onChange={passwordRequirements ? (event) => setTypedValue(event.target.value) : undefined}
+        />
+        {isPassword ? (
+          <button
+            className="password-visibility-button"
+            type="button"
+            aria-controls={inputId}
+            aria-pressed={passwordVisible}
+            onClick={() => setPasswordVisible((current) => !current)}
+          >
+            {passwordVisible ? "Ocultar" : "Mostrar"}
+          </button>
+        ) : null}
+      </div>
+      {hint ? <small id={hintId}>{hint}</small> : null}
+      {passwordRequirements ? (
+        <ul className="password-requirements" id={requirementsId}>
+          {requirements.map((requirement) => (
+            <li className={requirement.met ? "met" : ""} key={requirement.label}>
+              <span aria-hidden="true">{requirement.met ? "✓" : "○"}</span>
+              {requirement.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -215,7 +272,7 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
       <Field label="Código de configuração" name="setup_secret" type="password" autoComplete="off" required />
       <Field label="Nome profissional" name="name" autoComplete="name" required />
       <Field label="E-mail de acesso" name="email" type="email" autoComplete="username" required />
-      <Field label="Crie uma senha" name="password" type="password" autoComplete="new-password" required hint="Pelo menos 12 caracteres, com letras e números." />
+      <Field label="Crie uma senha" name="password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase que só faça sentido para você costuma ser mais fácil de lembrar. Espaços são permitidos." />
       <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required />
       {message ? <Notice tone="error" message={message} /> : null}
       <button className="primary-button" disabled={busy}>{busy ? "Preparando…" : "Continuar"}</button>
@@ -303,7 +360,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
             {mode === "register" ? <><Field label="Código de convite entregue por Mateus" name="invitation_code" required /><Field label="Como prefere ser chamado(a)" name="name" autoComplete="name" required /></> : null}
             <Field label="E-mail" name="email" type="email" autoComplete="username" required />
             {mode === "recover" ? <Field label="Código de recuperação" name="recovery_code" autoComplete="off" required /> : null}
-            <Field label={mode === "recover" ? "Nova senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required hint={mode !== "login" ? "Pelo menos 12 caracteres, com letras e números." : undefined} />
+            <Field label={mode === "recover" ? "Nova senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required passwordRequirements={mode !== "login"} hint={mode !== "login" ? "Use uma frase fácil de lembrar. Ela pode ter espaços e precisa incluir pelo menos um número." : undefined} />
             {mode !== "login" ? <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required /> : null}
             {mode === "login" ? <Field label="Código do autenticador (somente acesso profissional)" name="totp" autoComplete="one-time-code" /> : null}
             {mode === "register" ? (
@@ -434,9 +491,14 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (area !== "records" || editing !== "new" || !educationReturnSlug) return;
-    window.requestAnimationFrame(() => document.getElementById("entry-title")?.focus());
-  }, [area, editing, educationReturnSlug]);
+    if (area !== "records" || !editing) return;
+    window.requestAnimationFrame(() => {
+      const editor = document.getElementById("entry-editor");
+      const title = document.getElementById("entry-title");
+      editor?.scrollIntoView({ block: "start" });
+      title?.focus({ preventScroll: true });
+    });
+  }, [area, editing]);
 
   async function save(draft: EntryDraft) {
     if (editing && editing !== "new") await portalRequest(`/entries/${editing.id}`, { method: "PATCH", body: JSON.stringify(draft) }, csrf);
@@ -510,6 +572,11 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
   }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
+  const awaitingViewCount = entries.filter(
+    (entry) =>
+      isEntryShared(entry) && patientEntryViewStatus(entry).kind !== "viewed",
+  ).length;
+  const viewedSharedCount = sharedCount - awaitingViewCount;
   const visibleEntries = filterPatientEntries(entries, entryFilter);
   const filterLabels: Array<{
     value: PatientEntrySharingFilter;
@@ -567,7 +634,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <article><span className="overview-number">{loading ? "…" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
-            <article><span className="overview-number">{loading ? "…" : sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado" : "compartilhados"}</strong><small>Visíveis para Mateus agora</small></div></article>
+            <article><span className="overview-number">{loading ? "…" : sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong><small>{loading ? "Consultando visualizações…" : sharedCount === 0 ? "Nenhum conteúdo visível para ele" : `${viewedSharedCount} ${viewedSharedCount === 1 ? "visualizado" : "visualizados"} · ${awaitingViewCount} aguardando`}</small></div></article>
             <a href={config.guide_url}><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções →</strong></a>
           </section>
 
@@ -603,6 +670,10 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
           ) : null}
           <section className="records-section" aria-labelledby="records-title">
         <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title" tabIndex={-1}>Meus registros</h2><p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p></div><span className="count">{entryFilter === "all" ? `${entries.length} ${entries.length === 1 ? "registro" : "registros"}` : `${visibleEntries.length} de ${entries.length}`}</span></div>
+        <a className="records-guide-callout" href={config.guide_url}>
+          <span>Está difícil nomear o que sentiu?</span>
+          <strong>Consultar o Guia de Emoções →</strong>
+        </a>
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
@@ -664,7 +735,7 @@ function PatientDashboard({ user, csrf, config, setRecovery, onSessionLost }: { 
                             ? `Visualizado anteriormente por Mateus em ${formatViewTimestamp(entry.viewed_at!)}; ainda não visualizado após o compartilhamento atual`
                             : `Visualizado por Mateus em ${formatViewTimestamp(entry.viewed_at!)}`}
                     </p>
-                    <p className="patient-view-explanation">A visualização indica apenas que o registro foi aberto. A Área do paciente não é acompanhada em tempo real e não é um canal de emergência.</p>
+                    <p className="patient-view-explanation">A confirmação mostra que Mateus marcou este registro como visualizado. Isso não significa resposta, avaliação clínica completa ou acompanhamento em tempo real.</p>
                   </>
                 ) : null}
                 <EntryDetails entry={entry} />
@@ -716,7 +787,7 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
   return (
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
       <summary><span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>{role === "patient" ? <small>Senha, recuperação, exportação e exclusão</small> : null}</summary>
-      <div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div>
+      <div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase fácil de lembrar pode ter espaços; inclua pelo menos um número." /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div>
     </details>
   );
 }

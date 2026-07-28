@@ -159,7 +159,10 @@ function EducationArticleView({
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    titleRef.current?.focus();
+    window.requestAnimationFrame(() => {
+      titleRef.current?.scrollIntoView({ block: "start" });
+      titleRef.current?.focus({ preventScroll: true });
+    });
   }, [article.slug]);
 
   return (
@@ -296,8 +299,10 @@ export function PatientEducation({
     restoreArticleSlug.current = null;
     window.requestAnimationFrame(() => {
       const trigger = document.getElementById(`education-read-${articleSlug}`);
-      if (trigger instanceof HTMLButtonElement) trigger.focus();
-      else libraryTitleRef.current?.focus();
+      const target =
+        trigger instanceof HTMLButtonElement ? trigger : libraryTitleRef.current;
+      target?.scrollIntoView({ block: "center" });
+      target?.focus({ preventScroll: true });
     });
   }, [selectedArticle]);
 

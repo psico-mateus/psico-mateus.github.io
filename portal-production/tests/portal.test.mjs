@@ -110,6 +110,68 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
 });
 
+test("new and legacy workers have explicit, fail-closed API modes", async () => {
+  const [worker, currentConfigText, legacyConfigText] = await Promise.all([
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
+    readFile(new URL("../wrangler.legacy.jsonc", import.meta.url), "utf8"),
+  ]);
+  const currentConfig = JSON.parse(currentConfigText);
+  const legacyConfig = JSON.parse(legacyConfigText);
+
+  assert.equal(currentConfig.vars.PORTAL_API_MODE, "proxy");
+  assert.deepEqual(currentConfig.services, [
+    { binding: "LEGACY_PORTAL", service: "registros" },
+  ]);
+  assert.equal(legacyConfig.vars.PORTAL_API_MODE, "local");
+  assert.equal(legacyConfig.services, undefined);
+  assert.match(worker, /env\.PORTAL_API_MODE === "proxy"/u);
+  assert.match(worker, /env\.PORTAL_API_MODE !== "local"/u);
+  assert.match(worker, /if \(!env\.LEGACY_PORTAL\)/u);
+  assert.match(worker, /status: 503/u);
+});
+
+test("mutable portal requests require a trusted origin and JSON bodies", async () => {
+  const [route, portal] = await Promise.all([
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(route, /requireTrustedOrigin\(request\)/u);
+  assert.match(portal, /TRUSTED_PRODUCTION_ORIGINS/u);
+  assert.match(portal, /area-do-paciente\.psico-mateus\.workers\.dev/u);
+  assert.match(portal, /registros\.psico-mateus\.workers\.dev/u);
+  assert.match(portal, /contentType !== "application\/json"/u);
+  assert.match(portal, /status|415/u);
+});
+
+test("professional privacy mode renders a sanitized, action-free surface", async () => {
+  const dashboard = await readFile(
+    new URL("../app/ProfessionalDashboard.tsx", import.meta.url),
+    "utf8",
+  );
+  const privacyBranch =
+    dashboard.match(
+      /if \(privacyMode\) \{[\s\S]*?(?=\n  const unreadEntryCount)/u,
+    )?.[0] ?? "";
+
+  assert.match(dashboard, /useState\(false\)/u);
+  assert.match(dashboard, /Ocultar dados na tela/u);
+  assert.match(privacyBranch, /Mostrar dados na tela/u);
+  assert.match(privacyBranch, /Dados ocultos na tela/u);
+  assert.doesNotMatch(
+    privacyBranch,
+    /user\.name|patient_name|latestCode|recovery\.code|entry\.title/u,
+  );
+  assert.match(dashboard, /setLatestCode\(""\)/u);
+  assert.match(dashboard, /setRecoveryPatient\(null\)/u);
+  assert.match(dashboard, /setIssuedRecovery\(null\)/u);
+  assert.doesNotMatch(dashboard, /localStorage|sessionStorage/u);
+});
+
 test("patient sees an honest view status only for currently shared entries", () => {
   const base = {
     shared_at: "2026-07-26T12:00:00.000Z",
@@ -532,8 +594,11 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(dashboard, /Com pendências primeiro/);
   assert.match(dashboard, /Não vistos/);
   assert.match(dashboard, /Vistos/);
-  assert.match(dashboard, /Salvando leitura/);
-  assert.match(dashboard, /Concluir leitura/);
+  assert.match(dashboard, /Salvando visualização/);
+  assert.match(dashboard, /Concluir visualização/);
+  const disclosureToggle =
+    dashboard.match(/onToggle=\{\(event\) => \{[\s\S]*?\}\}/u)?.[0] ?? "";
+  assert.doesNotMatch(disclosureToggle, /onViewed/u);
   assert.match(dashboard, /Sua senha profissional/);
   assert.match(dashboard, /Novo código do seu autenticador/);
   assert.match(dashboard, /Ele aparece\s+somente agora/u);

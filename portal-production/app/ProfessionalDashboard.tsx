@@ -342,7 +342,6 @@ function RecordDisclosure({
   onViewed: (entryId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [openedUnread, setOpenedUnread] = useState(false);
   const unread = Boolean(entry.is_unread);
   const details = [
     ["O que aconteceu", entry.happened],
@@ -359,11 +358,6 @@ function RecordDisclosure({
       onToggle={(event) => {
         const nextOpen = event.currentTarget.open;
         setOpen(nextOpen);
-        if (nextOpen && unread) setOpenedUnread(true);
-        if (!nextOpen && openedUnread && unread && !viewing) {
-          setOpenedUnread(false);
-          onViewed(entry.id);
-        }
       }}
     >
       <summary>
@@ -372,7 +366,7 @@ function RecordDisclosure({
             className={`record-view-state ${unread ? "unread" : "viewed"}`}
           >
             {viewing
-              ? "Salvando leitura…"
+              ? "Salvando visualização…"
               : open && unread
                 ? "Em leitura"
                 : unread
@@ -388,7 +382,7 @@ function RecordDisclosure({
         </span>
         <span className="disclosure-action" aria-hidden="true">
           <span className="when-closed">Ver conteúdo</span>
-          <span className="when-open">Concluir leitura</span>
+          <span className="when-open">Fechar</span>
         </span>
       </summary>
       <div className="professional-record-content">
@@ -402,8 +396,25 @@ function RecordDisclosure({
         </div>
         <p className="read-only">
           Somente leitura · o texto do paciente não pode ser editado aqui.
-          {unread ? " Ao concluir a leitura, este registro será marcado como visto." : ""}
         </p>
+        {unread ? (
+          <div className="view-confirmation">
+            <p>
+              Quando terminar, confirme conscientemente a visualização. Apenas
+              abrir ou fechar o registro não informa nada ao paciente.
+            </p>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={viewing}
+              onClick={() => onViewed(entry.id)}
+            >
+              {viewing ? "Salvando visualização…" : "Concluir visualização"}
+            </button>
+          </div>
+        ) : (
+          <p className="view-confirmed">Visualização já confirmada para o paciente.</p>
+        )}
       </div>
     </details>
   );
@@ -1115,6 +1126,7 @@ export function ProfessionalDashboard({
   accountPanel,
   onSessionLost,
 }: ProfessionalDashboardProps) {
+  const [privacyMode, setPrivacyMode] = useState(false);
   const [area, setArea] = useState<ProfessionalArea>("records");
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [activity, setActivity] = useState<ProfessionalActivity>({
@@ -1164,6 +1176,7 @@ export function ProfessionalDashboard({
   const invitationsRequestLock = useRef(false);
   const createInvitationLock = useRef(false);
   const revokeInvitationLocks = useRef<Set<string>>(new Set());
+  const privacyToggleRef = useRef<HTMLButtonElement>(null);
 
   const expireSession = useCallback(() => {
     patientRequest.current?.abort();
@@ -1569,6 +1582,64 @@ export function ProfessionalDashboard({
     }
   }
 
+  function showPrivacyMode() {
+    patientRequest.current?.abort();
+    patientRequestSequence.current += 1;
+    setRecoveryPatient(null);
+    setIssuedRecovery(null);
+    setLatestCode("");
+    setRecoveryError("");
+    setNotice(null);
+    setPrivacyMode(true);
+    window.requestAnimationFrame(() => privacyToggleRef.current?.focus());
+  }
+
+  function hidePrivacyMode() {
+    setPrivacyMode(false);
+    window.requestAnimationFrame(() => privacyToggleRef.current?.focus());
+  }
+
+  if (privacyMode) {
+    return (
+      <main className="dashboard professional-dashboard privacy-mode" id="conteudo">
+        <section className="dashboard-hero professional privacy-mode-hero">
+          <div>
+            <p className="eyebrow">MODO PRIVACIDADE ATIVO</p>
+            <h1>Dados ocultos na tela.</h1>
+            <p>
+              Nomes, conteúdos, códigos, buscas e contagens individuais foram
+              retirados da visualização.
+            </p>
+          </div>
+          <button
+            ref={privacyToggleRef}
+            className="privacy-mode-toggle active"
+            type="button"
+            aria-pressed={true}
+            onClick={hidePrivacyMode}
+          >
+            <span aria-hidden="true">◉</span>
+            Mostrar dados na tela
+          </button>
+        </section>
+        <section className="panel privacy-mode-placeholder" aria-labelledby="privacy-mode-title">
+          <p className="eyebrow">PROTEÇÃO VISUAL</p>
+          <h2 id="privacy-mode-title">A estrutura continua aqui, sem informações sensíveis.</h2>
+          <p>
+            Mostre os dados somente quando estiver em um ambiente adequado. O
+            modo privacidade não encerra sua sessão e não altera nenhuma
+            informação.
+          </p>
+          <div aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   const unreadEntryCount = patients.reduce(
     (total, patient) => total + patient.unread_count,
     0,
@@ -1588,7 +1659,19 @@ export function ProfessionalDashboard({
           <h1>Olá, {user.name}.</h1>
           <p>Aqui aparecem somente os registros que cada paciente decidiu compartilhar.</p>
         </div>
-        <span className="secure-chip">MFA ativo</span>
+        <div className="professional-privacy-controls">
+          <span className="secure-chip">MFA ativo</span>
+          <button
+            ref={privacyToggleRef}
+            className="privacy-mode-toggle"
+            type="button"
+            aria-pressed={false}
+            onClick={showPrivacyMode}
+          >
+            <span aria-hidden="true">⊘</span>
+            Ocultar dados na tela
+          </button>
+        </div>
       </section>
 
       <ProfessionalNavigation

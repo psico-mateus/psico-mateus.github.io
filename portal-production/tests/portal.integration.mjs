@@ -68,10 +68,13 @@ async function api(
     body,
     auth,
     includeCsrf = true,
+    includeOrigin = true,
+    contentType = "application/json",
   } = {},
 ) {
   const headers = new Headers();
-  if (body !== undefined) headers.set("content-type", "application/json");
+  if (body !== undefined) headers.set("content-type", contentType);
+  if (includeOrigin) headers.set("origin", testUrl.origin);
   if (auth?.cookie) headers.set("cookie", auth.cookie);
   if (auth?.csrf && includeCsrf && method !== "GET") {
     headers.set("x-csrf-token", auth.csrf);
@@ -242,6 +245,26 @@ async function createEntry(patient, values) {
 }
 
 const therapist = session();
+const untrustedOrigin = await api("/login", {
+  method: "POST",
+  body: {
+    email: "origem-nao-confiavel@example.test",
+    password: "SenhaDeOrigem123",
+  },
+  includeOrigin: false,
+});
+expectStatus(untrustedOrigin, 403, "ação mutável sem origem");
+
+const unexpectedContentType = await api("/login", {
+  method: "POST",
+  body: {
+    email: "formato-incorreto@example.test",
+    password: "SenhaDeFormato123",
+  },
+  contentType: "text/plain",
+});
+expectStatus(unexpectedContentType, 415, "corpo mutável fora do formato JSON");
+
 const setup = await api("/setup", {
   method: "POST",
   body: {
@@ -260,7 +283,7 @@ const setupConfirmation = await api("/setup/confirm", {
   body: {
     setup_secret: setupSecret,
     email: synthetic.therapistEmail,
-    totp: totp(setup.payload.totp_secret),
+    totp: totp(setup.payload.totp_secret, Date.now() - 30_000),
   },
   auth: therapist,
 });
@@ -276,6 +299,31 @@ const professionalLoginWithoutMfa = await api("/login", {
   },
 });
 expectStatus(professionalLoginWithoutMfa, 401, "login profissional sem MFA");
+
+const professionalLogout = await api("/logout", {
+  method: "POST",
+  auth: therapist,
+});
+expectStatus(professionalLogout, 204, "saída da conta profissional");
+const professionalSessionAfterLogout = await api("/professional/patients", {
+  auth: therapist,
+});
+expectStatus(
+  professionalSessionAfterLogout,
+  401,
+  "sessão profissional encerrada após sair",
+);
+const professionalRelogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.therapistEmail,
+    password: synthetic.therapistPassword,
+    totp: totp(setup.payload.totp_secret),
+  },
+  auth: therapist,
+});
+expectStatus(professionalRelogin, 200, "novo login profissional com MFA");
+assert.equal(therapist.user.role, "therapist");
 
 const invitationA = await createInvitation(therapist);
 const invitationB = await createInvitation(therapist);
@@ -439,6 +487,37 @@ for (const [patient, entryId] of [
   });
   expectStatus(sharing, 200, "compartilhamento explícito");
 }
+
+const patientLogout = await api("/logout", {
+  method: "POST",
+  auth: patientA,
+});
+expectStatus(patientLogout, 204, "saída da conta do paciente");
+const patientSessionAfterLogout = await api("/entries", { auth: patientA });
+expectStatus(
+  patientSessionAfterLogout,
+  401,
+  "sessão do paciente encerrada após sair",
+);
+const patientRelogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: synthetic.patientPasswordA,
+  },
+  auth: patientA,
+});
+expectStatus(patientRelogin, 200, "novo login do paciente");
+const persistedEntriesAfterRelogin = await api("/entries", { auth: patientA });
+expectStatus(
+  persistedEntriesAfterRelogin,
+  200,
+  "registros preservados após sair e entrar novamente",
+);
+assert.deepEqual(
+  new Set(persistedEntriesAfterRelogin.payload.entries.map((entry) => entry.id)),
+  new Set([privateEntryA, sharedEntryA]),
+);
 
 const patientCannotListProfessional = await api("/professional/patients", {
   auth: patientA,
@@ -1108,7 +1187,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 106,
+    checks: 115,
     data: "synthetic-only",
     production_requests: 0,
   }),

@@ -104,10 +104,43 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   const raw = await request.text();
   if (raw.length > 64_000) throw new PortalError(413, "Conteúdo muito grande.");
   if (!raw) return {};
+  const contentType = request.headers
+    .get("content-type")
+    ?.split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  if (contentType !== "application/json") {
+    throw new PortalError(415, "Envie os dados no formato esperado.");
+  }
   try {
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {
     throw new PortalError(400, "Não foi possível ler os dados enviados.");
+  }
+}
+
+const TRUSTED_PRODUCTION_ORIGINS = new Set([
+  "https://area-do-paciente.psico-mateus.workers.dev",
+  "https://registros.psico-mateus.workers.dev",
+]);
+
+export function requireTrustedOrigin(request: Request): void {
+  const requestUrl = new URL(request.url);
+  const requestOrigin = requestUrl.origin;
+  const origin = request.headers.get("origin");
+  const localRequest = ["localhost", "127.0.0.1", "::1"].includes(
+    requestUrl.hostname,
+  );
+  const allowedOrigins = localRequest
+    ? new Set([requestOrigin])
+    : TRUSTED_PRODUCTION_ORIGINS;
+
+  if (!origin || !allowedOrigins.has(origin)) {
+    throw new PortalError(403, "A origem desta ação não pôde ser confirmada.");
+  }
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && !["same-origin", "same-site"].includes(fetchSite)) {
+    throw new PortalError(403, "A origem desta ação não pôde ser confirmada.");
   }
 }
 
