@@ -30,3 +30,18 @@ test("estrutura pública preserva a remoção intencional de Sobre mim", async (
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeVisible();
 });
+
+test("Guia se apresenta como recurso público de educação emocional", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Verificação de conteúdo única.");
+  await page.goto("/guia-emocoes/");
+
+  await expect(page.locator("#inicio .eyebrow")).toHaveText(
+    "RECURSO ABERTO DE EDUCAÇÃO EMOCIONAL",
+  );
+  await expect(page.locator("#inicio .hero-intro")).toContainText(
+    "com ou sem acompanhamento psicológico",
+  );
+  await expect(page.locator("footer")).toContainText(
+    "Recurso aberto de educação emocional",
+  );
+});

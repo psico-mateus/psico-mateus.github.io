@@ -29,7 +29,7 @@ test("site principal mantém textos, contatos e marcadores consistentes", async 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Mateus Ribeiro Marcos/);
   await expect(page.getByText(/Você não precisa chegar com tudo organizado/)).toBeVisible();
   await expect(page.locator(".patient-resources-heading .eyebrow")).toHaveText("Materiais de apoio");
-  await expect(page.getByText("Aberto a qualquer pessoa · sem conta", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Aberto a qualquer pessoa, sem conta/)).toBeVisible();
   await expect(page.getByText("Exclusivo para pacientes atuais · com convite", { exact: true }))
     .toBeVisible();
   await expect(page.getByRole("heading", { name: "Dois recursos, com funções e acessos diferentes" }))
