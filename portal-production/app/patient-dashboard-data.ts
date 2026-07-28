@@ -105,3 +105,13 @@ export function patientEntryViewStatus(
   }
   return { kind: "viewed" };
 }
+
+export function remainingCharactersNearLimit(
+  value: string,
+  maxLength: number,
+): number | null {
+  if (!Number.isFinite(maxLength) || maxLength <= 0) return null;
+  const remaining = Math.max(0, maxLength - value.length);
+  const visibleThreshold = Math.max(20, Math.ceil(maxLength * 0.1));
+  return remaining <= visibleThreshold ? remaining : null;
+}

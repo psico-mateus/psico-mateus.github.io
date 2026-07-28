@@ -729,6 +729,14 @@ input[type="range"]{accent-color:#9a6d27}
 .entry-step-heading p{margin:0;color:var(--muted);font-size:.88rem}
 .patient-entry-form .field>span,.patient-entry-form .field>label{font-size:.84rem;font-weight:700}
 .patient-entry-form textarea{line-height:1.6}
+.character-limit{
+  justify-self:end;
+  margin-top:-.1rem;
+  color:var(--muted);
+  font-size:.74rem;
+  font-weight:650;
+}
+.character-limit.limit-reached{color:var(--danger)}
 .field-help-link{
   width:fit-content;
   color:var(--green-2);
@@ -1031,11 +1039,47 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-account-panel>summary span{font-weight:750}
 .patient-account-panel>summary small{color:var(--muted);font-weight:500}
 .patient-account-panel>div{margin:0;padding:0 1.2rem 1.2rem}
-.patient-account-panel .account-links{padding-top:1rem;border-top:1px solid var(--line)}
+.patient-account-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1rem;
+}
+.patient-account-actions>section{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fffdfa;
+  padding:1.1rem;
+}
+.patient-account-actions h3{margin-bottom:.35rem}
+.patient-account-actions p{margin-bottom:.9rem;color:var(--muted);font-size:.88rem}
+.account-data-copy{display:grid;align-content:start;gap:.75rem}
+.account-data-copy p{margin-bottom:0}
+.account-data-copy small{color:var(--muted);font-size:.78rem}
+.account-export-link{
+  width:fit-content;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+}
+.account-delete{border-color:rgba(155,61,53,.25)!important}
+.account-delete form{display:grid;gap:.7rem}
+.patient-account-panel .account-links{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.75rem 1.25rem;
+  margin:0 1.2rem;
+  border-top:1px solid var(--line);
+  padding:1rem 0 1.2rem;
+}
+.patient-account-panel .account-links a{min-height:44px;display:inline-flex;align-items:center}
 
 @media(max-width:850px){
   .patient-overview{grid-template-columns:1fr 1fr}
   .patient-overview>a{grid-column:1/-1}
+  .patient-account-actions{grid-template-columns:1fr}
 }
 
 @media(max-width:560px){
@@ -1085,6 +1129,8 @@ input[type="range"]{accent-color:#9a6d27}
   .empty-state-actions{display:grid;width:100%}
   .empty-state-actions>*{width:100%}
   .patient-account-panel>summary{align-items:flex-start;display:grid}
+  .account-export-link{width:100%}
+  .patient-account-panel .account-links{display:grid;gap:.25rem}
 }
 
 @media(prefers-reduced-motion:reduce){

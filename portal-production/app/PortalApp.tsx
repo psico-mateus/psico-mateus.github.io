@@ -18,6 +18,7 @@ import {
   filterAndSortPatientEntries,
   patientEntryViewStatus,
   isEntryShared,
+  remainingCharactersNearLimit,
   type PatientEntrySharingFilter,
   type PatientEntrySort,
 } from "./patient-dashboard-data";
@@ -508,6 +509,25 @@ function entryDraftFrom(initial?: Entry): EntryDraft {
     : { ...blankEntry };
 }
 
+function CharacterLimit({
+  value,
+  maxLength,
+}: {
+  value: string;
+  maxLength: number;
+}) {
+  const remaining = remainingCharactersNearLimit(value, maxLength);
+  if (remaining === null) return null;
+
+  return (
+    <small className={`character-limit${remaining === 0 ? " limit-reached" : ""}`}>
+      {remaining === 0
+        ? "Limite de caracteres atingido."
+        : `${remaining} ${remaining === 1 ? "caractere restante" : "caracteres restantes"}`}
+    </small>
+  );
+}
+
 function EntryForm({
   initial,
   guidance,
@@ -560,8 +580,16 @@ function EntryForm({
           <span aria-hidden="true">01</span>
           <div><h3 id="entry-step-one">Comece pela situação</h3><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
         </div>
-        <label className="field"><span>Título breve</span><input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required aria-describedby={guidance ? "education-entry-guidance" : undefined} /></label>
-        <label className="field"><span>O que aconteceu?</span><textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required /></label>
+        <label className="field">
+          <span>Título breve</span>
+          <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required aria-describedby={guidance ? "education-entry-guidance" : undefined} />
+          <CharacterLimit value={draft.title} maxLength={120} />
+        </label>
+        <label className="field">
+          <span>O que aconteceu?</span>
+          <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required />
+          <CharacterLimit value={draft.happened} maxLength={2000} />
+        </label>
       </section>
 
       <section className="entry-step" aria-labelledby="entry-step-two">
@@ -573,6 +601,7 @@ function EntryForm({
           <div className="field">
             <label htmlFor="entry-emotion"><span>Emoção principal, se souber</span></label>
             <input id="entry-emotion" value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} />
+            <CharacterLimit value={draft.emotion} maxLength={120} />
             <a
               className="field-help-link"
               href={guideUrl}
@@ -611,10 +640,10 @@ function EntryForm({
       <details className="entry-optional" open={optionalOpen} onToggle={(event) => setOptionalOpen(event.currentTarget.open)}>
         <summary><span><strong>Aprofundar este registro</strong><small>Campos opcionais para quando fizer sentido.</small></span><span className="optional-toggle" aria-hidden="true">+</span></summary>
         <div className="two-columns">
-          <label className="field"><span>O que percebeu no corpo?</span><textarea value={draft.body} maxLength={1500} rows={4} onChange={(e) => update("body", e.target.value)} /></label>
-          <label className="field"><span>Quais pensamentos apareceram?</span><textarea value={draft.thoughts} maxLength={1500} rows={4} onChange={(e) => update("thoughts", e.target.value)} /></label>
-          <label className="field"><span>O que teve vontade de fazer?</span><textarea value={draft.urge} maxLength={1500} rows={4} onChange={(e) => update("urge", e.target.value)} /></label>
-          <label className="field"><span>Há algo que queira levar para a sessão?</span><textarea value={draft.message} maxLength={1500} rows={4} onChange={(e) => update("message", e.target.value)} /></label>
+          <label className="field"><span>O que percebeu no corpo?</span><textarea value={draft.body} maxLength={1500} rows={4} onChange={(e) => update("body", e.target.value)} /><CharacterLimit value={draft.body} maxLength={1500} /></label>
+          <label className="field"><span>Quais pensamentos apareceram?</span><textarea value={draft.thoughts} maxLength={1500} rows={4} onChange={(e) => update("thoughts", e.target.value)} /><CharacterLimit value={draft.thoughts} maxLength={1500} /></label>
+          <label className="field"><span>O que teve vontade de fazer?</span><textarea value={draft.urge} maxLength={1500} rows={4} onChange={(e) => update("urge", e.target.value)} /><CharacterLimit value={draft.urge} maxLength={1500} /></label>
+          <label className="field"><span>Há algo que queira levar para a sessão?</span><textarea value={draft.message} maxLength={1500} rows={4} onChange={(e) => update("message", e.target.value)} /><CharacterLimit value={draft.message} maxLength={1500} /></label>
         </div>
       </details>
 
@@ -1145,8 +1174,54 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
   }
   return (
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
-      <summary><span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>{role === "patient" ? <small>Senha, recuperação, exportação e exclusão</small> : null}</summary>
-      <div className="account-grid"><form className="stack panel" onSubmit={password}><h3>Alterar senha</h3><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required /><Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase fácil de lembrar pode ter espaços; inclua pelo menos um número." /><Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}<button className="secondary-button">Alterar senha</button></form><form className="stack panel" onSubmit={rotate}><h3>Novo código de recuperação</h3><p>O código atual deixará de funcionar.</p><Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />{role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}<button className="secondary-button">Gerar novo código</button></form></div>{message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}<div className="account-links">{role === "patient" ? <><a href="/api/portal/export" download>Baixar cópia dos meus registros</a><form onSubmit={deleteAccount}><Field label="Senha atual para excluir a conta" name="current_password" type="password" autoComplete="current-password" required /><button className="danger-button">Excluir conta e registros</button></form></> : null}<a href="/privacidade/">Aviso de privacidade</a><a href={config.public_site_url}>Voltar ao site profissional</a></div>
+      <summary>
+        <span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>
+        {role === "patient" ? <small>Senha, recuperação, cópia dos dados e exclusão</small> : null}
+      </summary>
+      <div className="account-grid">
+        <form className="stack panel" onSubmit={password}>
+          <h3>Alterar senha</h3>
+          <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
+          <Field label="Nova senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Uma frase fácil de lembrar pode ter espaços; inclua pelo menos um número." />
+          <Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />
+          {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
+          <button className="secondary-button">Alterar senha</button>
+        </form>
+        <form className="stack panel" onSubmit={rotate}>
+          <h3>Novo código de recuperação</h3>
+          <p>O código atual deixará de funcionar.</p>
+          <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
+          {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
+          <button className="secondary-button">Gerar novo código</button>
+        </form>
+      </div>
+      {message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}
+      {role === "patient" ? (
+        <div className="patient-account-actions">
+          <section className="account-data-copy" aria-labelledby="account-data-copy-title">
+            <div>
+              <h3 id="account-data-copy-title">Baixar uma cópia</h3>
+              <p>Reúna seus registros em um arquivo para guardar com você.</p>
+            </div>
+            <a className="secondary-button account-export-link" href="/api/portal/export" download>
+              Baixar cópia dos meus registros
+            </a>
+            <small>A cópia inclui também os registros privados e fica salva no seu dispositivo. Faça isso somente em um aparelho seguro.</small>
+          </section>
+          <section className="account-delete" aria-labelledby="account-delete-title">
+            <h3 id="account-delete-title">Excluir conta</h3>
+            <p>Esta ação apaga permanentemente sua conta e todos os seus registros.</p>
+            <form onSubmit={deleteAccount}>
+              <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
+              <button className="danger-button">Excluir conta e registros</button>
+            </form>
+          </section>
+        </div>
+      ) : null}
+      <nav className="account-links" aria-label="Outros links da conta">
+        <a href="/privacidade/">Aviso de privacidade</a>
+        <a href={config.public_site_url}>Voltar ao site profissional</a>
+      </nav>
     </details>
   );
 }

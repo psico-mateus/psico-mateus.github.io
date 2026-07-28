@@ -25,6 +25,7 @@ import {
   filterPatientEntries,
   isEntryShared,
   patientEntryViewStatus,
+  remainingCharactersNearLimit,
 } from "../app/patient-dashboard-data.ts";
 import { copyText } from "../app/copy-text.ts";
 import { formatViewTimestamp } from "../app/portal-client.ts";
@@ -361,6 +362,33 @@ test("patient history search stays local, ignores accents and supports ordering"
     ),
     ["older", "newer"],
   );
+});
+
+test("record form shows character counts only near each field limit", async () => {
+  const app = await readFile(
+    new URL("../app/PortalApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(remainingCharactersNearLimit("curto", 120), null);
+  assert.equal(remainingCharactersNearLimit("a".repeat(100), 120), 20);
+  assert.equal(remainingCharactersNearLimit("a".repeat(119), 120), 1);
+  assert.equal(remainingCharactersNearLimit("a".repeat(120), 120), 0);
+  assert.equal(remainingCharactersNearLimit("a".repeat(121), 120), 0);
+  assert.match(app, /Limite de caracteres atingido/);
+  assert.match(app, /CharacterLimit value=\{draft\.happened\} maxLength=\{2000\}/);
+});
+
+test("patient data copy explains private records and device responsibility", async () => {
+  const app = await readFile(
+    new URL("../app/PortalApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(app, /Baixar cópia dos meus registros/);
+  assert.match(app, /inclui também os registros privados/);
+  assert.match(app, /somente em um aparelho seguro/);
+  assert.match(app, /Esta ação apaga permanentemente sua conta/);
 });
 
 test("copy buttons support Safari fallback and keep codes selectable", async () => {
