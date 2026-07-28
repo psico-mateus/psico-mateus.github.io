@@ -1,4 +1,5 @@
 export type PatientEntrySharingFilter = "all" | "private" | "shared";
+export type PatientEntrySort = "newest" | "oldest";
 export type PatientEntryViewStatus =
   | { kind: "private" }
   | { kind: "unseen" }
@@ -13,6 +14,25 @@ type EntrySharingState = {
   viewed_at?: string | null;
 };
 
+type PatientSearchableEntry = EntrySharingState & {
+  title?: string;
+  happened?: string;
+  body?: string;
+  thoughts?: string;
+  urge?: string;
+  emotion?: string;
+  message?: string;
+  created_at?: string;
+};
+
+function normalizePatientEntrySearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
 export function isEntryShared(entry: EntrySharingState): boolean {
   return Boolean(entry.shared_at && !entry.revoked_at);
 }
@@ -25,6 +45,39 @@ export function filterPatientEntries<T extends EntrySharingState>(
   return entries.filter((entry) =>
     filter === "shared" ? isEntryShared(entry) : !isEntryShared(entry),
   );
+}
+
+export function filterAndSortPatientEntries<T extends PatientSearchableEntry>(
+  entries: T[],
+  filter: PatientEntrySharingFilter,
+  query: string,
+  sort: PatientEntrySort,
+): T[] {
+  const normalizedQuery = normalizePatientEntrySearch(query);
+  const matchingEntries = filterPatientEntries(entries, filter).filter((entry) => {
+    if (!normalizedQuery) return true;
+    return [
+      entry.title,
+      entry.happened,
+      entry.body,
+      entry.thoughts,
+      entry.urge,
+      entry.emotion,
+      entry.message,
+    ].some((value) =>
+      normalizePatientEntrySearch(value ?? "").includes(normalizedQuery),
+    );
+  });
+
+  return matchingEntries.sort((first, second) => {
+    const firstDate = Date.parse(first.created_at ?? "");
+    const secondDate = Date.parse(second.created_at ?? "");
+    const safeFirstDate = Number.isFinite(firstDate) ? firstDate : 0;
+    const safeSecondDate = Number.isFinite(secondDate) ? secondDate : 0;
+    return sort === "oldest"
+      ? safeFirstDate - safeSecondDate
+      : safeSecondDate - safeFirstDate;
+  });
 }
 
 export function patientEntryViewStatus(

@@ -15,10 +15,11 @@ import { InstallAppButton } from "./InstallAppButton";
 import { PatientEducation } from "./PatientEducation";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import {
-  filterPatientEntries,
+  filterAndSortPatientEntries,
   patientEntryViewStatus,
   isEntryShared,
   type PatientEntrySharingFilter,
+  type PatientEntrySort,
 } from "./patient-dashboard-data";
 import { formatDate, formatViewTimestamp, portalRequest } from "./portal-client";
 
@@ -656,6 +657,8 @@ function PatientDashboard({
   const [loading, setLoading] = useState(true);
   const [entryFilter, setEntryFilter] =
     useState<PatientEntrySharingFilter>("all");
+  const [entryQuery, setEntryQuery] = useState("");
+  const [entrySort, setEntrySort] = useState<PatientEntrySort>("newest");
   const editorOriginRef = useRef<{
     entryId: string;
     scrollY: number;
@@ -881,7 +884,13 @@ function PatientDashboard({
       ? `${sharedViewCounts.reshared} ${sharedViewCounts.reshared === 1 ? "compartilhado novamente" : "compartilhados novamente"}`
       : "",
   ].filter(Boolean).join(" · ");
-  const visibleEntries = filterPatientEntries(entries, entryFilter);
+  const visibleEntries = filterAndSortPatientEntries(
+    entries,
+    entryFilter,
+    entryQuery,
+    entrySort,
+  );
+  const hasEntryQuery = Boolean(entryQuery.trim());
   const filterLabels: Array<{
     value: PatientEntrySharingFilter;
     label: string;
@@ -977,7 +986,21 @@ function PatientDashboard({
             />
           ) : null}
           <section className="records-section" aria-labelledby="records-title">
-        <div className="section-heading patient-records-heading"><div><p className="eyebrow">HISTÓRICO</p><h2 id="records-title" tabIndex={-1}>Meus registros</h2><p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p></div><span className="count">{entryFilter === "all" ? `${entries.length} ${entries.length === 1 ? "registro" : "registros"}` : `${visibleEntries.length} de ${entries.length}`}</span></div>
+        <div className="section-heading patient-records-heading">
+          <div>
+            <p className="eyebrow">HISTÓRICO</p>
+            <h2 id="records-title" tabIndex={-1}>Meus registros</h2>
+            <p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p>
+          </div>
+          <div className="patient-records-heading-actions">
+            <span className="count">
+              {hasEntryQuery || entryFilter !== "all"
+                ? `${visibleEntries.length} de ${entries.length}`
+                : `${entries.length} ${entries.length === 1 ? "registro" : "registros"}`}
+            </span>
+            {!editing ? <button className="primary-button compact-button" type="button" onClick={openNewRecord}>Novo registro</button> : null}
+          </div>
+        </div>
         <a className="records-guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer">
           <span>Está difícil nomear o que sentiu?</span>
           <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>
@@ -1004,18 +1027,46 @@ function PatientDashboard({
               </button>
             ))}
           </div>
+          <div className="patient-record-search-row">
+            <label className="field patient-record-search">
+              <span>Buscar nos meus registros</span>
+              <input
+                type="search"
+                value={entryQuery}
+                onChange={(event) => setEntryQuery(event.target.value)}
+                placeholder="Busque por situação, emoção ou palavra"
+                autoComplete="off"
+              />
+              <small>A busca acontece somente nesta tela.</small>
+            </label>
+            <label className="field patient-record-order">
+              <span>Ordenar</span>
+              <select
+                value={entrySort}
+                onChange={(event) => setEntrySort(event.target.value as PatientEntrySort)}
+              >
+                <option value="newest">Mais recentes primeiro</option>
+                <option value="oldest">Mais antigos primeiro</option>
+              </select>
+            </label>
+          </div>
           <div className="sr-status" aria-live="polite">
-            {entryFilter === "all"
-              ? `Exibindo todos os ${entries.length} registros.`
-              : entryFilter === "private"
-                ? `Exibindo ${privateCount} ${privateCount === 1 ? "registro privado" : "registros privados"}.`
-                : `Exibindo ${sharedCount} ${sharedCount === 1 ? "registro compartilhado" : "registros compartilhados"}.`}
+            {hasEntryQuery
+              ? `${visibleEntries.length} ${visibleEntries.length === 1 ? "registro encontrado" : "registros encontrados"} para a busca.`
+              : entryFilter === "all"
+                ? `Exibindo todos os ${entries.length} registros.`
+                : entryFilter === "private"
+                  ? `Exibindo ${privateCount} ${privateCount === 1 ? "registro privado" : "registros privados"}.`
+                  : `Exibindo ${sharedCount} ${sharedCount === 1 ? "registro compartilhado" : "registros compartilhados"}.`}
           </div>
           {visibleEntries.length === 0 ? (
             <div className="empty-state patient-filter-empty">
-              <h3>{entryFilter === "shared" ? "Nenhum registro compartilhado agora." : "Nenhum registro privado agora."}</h3>
-              <p>{entryFilter === "shared" ? "Quando você decidir compartilhar um registro com Mateus, ele aparecerá aqui." : "Você pode deixar um registro privado novamente abrindo-o e retirando o compartilhamento."}</p>
-              <button className="secondary-button" type="button" onClick={() => setEntryFilter("all")}>Mostrar todos</button>
+              <h3>{hasEntryQuery ? "Nenhum registro encontrado." : entryFilter === "shared" ? "Nenhum registro compartilhado agora." : "Nenhum registro privado agora."}</h3>
+              <p>{hasEntryQuery ? "Tente outra palavra ou limpe a busca para voltar ao histórico." : entryFilter === "shared" ? "Quando você decidir compartilhar um registro com Mateus, ele aparecerá aqui." : "Você pode deixar um registro privado novamente abrindo-o e retirando o compartilhamento."}</p>
+              <div className="button-row">
+                {hasEntryQuery ? <button className="secondary-button" type="button" onClick={() => setEntryQuery("")}>Limpar busca</button> : null}
+                {entryFilter !== "all" ? <button className="secondary-button" type="button" onClick={() => setEntryFilter("all")}>Mostrar todos</button> : null}
+              </div>
             </div>
           ) : <div className="record-list patient-record-list">{visibleEntries.map((entry) => {
           const shared = isEntryShared(entry);

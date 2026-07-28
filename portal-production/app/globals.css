@@ -838,6 +838,13 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-records-heading{align-items:flex-end}
 .patient-records-heading h2{margin-bottom:.25rem}
 .patient-records-heading p{margin:0;color:var(--muted)}
+.patient-records-heading-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:.8rem;
+  flex-wrap:wrap;
+}
 .records-guide-callout{
   display:flex;
   align-items:center;
@@ -896,6 +903,24 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-entry-toolbar button.active small{
   background:#f0dfc5;
   color:#5c401a;
+}
+.patient-record-search-row{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(210px,.85fr);
+  gap:.8rem;
+  align-items:start;
+  margin:0 0 1rem;
+}
+.patient-record-search-row .field{
+  min-width:0;
+}
+.patient-record-search-row input,
+.patient-record-search-row select{
+  min-height:48px;
+  background:var(--card);
+}
+.patient-record-search-row small{
+  font-size:.75rem;
 }
 .patient-record-list{gap:.75rem}
 .patient-record-card{
@@ -1027,6 +1052,16 @@ input[type="range"]{accent-color:#9a6d27}
   .entry-optional .two-columns{padding:1rem}
   .range-scale{font-size:.68rem}
   .patient-records-heading{display:grid}
+  .patient-records-heading-actions{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    justify-content:stretch;
+  }
+  .patient-records-heading-actions .compact-button{min-width:132px}
+  .patient-record-search-row{
+    grid-template-columns:minmax(0,1fr);
+    gap:.7rem;
+  }
   .patient-entry-toolbar{
     gap:.3rem;
     padding:.32rem;
