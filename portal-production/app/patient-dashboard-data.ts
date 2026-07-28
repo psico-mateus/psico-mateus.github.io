@@ -106,6 +106,23 @@ export function patientEntryViewStatus(
   return { kind: "viewed" };
 }
 
+export function patientEntryViewSummary(
+  status: PatientEntryViewStatus,
+): string | null {
+  switch (status.kind) {
+    case "private":
+      return null;
+    case "unseen":
+      return "Ainda não visualizado";
+    case "viewed":
+      return "Visualizado por Mateus";
+    case "updated":
+      return "Atualizado após visualização";
+    case "reshared":
+      return "Compartilhado novamente · ainda não visualizado";
+  }
+}
+
 export function remainingCharactersNearLimit(
   value: string,
   maxLength: number,

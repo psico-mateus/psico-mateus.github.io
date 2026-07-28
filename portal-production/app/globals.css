@@ -968,7 +968,49 @@ input[type="range"]{accent-color:#9a6d27}
   overflow-wrap:anywhere;
 }
 .patient-record-summary-copy>small{color:var(--muted);overflow-wrap:anywhere}
+.patient-record-statuses{
+  display:flex;
+  align-items:center;
+  gap:.4rem;
+  flex-wrap:wrap;
+}
 .patient-record-summary-copy .status{width:max-content}
+.patient-view-summary{
+  width:max-content;
+  max-width:100%;
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  border-radius:999px;
+  background:#f0dfc5;
+  padding:.28rem .62rem;
+  color:#5c401a;
+  font-size:.72rem;
+  font-weight:800;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.patient-view-summary-marker{
+  width:.48rem;
+  height:.48rem;
+  flex:0 0 auto;
+  border-radius:50%;
+  background:currentColor;
+}
+.patient-view-summary.viewed{
+  background:#e8efe9;
+  color:#265343;
+}
+.patient-view-summary.viewed .patient-view-summary-marker{
+  width:1rem;
+  height:1rem;
+  display:inline-grid;
+  place-items:center;
+  background:#32624f;
+  color:#fff;
+  font-size:.68rem;
+}
+.patient-view-summary.viewed .patient-view-summary-marker:after{content:"✓"}
 .patient-record-toggle{
   min-width:3.2rem;
   color:var(--green-2);
@@ -1855,6 +1897,32 @@ input[type="range"]{accent-color:#9a6d27}
   padding:1rem 1.15rem .35rem;
   color:var(--muted);
 }
+.patient-how-to-steps{
+  display:grid;
+  gap:.75rem;
+  margin:0 0 1rem;
+  padding:0;
+  list-style:none;
+}
+.patient-how-to-steps li{
+  display:grid;
+  grid-template-columns:1.65rem minmax(0,1fr);
+  align-items:start;
+  gap:.65rem;
+}
+.patient-how-to-steps li>span{
+  width:1.65rem;
+  height:1.65rem;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#e6eee8;
+  color:#265343;
+  font-size:.74rem;
+  font-weight:850;
+}
+.patient-how-to-steps p{margin:0}
+.patient-how-to-steps strong{color:var(--ink)}
 .patient-how-to a,.education-safety a{
   color:var(--green-2);
   font-weight:750;

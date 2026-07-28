@@ -17,6 +17,7 @@ import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import {
   filterAndSortPatientEntries,
   patientEntryViewStatus,
+  patientEntryViewSummary,
   isEntryShared,
   remainingCharactersNearLimit,
   type PatientEntrySharingFilter,
@@ -982,7 +983,11 @@ function PatientDashboard({
           <details className="patient-how-to">
             <summary>Como usar esta área</summary>
             <div>
-              <p>Você não precisa escrever toda semana nem preencher todos os campos. Pode registrar uma situação breve, consultar um conteúdo ou apenas voltar ao que já guardou. Cada registro nasce privado. Você escolhe se quer compartilhá-lo com Mateus. As leituras e buscas da área “Leitura complementar” não são informadas a ele.</p>
+              <ol className="patient-how-to-steps">
+                <li><span aria-hidden="true">1</span><p><strong>Registre quando fizer sentido.</strong> Não precisa escrever toda semana nem preencher todos os campos.</p></li>
+                <li><span aria-hidden="true">2</span><p><strong>O registro começa privado.</strong> Só você consegue ver o que acabou de salvar.</p></li>
+                <li><span aria-hidden="true">3</span><p><strong>Você escolhe se quer compartilhar.</strong> As leituras e buscas não são informadas a Mateus.</p></li>
+              </ol>
               <p>Esta área ajuda a organizar assuntos para a psicoterapia, mas não é acompanhada em tempo real e não substitui ajuda imediata. <a href={config.care_url}>Consulte Cuidados e ajuda imediata.</a></p>
             </div>
           </details>
@@ -1105,7 +1110,15 @@ function PatientDashboard({
               <summary>
                 <span className="record-summary-marker" aria-hidden="true" />
                 <span className="patient-record-summary-copy">
-                  <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
+                  <span className="patient-record-statuses">
+                    <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
+                    {shared ? (
+                      <span className={`patient-view-summary ${viewStatus.kind}`}>
+                        <span className="patient-view-summary-marker" aria-hidden="true" />
+                        {patientEntryViewSummary(viewStatus)}
+                      </span>
+                    ) : null}
+                  </span>
                   <strong>{entry.title}</strong>
                   <small>{formatDate(entry.created_at)} · {entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</small>
                 </span>

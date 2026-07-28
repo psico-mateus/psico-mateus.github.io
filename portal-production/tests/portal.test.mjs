@@ -25,6 +25,7 @@ import {
   filterPatientEntries,
   isEntryShared,
   patientEntryViewStatus,
+  patientEntryViewSummary,
   remainingCharactersNearLimit,
 } from "../app/patient-dashboard-data.ts";
 import { copyText } from "../app/copy-text.ts";
@@ -70,6 +71,8 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
   assert.match(app, /Não precisa preencher tudo/);
+  assert.match(app, /O registro começa privado/);
+  assert.match(app, /Você escolhe se quer compartilhar/);
   assert.match(app, /Aprofundar este registro/);
   assert.match(app, /Privado ao salvar/);
   assert.match(app, /Compartilhado com Mateus/);
@@ -250,6 +253,23 @@ test("patient sees an honest view status only for currently shared entries", () 
     formatViewTimestamp("2026-07-26T12:30:00.000Z"),
     /^\d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}$/u,
   );
+  assert.equal(patientEntryViewSummary({ kind: "private" }), null);
+  assert.equal(
+    patientEntryViewSummary({ kind: "unseen" }),
+    "Ainda não visualizado",
+  );
+  assert.equal(
+    patientEntryViewSummary({ kind: "viewed" }),
+    "Visualizado por Mateus",
+  );
+  assert.equal(
+    patientEntryViewSummary({ kind: "updated" }),
+    "Atualizado após visualização",
+  );
+  assert.equal(
+    patientEntryViewSummary({ kind: "reshared" }),
+    "Compartilhado novamente · ainda não visualizado",
+  );
 });
 
 test("patient view state is server-derived and excluded from the data export", async () => {
@@ -274,6 +294,8 @@ test("patient view state is server-derived and excluded from the data export", a
   assert.match(patientList, /WHERE entries\.patient_id = \?/);
   assert.match(app, /Ainda não visualizado por Mateus/);
   assert.match(app, /Visualizado por Mateus em/);
+  assert.match(app, /patient-view-summary/);
+  assert.match(app, /patientEntryViewSummary\(viewStatus\)/);
   assert.match(app, /não é acompanhada em tempo real/);
   assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);
   assert.match(exportHandler, /delete exportedEntry\.viewed_at/);
