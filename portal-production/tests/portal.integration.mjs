@@ -265,6 +265,15 @@ const unexpectedContentType = await api("/login", {
 });
 expectStatus(unexpectedContentType, 415, "corpo mutável fora do formato JSON");
 
+const oversizedBody = await api("/login", {
+  method: "POST",
+  body: {
+    email: "corpo-grande@example.test",
+    password: "x".repeat(65_000),
+  },
+});
+expectStatus(oversizedBody, 413, "corpo maior que o limite");
+
 const setup = await api("/setup", {
   method: "POST",
   body: {
@@ -394,7 +403,12 @@ const duplicateEmail = await registerPatient({
   email: synthetic.patientEmailA,
   password: "OutraSenhaPaciente123",
 });
-expectStatus(duplicateEmail.result, 409, "cadastro com e-mail duplicado");
+expectStatus(duplicateEmail.result, 400, "cadastro com e-mail duplicado");
+assert.equal(
+  duplicateEmail.result.payload.error,
+  "Não foi possível criar a conta. Confira o convite e o e-mail ou tente entrar se você já tiver uma conta.",
+  "cadastro duplicado deve responder sem confirmar a existência da conta",
+);
 assert.equal(
   (await registrationState(invitationForDuplicateEmail.id)).invitationUsedAt,
   null,

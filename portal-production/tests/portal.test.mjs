@@ -110,6 +110,38 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
 });
 
+test("patient access and editing refinements remain accessible and loss-aware", async () => {
+  const [app, education, privacy, styles] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientEducation.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(app, /role="group" aria-label="Forma de acesso"/);
+  assert.doesNotMatch(app, /role="tablist"/);
+  assert.match(app, /inputMode="numeric"/);
+  assert.match(app, /autoCapitalize="characters"/);
+  assert.match(app, /com ou sem espaços e hífens/);
+  assert.match(app, /beforeunload/);
+  assert.match(app, /Descartar as alterações que ainda não foram salvas/);
+  assert.match(app, /Alterações salvas\. O compartilhamento com Mateus foi mantido/);
+  assert.match(app, /record-\$\{entry\.id\}/);
+  assert.match(app, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(app, /Ajustar intensidade sem arrastar/);
+  assert.match(styles, /\.range-adjustments/);
+  assert.match(app, /root\.style\.scrollBehavior = "auto"/);
+  assert.match(app, /atualizado após visualização/);
+  assert.match(education, /target="_blank"/);
+  assert.match(education, /rel="noopener noreferrer"/);
+  assert.match(app, /Tentar novamente/);
+  assert.doesNotMatch(app, /Nome novo, mesmo espaço/);
+  assert.doesNotMatch(app, /SHOW_AREA_NAME_CHANGE_NOTICE/);
+  assert.match(privacy, /entender se o recurso está[\s\S]*?sendo utilizado/u);
+  assert.match(privacy, /Mateus conclui deliberadamente a visualização/);
+  assert.doesNotMatch(privacy, /acompanhar a adesão|Mateus abre um registro/u);
+});
+
 test("new and legacy workers have explicit, fail-closed API modes", async () => {
   const [worker, currentConfigText, legacyConfigText] = await Promise.all([
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
@@ -238,7 +270,7 @@ test("patient view state is server-derived and excluded from the data export", a
   assert.match(app, /Ainda não visualizado por Mateus/);
   assert.match(app, /Visualizado por Mateus em/);
   assert.match(app, /não é acompanhada em tempo real/);
-  assert.match(privacy, /Essa informação também aparece para você/);
+  assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);
   assert.match(exportHandler, /delete exportedEntry\.viewed_at/);
 });
 
@@ -648,9 +680,42 @@ test("unexpected registration errors emit only bounded technical metadata", asyn
   assert.match(logger, /portal_request_failed/);
   assert.match(logger, /occurrence_id/);
   assert.match(logger, /duration_ms/);
+  assert.match(logger, /technicalRoute\(path\)/);
+  assert.doesNotMatch(logger, /route:\s*path/u);
   assert.doesNotMatch(
     logger,
     /input|email|password|invitation_code|recovery_code|cookie|token|cf-connecting-ip/u,
   );
   assert.doesNotMatch(logger, /console\.error\(\s*error/u);
+});
+
+test("registration errors do not confirm an existing account and request bodies stop at the limit", async () => {
+  const [route, portal, security] = await Promise.all([
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../SECURITY.md", import.meta.url), "utf8"),
+  ]);
+  const registration =
+    route.match(
+      /async function register[\s\S]*?(?=\nasync function recoverAccount)/u,
+    )?.[0] ?? "";
+  const routeNormalizer =
+    route.match(
+      /function technicalRoute[\s\S]*?(?=\nfunction logTechnicalFailure)/u,
+    )?.[0] ?? "";
+
+  assert.doesNotMatch(registration, /Já existe uma conta com este e-mail/u);
+  assert.match(registration, /Não foi possível criar a conta/);
+  assert.match(routeNormalizer, /\/entries\/:entryId/);
+  assert.match(routeNormalizer, /\/professional\/patients\/:patientId/);
+  assert.match(routeNormalizer, /"\/unknown"/);
+  assert.match(portal, /request\.body\?\.getReader\(\)/);
+  assert.match(portal, /receivedBytes > maximumBytes/);
+  assert.match(portal, /if \(!tooLarge\) raw \+= decoder\.decode/);
+  assert.match(portal, /if \(tooLarge\) throw new PortalError\(413/);
+  assert.match(security, /Não publique detalhes/);
+  assert.doesNotMatch(security, /senha real|token real|código real/iu);
 });

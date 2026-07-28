@@ -99,10 +99,24 @@ export function validateEntry(input: Record<string, unknown>) {
 }
 
 export async function readJson(request: Request): Promise<Record<string, unknown>> {
+  const maximumBytes = 64_000;
   const contentLength = Number(request.headers.get("content-length") || 0);
-  if (contentLength > 64_000) throw new PortalError(413, "Conteúdo muito grande.");
-  const raw = await request.text();
-  if (raw.length > 64_000) throw new PortalError(413, "Conteúdo muito grande.");
+  const reader = request.body?.getReader();
+  const decoder = new TextDecoder();
+  let receivedBytes = 0;
+  let raw = "";
+  let tooLarge = contentLength > maximumBytes;
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > maximumBytes) tooLarge = true;
+      if (!tooLarge) raw += decoder.decode(value, { stream: true });
+    }
+    if (!tooLarge) raw += decoder.decode();
+  }
+  if (tooLarge) throw new PortalError(413, "Conteúdo muito grande.");
   if (!raw) return {};
   const contentType = request.headers
     .get("content-type")

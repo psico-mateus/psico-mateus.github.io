@@ -75,6 +75,51 @@ function technicalD1Code(error: unknown): string | undefined {
   return undefined;
 }
 
+function technicalRoute(path: string): string {
+  const staticRoutes = new Set([
+    "/health",
+    "/config",
+    "/session",
+    "/setup",
+    "/setup/confirm",
+    "/login",
+    "/register",
+    "/recover",
+    "/logout",
+    "/entries",
+    "/export",
+    "/invitations",
+    "/account",
+    "/account/password",
+    "/account/recovery-code",
+    "/professional/patients",
+    "/professional/accesses",
+  ]);
+  if (staticRoutes.has(path)) return path;
+  const dynamicRoutes: Array<[RegExp, string]> = [
+    [/^\/entries\/[A-Za-z0-9_-]+\/sharing$/u, "/entries/:entryId/sharing"],
+    [/^\/entries\/[A-Za-z0-9_-]+$/u, "/entries/:entryId"],
+    [/^\/invitations\/[A-Za-z0-9_-]+$/u, "/invitations/:invitationId"],
+    [
+      /^\/professional\/entries\/[A-Za-z0-9_-]+\/viewed$/u,
+      "/professional/entries/:entryId/viewed",
+    ],
+    [
+      /^\/professional\/patients\/[A-Za-z0-9_-]+\/entries$/u,
+      "/professional/patients/:patientId/entries",
+    ],
+    [
+      /^\/professional\/patients\/[A-Za-z0-9_-]+\/recovery-code$/u,
+      "/professional/patients/:patientId/recovery-code",
+    ],
+    [
+      /^\/professional\/patients\/[A-Za-z0-9_-]+\/access$/u,
+      "/professional/patients/:patientId/access",
+    ],
+  ];
+  return dynamicRoutes.find(([pattern]) => pattern.test(path))?.[1] ?? "/unknown";
+}
+
 function logTechnicalFailure(
   path: string,
   error: unknown,
@@ -86,7 +131,7 @@ function logTechnicalFailure(
   console.error(
     JSON.stringify({
       event: "portal_request_failed",
-      route: path,
+      route: technicalRoute(path),
       operation: operationError?.operation ?? "request.dispatch",
       error_type: technicalErrorType(cause),
       d1_code: technicalD1Code(cause),
@@ -314,7 +359,10 @@ async function register(request: Request, input: Input): Promise<Response> {
       DB.prepare("SELECT id FROM users WHERE email_hash = ?").bind(hashedEmail).first(),
     )
   ) {
-    throw new PortalError(409, "Já existe uma conta com este e-mail.");
+    throw new PortalError(
+      400,
+      "Não foi possível criar a conta. Confira o convite e o e-mail ou tente entrar se você já tiver uma conta.",
+    );
   }
 
   const passwordRecord = await portalOperation("register.hash_password", () =>
@@ -414,7 +462,10 @@ async function register(request: Request, input: Input): Promise<Response> {
       throw new PortalError(400, "O convite é inválido ou expirou.");
     }
     if (existingUser) {
-      throw new PortalError(409, "Já existe uma conta com este e-mail.");
+      throw new PortalError(
+        400,
+        "Não foi possível criar a conta. Confira o convite e o e-mail ou tente entrar se você já tiver uma conta.",
+      );
     }
     throw new PortalOperationError("register.atomic_commit", error);
   }
