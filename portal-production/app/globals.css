@@ -702,11 +702,20 @@ input[type="range"]{accent-color:#9a6d27}
 .entry-form-heading{align-items:flex-start;margin-bottom:.5rem}
 .entry-form-heading>div>p:last-child{max-width:680px;margin:0;color:var(--muted)}
 .entry-form-heading .icon-button{
+  display:grid;
+  place-items:center;
   width:44px;
   height:44px;
   flex:0 0 auto;
+  padding:0;
   border:1px solid var(--line);
   background:#fffefa;
+  line-height:1;
+}
+.entry-form-heading .icon-button>span{
+  display:block;
+  line-height:1;
+  transform:translateY(-1px);
 }
 .entry-step{
   display:grid;

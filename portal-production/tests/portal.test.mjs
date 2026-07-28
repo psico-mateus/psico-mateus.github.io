@@ -144,8 +144,10 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(app, /Alterações salvas\. O compartilhamento com Mateus foi mantido/);
   assert.match(app, /record-\$\{entry\.id\}/);
   assert.match(app, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(app, /aria-label="Fechar formulário"[\s\S]*?<span aria-hidden="true">×<\/span>/);
   assert.match(app, /Ajustar intensidade sem arrastar/);
   assert.match(styles, /\.range-adjustments/);
+  assert.match(styles, /\.entry-form-heading \.icon-button>span\{[\s\S]*?translateY\(-1px\)/);
   assert.match(app, /root\.style\.scrollBehavior = "auto"/);
   assert.match(app, /atualizado após visualização/);
   assert.match(education, /target="_blank"/);

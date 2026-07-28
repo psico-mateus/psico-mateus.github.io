@@ -587,7 +587,9 @@ function EntryForm({
           <h2 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
           <p>Não precisa preencher tudo. Comece pelo que estiver mais claro agora.</p>
         </div>
-        <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">×</button>
+        <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">
+          <span aria-hidden="true">×</span>
+        </button>
       </div>
 
       <section className="entry-step" aria-labelledby="entry-step-one">
