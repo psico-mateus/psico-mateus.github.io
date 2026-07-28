@@ -181,6 +181,15 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   await page.goto("/privacidade/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Política de privacidade");
   await expect(page.getByText(/não é necessário relatar detalhes\s+clínicos/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Área do paciente", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "aviso de privacidade da própria Área do paciente" }))
+    .toHaveAttribute(
+      "href",
+      "https://area-do-paciente.psico-mateus.workers.dev/privacidade/",
+    );
+  await expect(page.getByRole("navigation", { name: "Recursos de Mateus Ribeiro Marcos" })
+    .getByRole("link", { name: "Área do paciente", exact: true }))
+    .toHaveAttribute("href", "https://area-do-paciente.psico-mateus.workers.dev");
 
   await page.goto("/cuidados/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Cuidados e ajuda imediata");

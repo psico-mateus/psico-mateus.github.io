@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const widths = [320, 360, 390, 430, 640, 683, 768, 1024, 1366, 1440, 1920];
 
@@ -44,4 +45,11 @@ test("Guia se apresenta como recurso público de educação emocional", async ({
   await expect(page.locator("footer")).toContainText(
     "Recurso aberto de educação emocional",
   );
+});
+
+test("fonte do preview social preserva o posicionamento público do Guia", async ({}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Verificação estrutural única.");
+  const source = await readFile("assets/images/sources/generate_assets.py", "utf8");
+  expect(source).toContain("Recurso aberto de educação emocional");
+  expect(source).not.toContain("Material de apoio para psicoterapia");
 });

@@ -63,7 +63,7 @@ def generate_guide_preview() -> None:
     draw.text((76, 278), "Emoções", font=font(SERIF, 64), fill="#E8D3AC")
     draw.text(
         (80, 392),
-        "Material de apoio para psicoterapia",
+        "Recurso aberto de educação emocional",
         font=font(SANS, 27),
         fill="#F0E9DE",
     )
