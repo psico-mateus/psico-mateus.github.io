@@ -748,9 +748,15 @@ input[type="range"]{accent-color:#9a6d27}
 .entry-step{
   display:grid;
   gap:1rem;
-  margin-top:1.4rem;
-  padding-top:1.4rem;
+  margin-top:1.5rem;
+  border:0;
   border-top:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  padding:1.45rem 0 0;
+}
+.entry-step-emotion{
+  background:transparent;
 }
 .entry-step-heading{
   display:grid;
@@ -833,13 +839,13 @@ input[type="range"]{accent-color:#9a6d27}
   font-weight:800;
 }
 .entry-step-optional{
-  margin-top:1.7rem;
-  border:1px solid rgba(154,109,39,.38);
-  border-left:4px solid #9a6d27;
-  border-radius:18px;
-  background:linear-gradient(145deg,#fffaf2 0%,#f8eee1 100%);
-  padding:1.35rem;
-  box-shadow:0 12px 32px rgba(79,58,28,.08);
+  margin-top:1.5rem;
+  border:0;
+  border-top:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  padding:1.45rem 0 0;
+  box-shadow:none;
 }
 .entry-step-optional .entry-step-heading{margin-bottom:.15rem}
 .optional-heading-line{
@@ -853,54 +859,55 @@ input[type="range"]{accent-color:#9a6d27}
   display:inline-flex;
   align-items:center;
   min-height:26px;
-  border:1px solid rgba(91,66,31,.2);
+  border:1px solid rgba(91,66,31,.14);
   border-radius:999px;
-  background:#f0dfc5;
+  background:#f3eadc;
   padding:.2rem .65rem;
   color:#5b421f;
   font-size:.68rem;
   font-weight:800;
 }
 .optional-fields{
-  margin-top:.35rem;
-  padding-top:1.15rem;
-  border-top:1px solid rgba(154,109,39,.2);
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  margin-top:.45rem;
 }
 .optional-fields .field{
   align-content:start;
-  border:1px solid rgba(154,109,39,.2);
-  border-radius:14px;
-  background:rgba(255,255,255,.62);
-  padding:1rem;
+  min-width:0;
 }
 .optional-fields textarea{
   min-height:128px;
-  background:#fffefa;
+  background:#fff;
 }
-.privacy-save-note{
+.form-finish{
   display:grid;
-  grid-template-columns:.7rem minmax(0,1fr);
-  gap:.75rem;
-  align-items:start;
-  margin-top:1.1rem;
-  border-radius:14px;
-  background:#efe7dc;
-  padding:.9rem 1rem;
-}
-.privacy-save-note>span{
-  width:.6rem;
-  height:.6rem;
-  margin-top:.35rem;
-  border-radius:50%;
-  background:#9a6d27;
-}
-.privacy-save-note p{margin:0;color:#5b544b;font-size:.85rem}
-.privacy-save-note strong{color:var(--ink)}
-.patient-entry-form>.button-row{
-  margin-top:.3rem;
-  padding-top:1.2rem;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:1.2rem;
+  align-items:center;
+  margin-top:1.6rem;
+  border:0;
   border-top:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  padding:1.35rem 0 0;
 }
+.form-finish.shared{
+  background:transparent;
+}
+.form-finish-copy{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-items:start;
+  border-left:3px solid #9a6d27;
+  padding-left:.8rem;
+}
+.form-finish-copy>span{
+  display:none;
+}
+.form-finish.shared .form-finish-copy{border-left-color:var(--green-2)}
+.form-finish-copy p{margin:0;color:#5b544b;font-size:.85rem}
+.form-finish-copy strong{color:var(--ink)}
+.form-finish .button-row{flex-wrap:nowrap}
 
 .patient-records-heading{align-items:flex-end}
 .patient-records-heading h2{margin-bottom:.25rem}
@@ -1193,9 +1200,13 @@ input[type="range"]{accent-color:#9a6d27}
   .entry-form-heading{display:grid;grid-template-columns:minmax(0,1fr) auto}
   .entry-form-heading .icon-button{grid-column:2;grid-row:1}
   .entry-form-heading>div{grid-column:1;grid-row:1}
+  .entry-step{padding:1.35rem 0 0}
   .entry-step-heading{grid-template-columns:1.7rem minmax(0,1fr)}
-  .entry-step-optional{padding:1.05rem}
-  .optional-fields .field{padding:.9rem}
+  .entry-step-optional{padding:1.35rem 0 0}
+  .optional-fields{grid-template-columns:1fr}
+  .form-finish{grid-template-columns:1fr;padding:1.25rem 0 0}
+  .form-finish .button-row{display:grid;grid-template-columns:1fr}
+  .form-finish .button-row>*{width:100%}
   .range-scale{font-size:.68rem}
   .patient-records-heading{display:grid}
   .patient-records-heading-actions{
@@ -1840,6 +1851,12 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(max-width:760px){
+  .site-header{
+    display:grid;
+    gap:.8rem;
+  }
+  .brand,.top-links{width:100%}
+  .top-links{justify-content:flex-start;gap:.55rem .8rem}
   .education-card-list{grid-template-columns:1fr}
   .education-record-cta{grid-template-columns:1fr}
   .education-record-cta .primary-button{width:100%;white-space:normal}

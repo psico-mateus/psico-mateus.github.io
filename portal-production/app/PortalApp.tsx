@@ -565,6 +565,7 @@ function EntryForm({
   const dirty = (Object.keys(originalDraft) as Array<keyof EntryDraft>).some(
     (key) => draft[key] !== originalDraft[key],
   );
+  const remainsShared = Boolean(initial && isEntryShared(initial));
   useEffect(() => {
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
@@ -594,7 +595,7 @@ function EntryForm({
         <strong>Para salvar:</strong> preencha somente “Título breve” e “O que aconteceu?”. As outras perguntas podem ficar em branco.
       </p>
 
-      <section className="entry-step" aria-labelledby="entry-step-one">
+      <section className="entry-step entry-step-situation" aria-labelledby="entry-step-one">
         <div className="entry-step-heading">
           <span aria-hidden="true">01</span>
           <div><h3 id="entry-step-one">Comece pela situação</h3><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
@@ -611,7 +612,7 @@ function EntryForm({
         </label>
       </section>
 
-      <section className="entry-step" aria-labelledby="entry-step-two">
+      <section className="entry-step entry-step-emotion" aria-labelledby="entry-step-two">
         <div className="entry-step-heading">
           <span aria-hidden="true">02</span>
           <div><h3 id="entry-step-two">Como isso chegou em você?</h3><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
@@ -691,9 +692,30 @@ function EntryForm({
         </div>
       </section>
 
-      <div className="privacy-save-note"><span aria-hidden="true" /><p><strong>Privado ao salvar.</strong> Mateus só poderá ler se você decidir compartilhar este registro depois.</p></div>
       {message ? <Notice tone="error" message={message} /> : null}
-      <div className="button-row"><button className="secondary-button" type="button" onClick={onCancel}>Cancelar</button><button className="primary-button" disabled={busy}>{busy ? "Salvando…" : "Salvar registro"}</button></div>
+      <div className={`form-finish ${remainsShared ? "shared" : "private"}`}>
+        <div className="form-finish-copy">
+          <span aria-hidden="true" />
+          <p>
+            <strong>
+              {remainsShared
+                ? "Continuará compartilhado com Mateus."
+                : initial
+                  ? "Continuará privado."
+                  : "Será salvo como privado."}
+            </strong>{" "}
+            {remainsShared
+              ? "Salvar as alterações não retira o acesso atual. Você pode retirar o compartilhamento no histórico."
+              : "Mateus só poderá ler se você decidir compartilhar este registro depois."}
+          </p>
+        </div>
+        <div className="button-row">
+          <button className="secondary-button" type="button" onClick={onCancel}>Cancelar</button>
+          <button className="primary-button" disabled={busy}>
+            {busy ? "Salvando…" : initial ? "Salvar alterações" : "Salvar registro privado"}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }
@@ -1062,6 +1084,7 @@ function PatientDashboard({
               onDirtyChange={setEditorDirty}
             />
           ) : null}
+          {!editing ? (
           <section className="records-section" aria-labelledby="records-title">
         <div className="section-heading patient-records-heading">
           <div>
@@ -1194,6 +1217,7 @@ function PatientDashboard({
         })}</div>}
         </>}
           </section>
+          ) : null}
         </>
       ) : (
         <PatientEducation
@@ -1204,7 +1228,7 @@ function PatientDashboard({
           onCreateRecord={createRecordFromEducation}
         />
       )}
-      <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} />
+      {!editing ? <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} /> : null}
     </main>
   );
 }
