@@ -186,6 +186,23 @@ select{width:100%;border:1px solid var(--line);border-radius:12px;background:#ff
 .patient-access-actions{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;flex:0 0 auto}
 .patient-access-actions>button{min-width:148px}
 .sr-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skip-link{
+  position:fixed;
+  top:max(.75rem,env(safe-area-inset-top));
+  left:max(.75rem,env(safe-area-inset-left));
+  z-index:100;
+  max-width:calc(100vw - 1.5rem);
+  border-radius:999px;
+  background:var(--ink);
+  color:#fff;
+  padding:.75rem 1rem;
+  font-weight:750;
+  text-decoration:none;
+  transform:translateY(calc(-100% - 2rem));
+  transition:transform .16s ease;
+}
+.skip-link:focus{transform:translateY(0)}
+#conteudo:focus{outline:none}
 
 .assisted-recovery-dialog{
   width:min(calc(100vw - 2rem),620px);
@@ -524,7 +541,7 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(prefers-reduced-motion:reduce){
-  .install-app-button,.guide-callout{transition:none}
+  .install-app-button,.guide-callout,.skip-link{transition:none}
 }
 
 /* Mantém os consentimentos do cadastro alinhados em telas grandes e pequenas. */

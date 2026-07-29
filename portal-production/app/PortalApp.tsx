@@ -407,7 +407,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
   return (
     <>
       <Header config={config} />
-      <main className="guest-layout" id="conteudo">
+      <main className="guest-layout" id="conteudo" tabIndex={-1}>
         <section className="guest-intro">
           <p className="eyebrow">ÁREA DO PACIENTE</p>
           <h1>Acompanhe seu processo. <em>Use este espaço no seu tempo.</em></h1>
@@ -947,7 +947,7 @@ function PatientDashboard({
     { value: "shared", label: "Com Mateus", count: sharedCount },
   ];
   return (
-    <main className="dashboard patient-dashboard" id="conteudo">
+    <main className="dashboard patient-dashboard" id="conteudo" tabIndex={-1}>
       <nav className="patient-navigation" aria-label="Navegação da Área do paciente">
         <button
           type="button"
@@ -1347,7 +1347,7 @@ export function PortalApp() {
   const content = (() => {
     if (!config && fatal) {
       return (
-        <main className="loading loading-error">
+        <main className="loading loading-error" id="conteudo" tabIndex={-1}>
           <Notice tone="error" message={`${fatal} Verifique sua conexão e tente novamente.`} />
           <button
             className="primary-button"
@@ -1360,7 +1360,14 @@ export function PortalApp() {
         </main>
       );
     }
-    if (!config) return <main className="loading"><div className="loader" /><p>Preparando seu espaço…</p></main>;
+    if (!config) {
+      return (
+        <main className="loading" id="conteudo" tabIndex={-1}>
+          <div className="loader" />
+          <p>Preparando seu espaço…</p>
+        </main>
+      );
+    }
     if (!user) return <Guest config={config} onAuthenticated={authenticated} />;
     return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />} />}<EmergencyFooter config={config} /></>;
   })();

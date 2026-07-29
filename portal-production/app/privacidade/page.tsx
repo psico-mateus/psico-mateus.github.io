@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="dashboard privacy-page">
+    <main className="dashboard privacy-page" id="conteudo" tabIndex={-1}>
       <a href="/">← Voltar à Área do paciente</a>
       <p className="eyebrow" style={{ marginTop: "3rem" }}>
         AVISO DE PRIVACIDADE

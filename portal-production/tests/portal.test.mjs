@@ -61,13 +61,14 @@ test("protected values round-trip and one-time codes are well formed", async () 
 });
 
 test("public UI keeps privacy and safety boundaries visible", async () => {
-  const [app, installButton, layout, manifest, privacy, serviceWorker, worker] = await Promise.all([
+  const [app, installButton, layout, manifest, privacy, serviceWorker, styles, worker] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/InstallAppButton.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
@@ -116,6 +117,17 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.doesNotMatch(serviceWorker, /caches\./);
   assert.match(layout, /Espaço exclusivo para pacientes atuais/);
   assert.match(layout, /compartilhamento opcional e leitura complementar/);
+  assert.match(layout, /className="skip-link" href="#conteudo"/);
+  assert.match(app, /id="conteudo" tabIndex=\{-1\}/);
+  assert.match(privacy, /id="conteudo" tabIndex=\{-1\}/);
+  assert.match(
+    styles,
+    /\.skip-link:focus\{transform:translateY\(0\)\}/,
+  );
+  assert.match(
+    styles,
+    /\.install-app-button,\.guide-callout,\.skip-link\{transition:none\}/,
+  );
   assert.doesNotMatch(layout, /materiais de apoio/);
   assert.doesNotMatch(installButton, /localStorage|sessionStorage/);
   assert.match(privacy, /não são usados para publicidade/);

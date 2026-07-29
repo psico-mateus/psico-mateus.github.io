@@ -1609,7 +1609,7 @@ export function ProfessionalDashboard({
 
   if (privacyMode) {
     return (
-      <main className="dashboard professional-dashboard privacy-mode" id="conteudo">
+      <main className="dashboard professional-dashboard privacy-mode" id="conteudo" tabIndex={-1}>
         <section className="dashboard-hero professional privacy-mode-hero">
           <div>
             <p className="eyebrow">MODO PRIVACIDADE ATIVO</p>
@@ -1660,7 +1660,7 @@ export function ProfessionalDashboard({
     : null;
 
   return (
-    <main className="dashboard professional-dashboard" id="conteudo">
+    <main className="dashboard professional-dashboard" id="conteudo" tabIndex={-1}>
       <section className="dashboard-hero professional">
         <div>
           <p className="eyebrow">ACESSO PROFISSIONAL</p>
