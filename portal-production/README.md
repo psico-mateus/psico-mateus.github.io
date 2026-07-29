@@ -4,6 +4,21 @@ Portal privado de apoio à psicoterapia de Mateus Ribeiro Marcos, Psicólogo Cl�
 
 O portal não é prontuário, chat, canal de emergência, monitoramento em tempo real nem ferramenta de diagnóstico ou análise automática.
 
+## Princípios da experiência
+
+A interface é voltada a pessoas em cuidado de saúde mental e deve continuar
+acolhedora sem depender de efeitos, gamificação ou linguagem vaga. Toda mudança
+visual precisa preservar estes critérios:
+
+- fluxo previsível, com etapas e ações importantes visíveis;
+- linguagem direta e literal, compreensível também para quem tem pouca
+  familiaridade com tecnologia;
+- baixa carga cognitiva, sem excesso de escolhas, movimento ou estímulos;
+- campos opcionais identificados sem sugerir que precisam ser preenchidos;
+- funcionamento por teclado, leitores de tela, zoom e toque;
+- atenção a diferentes formas de uso, inclusive por pessoas com TDAH, TEA ou
+  TOC, sem presumir uma única necessidade para todos.
+
 ## Estrutura
 
 ```text

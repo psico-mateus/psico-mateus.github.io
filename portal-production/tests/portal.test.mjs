@@ -72,10 +72,15 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
-  assert.match(app, /Não precisa preencher tudo/);
+  assert.match(app, /As outras perguntas podem ficar em branco/);
   assert.match(app, /O registro começa privado/);
   assert.match(app, /Você escolhe se quer compartilhar/);
-  assert.match(app, /Aprofundar este registro/);
+  assert.match(app, /Quer complementar\?/);
+  assert.match(app, /className="optional-badge">Opcional/);
+  assert.match(app, /seguir direto para salvar/);
+  assert.match(app, /preencha somente “Título breve” e “O que aconteceu\?”/);
+  assert.match(app, /className="field-label-line"[\s\S]*?Necessário/);
+  assert.doesNotMatch(app, /<details className="entry-optional"/);
   assert.match(app, /Privado ao salvar/);
   assert.match(app, /Compartilhado com Mateus/);
   assert.match(app, /patient-record-card/);
@@ -159,6 +164,9 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(app, /aria-label="Fechar formulário"[\s\S]*?<span aria-hidden="true">×<\/span>/);
   assert.match(app, /Ajustar intensidade sem arrastar/);
   assert.match(styles, /\.range-adjustments/);
+  assert.match(styles, /\.entry-step-optional\{[\s\S]*?border-left:4px solid #9a6d27/);
+  assert.match(styles, /\.optional-fields \.field\{[\s\S]*?background:rgba\(255,255,255,.62\)/);
+  assert.match(styles, /\.form-requirements-note\{[\s\S]*?border-left:3px solid var\(--green-2\)/);
   assert.match(styles, /\.entry-form-heading \.icon-button>span\{[\s\S]*?translateY\(-1px\)/);
   assert.match(app, /root\.style\.scrollBehavior = "auto"/);
   assert.match(app, /atualizado após visualização/);

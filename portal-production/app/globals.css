@@ -718,6 +718,17 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .entry-form-heading{align-items:flex-start;margin-bottom:.5rem}
 .entry-form-heading>div>p:last-child{max-width:680px;margin:0;color:var(--muted)}
+.form-requirements-note{
+  max-width:760px;
+  margin:1rem 0 .15rem;
+  border-left:3px solid var(--green-2);
+  border-radius:0 12px 12px 0;
+  background:#edf2ee;
+  padding:.8rem 1rem;
+  color:#4e5752;
+  font-size:.86rem;
+}
+.form-requirements-note strong{color:var(--ink)}
 .entry-form-heading .icon-button{
   display:grid;
   place-items:center;
@@ -754,6 +765,21 @@ input[type="range"]{accent-color:#9a6d27}
 .entry-step-heading h3{margin:0 0 .2rem;font-size:1.35rem}
 .entry-step-heading p{margin:0;color:var(--muted);font-size:.88rem}
 .patient-entry-form .field>span,.patient-entry-form .field>label{font-size:.84rem;font-weight:700}
+.field-label-line{
+  display:flex;
+  align-items:center;
+  gap:.55rem;
+  flex-wrap:wrap;
+}
+.field-label-line>small{
+  border-radius:999px;
+  background:#ece9e1;
+  padding:.12rem .5rem;
+  color:#5d5a53;
+  font-size:.64rem;
+  font-weight:800;
+  letter-spacing:.02em;
+}
 .patient-entry-form textarea{line-height:1.6}
 .character-limit{
   justify-self:end;
@@ -806,43 +832,50 @@ input[type="range"]{accent-color:#9a6d27}
   text-align:center;
   font-weight:800;
 }
-.entry-optional{
-  margin-top:1.4rem;
-  border:1px solid var(--line);
-  border-radius:16px;
-  background:#fbf5ed;
-  overflow:hidden;
+.entry-step-optional{
+  margin-top:1.7rem;
+  border:1px solid rgba(154,109,39,.38);
+  border-left:4px solid #9a6d27;
+  border-radius:18px;
+  background:linear-gradient(145deg,#fffaf2 0%,#f8eee1 100%);
+  padding:1.35rem;
+  box-shadow:0 12px 32px rgba(79,58,28,.08);
 }
-.entry-optional>summary{
+.entry-step-optional .entry-step-heading{margin-bottom:.15rem}
+.optional-heading-line{
   display:flex;
   align-items:center;
-  justify-content:space-between;
-  gap:1rem;
-  min-height:68px;
-  padding:1rem 1.1rem;
-  cursor:pointer;
-  list-style:none;
+  gap:.7rem;
+  flex-wrap:wrap;
 }
-.entry-optional>summary::-webkit-details-marker{display:none}
-.entry-optional>summary>span:first-child{display:grid}
-.entry-optional>summary small{color:var(--muted);font-weight:500}
-.optional-toggle{
-  width:2rem;
-  height:2rem;
-  flex:0 0 auto;
-  display:grid;
-  place-items:center;
-  border-radius:50%;
-  background:#ead7bb;
+.optional-heading-line h3{margin:0}
+.optional-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:26px;
+  border:1px solid rgba(91,66,31,.2);
+  border-radius:999px;
+  background:#f0dfc5;
+  padding:.2rem .65rem;
   color:#5b421f;
-  font-size:1.3rem;
-  transition:transform 180ms ease;
+  font-size:.68rem;
+  font-weight:800;
 }
-.entry-optional[open] .optional-toggle{transform:rotate(45deg)}
-.entry-optional .two-columns{
-  padding:0 1.1rem 1.1rem;
-  border-top:1px solid var(--line);
-  padding-top:1.1rem;
+.optional-fields{
+  margin-top:.35rem;
+  padding-top:1.15rem;
+  border-top:1px solid rgba(154,109,39,.2);
+}
+.optional-fields .field{
+  align-content:start;
+  border:1px solid rgba(154,109,39,.2);
+  border-radius:14px;
+  background:rgba(255,255,255,.62);
+  padding:1rem;
+}
+.optional-fields textarea{
+  min-height:128px;
+  background:#fffefa;
 }
 .privacy-save-note{
   display:grid;
@@ -1161,7 +1194,8 @@ input[type="range"]{accent-color:#9a6d27}
   .entry-form-heading .icon-button{grid-column:2;grid-row:1}
   .entry-form-heading>div{grid-column:1;grid-row:1}
   .entry-step-heading{grid-template-columns:1.7rem minmax(0,1fr)}
-  .entry-optional .two-columns{padding:1rem}
+  .entry-step-optional{padding:1.05rem}
+  .optional-fields .field{padding:.9rem}
   .range-scale{font-size:.68rem}
   .patient-records-heading{display:grid}
   .patient-records-heading-actions{
@@ -1202,7 +1236,7 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(prefers-reduced-motion:reduce){
-  .patient-overview>a,.patient-record-card,.optional-toggle,.patient-entry-toolbar button{transition:none}
+  .patient-overview>a,.patient-record-card,.patient-entry-toolbar button{transition:none}
 }
 
 /* Explica a diferença entre o portal restrito e o Guia aberto. */

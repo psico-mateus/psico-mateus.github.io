@@ -562,7 +562,6 @@ function EntryForm({
   const [draft, setDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [optionalOpen, setOptionalOpen] = useState(Boolean(initial && (initial.body || initial.thoughts || initial.urge || initial.message)));
   const dirty = (Object.keys(originalDraft) as Array<keyof EntryDraft>).some(
     (key) => draft[key] !== originalDraft[key],
   );
@@ -585,12 +584,15 @@ function EntryForm({
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
           <h2 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
-          <p>Não precisa preencher tudo. Comece pelo que estiver mais claro agora.</p>
+          <p>Comece pelo que estiver mais claro agora.</p>
         </div>
         <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">
           <span aria-hidden="true">×</span>
         </button>
       </div>
+      <p className="form-requirements-note">
+        <strong>Para salvar:</strong> preencha somente “Título breve” e “O que aconteceu?”. As outras perguntas podem ficar em branco.
+      </p>
 
       <section className="entry-step" aria-labelledby="entry-step-one">
         <div className="entry-step-heading">
@@ -598,12 +600,12 @@ function EntryForm({
           <div><h3 id="entry-step-one">Comece pela situação</h3><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
         </div>
         <label className="field">
-          <span>Título breve</span>
+          <span className="field-label-line"><span>Título breve</span><small>Necessário</small></span>
           <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required aria-describedby={guidance ? "education-entry-guidance" : undefined} />
           <CharacterLimit value={draft.title} maxLength={120} />
         </label>
         <label className="field">
-          <span>O que aconteceu?</span>
+          <span className="field-label-line"><span>O que aconteceu?</span><small>Necessário</small></span>
           <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required />
           <CharacterLimit value={draft.happened} maxLength={2000} />
         </label>
@@ -654,15 +656,40 @@ function EntryForm({
         </div>
       </section>
 
-      <details className="entry-optional" open={optionalOpen} onToggle={(event) => setOptionalOpen(event.currentTarget.open)}>
-        <summary><span><strong>Aprofundar este registro</strong><small>Campos opcionais para quando fizer sentido.</small></span><span className="optional-toggle" aria-hidden="true">+</span></summary>
-        <div className="two-columns">
-          <label className="field"><span>O que percebeu no corpo?</span><textarea value={draft.body} maxLength={1500} rows={4} onChange={(e) => update("body", e.target.value)} /><CharacterLimit value={draft.body} maxLength={1500} /></label>
-          <label className="field"><span>Quais pensamentos apareceram?</span><textarea value={draft.thoughts} maxLength={1500} rows={4} onChange={(e) => update("thoughts", e.target.value)} /><CharacterLimit value={draft.thoughts} maxLength={1500} /></label>
-          <label className="field"><span>O que teve vontade de fazer?</span><textarea value={draft.urge} maxLength={1500} rows={4} onChange={(e) => update("urge", e.target.value)} /><CharacterLimit value={draft.urge} maxLength={1500} /></label>
-          <label className="field"><span>Há algo que queira levar para a sessão?</span><textarea value={draft.message} maxLength={1500} rows={4} onChange={(e) => update("message", e.target.value)} /><CharacterLimit value={draft.message} maxLength={1500} /></label>
+      <section className="entry-step entry-step-optional" aria-labelledby="entry-step-three">
+        <div className="entry-step-heading">
+          <span aria-hidden="true">03</span>
+          <div>
+            <div className="optional-heading-line">
+              <h3 id="entry-step-three">Quer complementar?</h3>
+              <span className="optional-badge">Opcional</span>
+            </div>
+            <p>Estas perguntas podem ajudar a olhar o momento com mais calma. Você pode responder só às que fizerem sentido ou seguir direto para salvar.</p>
+          </div>
         </div>
-      </details>
+        <div className="two-columns optional-fields">
+          <label className="field">
+            <span>O que percebeu no corpo?</span>
+            <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} />
+            <CharacterLimit value={draft.body} maxLength={1500} />
+          </label>
+          <label className="field">
+            <span>Quais pensamentos apareceram?</span>
+            <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} />
+            <CharacterLimit value={draft.thoughts} maxLength={1500} />
+          </label>
+          <label className="field">
+            <span>O que teve vontade de fazer?</span>
+            <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} />
+            <CharacterLimit value={draft.urge} maxLength={1500} />
+          </label>
+          <label className="field">
+            <span>Há algo que queira levar para a sessão?</span>
+            <textarea value={draft.message} maxLength={1500} rows={4} placeholder="Uma dúvida, assunto ou ponto que queira lembrar depois." onChange={(e) => update("message", e.target.value)} />
+            <CharacterLimit value={draft.message} maxLength={1500} />
+          </label>
+        </div>
+      </section>
 
       <div className="privacy-save-note"><span aria-hidden="true" /><p><strong>Privado ao salvar.</strong> Mateus só poderá ler se você decidir compartilhar este registro depois.</p></div>
       {message ? <Notice tone="error" message={message} /> : null}
