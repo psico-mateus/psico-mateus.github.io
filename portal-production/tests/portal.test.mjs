@@ -317,13 +317,15 @@ test("patient sees an honest view status only for currently shared entries", () 
 });
 
 test("patient view state is server-derived and excluded from the data export", async () => {
-  const [route, app, privacy] = await Promise.all([
+  const [route, app, privacy, updateManager, serviceWorker] = await Promise.all([
     readFile(
       new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
       "utf8",
     ),
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/AppUpdateManager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
   ]);
   const patientList =
     route.match(
@@ -344,9 +346,16 @@ test("patient view state is server-derived and excluded from the data export", a
     /<small>\{formatDate\(entry\.created_at\)\}[\s\S]*?<span className=\{`patient-view-summary \$\{viewStatus\.kind\}`\}>/u,
   );
   assert.match(app, /patientEntryViewSummary\(viewStatus\)/);
+  assert.match(app, /patient-sharing-states/);
+  assert.match(app, /Ver no histórico/);
   assert.match(app, /não é acompanhada em tempo real/);
   assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);
   assert.match(exportHandler, /delete exportedEntry\.viewed_at/);
+  assert.match(updateManager, /updateViaCache: "none"/);
+  assert.match(updateManager, /hasUnsavedDraft/);
+  assert.match(updateManager, /Atualizar agora/);
+  assert.match(serviceWorker, /SKIP_WAITING/);
+  assert.doesNotMatch(serviceWorker, /addAll|caches\.open|cache\.put/u);
 });
 
 test("patient history filters private and shared entries", () => {

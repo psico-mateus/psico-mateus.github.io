@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AppUpdateManager } from "./AppUpdateManager";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import { PatientEducation } from "./PatientEducation";
@@ -965,20 +966,6 @@ function PatientDashboard({
     },
     { unseen: 0, viewed: 0, updated: 0, reshared: 0 },
   );
-  const sharedOverview = [
-    sharedViewCounts.viewed
-      ? `${sharedViewCounts.viewed} ${sharedViewCounts.viewed === 1 ? "visualizado" : "visualizados"}`
-      : "",
-    sharedViewCounts.unseen
-      ? `${sharedViewCounts.unseen} ${sharedViewCounts.unseen === 1 ? "ainda não visualizado" : "ainda não visualizados"}`
-      : "",
-    sharedViewCounts.updated
-      ? `${sharedViewCounts.updated} ${sharedViewCounts.updated === 1 ? "atualizado após visualização" : "atualizados após visualização"}`
-      : "",
-    sharedViewCounts.reshared
-      ? `${sharedViewCounts.reshared} ${sharedViewCounts.reshared === 1 ? "compartilhado novamente" : "compartilhados novamente"}`
-      : "",
-  ].filter(Boolean).join(" · ");
   const visibleEntries = filterAndSortPatientEntries(
     entries,
     entryFilter,
@@ -1041,7 +1028,53 @@ function PatientDashboard({
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <article><span className="overview-number">{loading ? "…" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
-            <article><span className="overview-number">{loading ? "…" : sharedCount}</span><div><strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong><small>{loading ? "Consultando visualizações…" : sharedCount === 0 ? "Nenhum conteúdo visível para ele" : sharedOverview}</small></div></article>
+            <article className="patient-sharing-overview">
+              <span className="overview-number">{loading ? "…" : sharedCount}</span>
+              <div>
+                <strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong>
+                {loading ? (
+                  <small>Consultando visualizações…</small>
+                ) : sharedCount === 0 ? (
+                  <small>Nenhum conteúdo visível para ele</small>
+                ) : (
+                  <span className="patient-sharing-states" aria-label="Visualização dos registros compartilhados">
+                    {sharedViewCounts.viewed ? (
+                      <span className="patient-sharing-state viewed">
+                        <span aria-hidden="true">✓</span>
+                        {sharedViewCounts.viewed} {sharedViewCounts.viewed === 1 ? "visualizado" : "visualizados"}
+                      </span>
+                    ) : null}
+                    {sharedViewCounts.unseen ? (
+                      <span className="patient-sharing-state pending">
+                        <span aria-hidden="true" />
+                        {sharedViewCounts.unseen} {sharedViewCounts.unseen === 1 ? "ainda não visualizado" : "ainda não visualizados"}
+                      </span>
+                    ) : null}
+                    {sharedViewCounts.updated ? (
+                      <span className="patient-sharing-state pending">
+                        <span aria-hidden="true" />
+                        {sharedViewCounts.updated} {sharedViewCounts.updated === 1 ? "atualizado após visualização" : "atualizados após visualização"}
+                      </span>
+                    ) : null}
+                    {sharedViewCounts.reshared ? (
+                      <span className="patient-sharing-state pending">
+                        <span aria-hidden="true" />
+                        {sharedViewCounts.reshared} {sharedViewCounts.reshared === 1 ? "compartilhado novamente" : "compartilhados novamente"}
+                      </span>
+                    ) : null}
+                  </span>
+                )}
+              </div>
+              {!loading && sharedCount > 0 ? (
+                <button
+                  className="patient-sharing-history-link"
+                  type="button"
+                  onClick={() => changeArea("records")}
+                >
+                  Ver no histórico
+                </button>
+              ) : null}
+            </article>
             <a href={config.guide_url} target="_blank" rel="noopener noreferrer"><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções → <span className="sr-status">(abre em nova aba)</span></strong></a>
           </section>
 
@@ -1422,5 +1455,11 @@ export function PortalApp() {
     if (!user) return <Guest config={config} onAuthenticated={authenticated} />;
     return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />} />}<EmergencyFooter config={config} /></>;
   })();
-  return <>{content}{recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}</>;
+  return (
+    <>
+      <AppUpdateManager hasUnsavedDraft={hasUnsavedDraft} />
+      {content}
+      {recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}
+    </>
+  );
 }

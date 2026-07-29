@@ -78,9 +78,6 @@ export function InstallAppButton() {
     window.addEventListener("focus", refreshInstallation);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     displayMode.addEventListener?.("change", refreshInstallation);
-    navigator.serviceWorker?.register("/sw.js").catch(() => {
-      // O portal continua funcionando como site se o navegador não aceitar o registro.
-    });
 
     return () => {
       active = false;
