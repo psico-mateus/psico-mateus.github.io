@@ -1042,29 +1042,32 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .patient-record-summary-copy .status{width:max-content}
 .patient-view-summary{
-  width:max-content;
+  width:fit-content;
   max-width:100%;
   display:inline-flex;
   align-items:center;
-  gap:.35rem;
-  border-radius:999px;
-  background:#f0dfc5;
-  padding:.28rem .62rem;
+  gap:.48rem;
+  margin-top:.3rem;
+  border:1px solid rgba(92,64,26,.17);
+  border-radius:10px;
+  background:#fbf1e3;
+  padding:.48rem .7rem;
   color:#5c401a;
-  font-size:.72rem;
-  font-weight:800;
-  line-height:1.25;
+  font-size:.8rem;
+  font-weight:750;
+  line-height:1.3;
   overflow-wrap:anywhere;
 }
 .patient-view-summary-marker{
-  width:.48rem;
-  height:.48rem;
+  width:.62rem;
+  height:.62rem;
   flex:0 0 auto;
   border-radius:50%;
   background:currentColor;
 }
 .patient-view-summary.viewed{
   background:#e8efe9;
+  border-color:rgba(38,83,67,.16);
   color:#265343;
 }
 .patient-view-summary.viewed .patient-view-summary-marker{
@@ -1235,6 +1238,10 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-record-card>summary{
     grid-template-columns:2rem minmax(0,1fr);
     padding:1rem;
+  }
+  .patient-view-summary{
+    width:100%;
+    min-height:42px;
   }
   .patient-record-toggle{grid-column:2;text-align:left}
   .patient-record-content{padding:0 1rem 1rem}

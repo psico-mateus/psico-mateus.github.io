@@ -339,6 +339,10 @@ test("patient view state is server-derived and excluded from the data export", a
   assert.match(app, /Ainda não visualizado por Mateus/);
   assert.match(app, /Visualizado por Mateus em/);
   assert.match(app, /patient-view-summary/);
+  assert.match(
+    app,
+    /<small>\{formatDate\(entry\.created_at\)\}[\s\S]*?<span className=\{`patient-view-summary \$\{viewStatus\.kind\}`\}>/u,
+  );
   assert.match(app, /patientEntryViewSummary\(viewStatus\)/);
   assert.match(app, /não é acompanhada em tempo real/);
   assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);

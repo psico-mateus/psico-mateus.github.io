@@ -1178,15 +1178,15 @@ function PatientDashboard({
                 <span className="patient-record-summary-copy">
                   <span className="patient-record-statuses">
                     <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
-                    {shared ? (
-                      <span className={`patient-view-summary ${viewStatus.kind}`}>
-                        <span className="patient-view-summary-marker" aria-hidden="true" />
-                        {patientEntryViewSummary(viewStatus)}
-                      </span>
-                    ) : null}
                   </span>
                   <strong>{entry.title}</strong>
                   <small>{formatDate(entry.created_at)} · {entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</small>
+                  {shared ? (
+                    <span className={`patient-view-summary ${viewStatus.kind}`}>
+                      <span className="patient-view-summary-marker" aria-hidden="true" />
+                      {patientEntryViewSummary(viewStatus)}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="patient-record-toggle" aria-hidden="true"><span className="when-closed">Abrir</span><span className="when-open">Fechar</span></span>
               </summary>
