@@ -1111,6 +1111,22 @@ test("professional API groups by stable patient id and filters every detail quer
     dashboard,
     /id="issued-recovery-title" ref=\{titleRef\} tabIndex=\{-1\}/,
   );
+  assert.match(
+    dashboard,
+    /onRevoke\(invitation, event\.currentTarget\)/,
+  );
+  assert.match(
+    dashboard,
+    /item\?\.nextElementSibling\?\.querySelector<HTMLButtonElement>\("button"\)[\s\S]*?item\?\.previousElementSibling/,
+  );
+  assert.match(
+    dashboard,
+    /shouldRestoreFocus = true[\s\S]*?adjacentAction\?\.isConnected[\s\S]*?active-invitations-title[\s\S]*?focusTarget\?\.focus\(\)/,
+  );
+  assert.match(
+    dashboard,
+    /id="active-invitations-title" tabIndex=\{-1\}/,
+  );
   const disclosureToggle =
     dashboard.match(/onToggle=\{\(event\) => \{[\s\S]*?\}\}/u)?.[0] ?? "";
   assert.doesNotMatch(disclosureToggle, /onViewed/u);

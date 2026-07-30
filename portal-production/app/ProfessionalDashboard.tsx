@@ -938,7 +938,7 @@ function InvitationItem({
   invitation: Invitation;
   revoking: boolean;
   disabled?: boolean;
-  onRevoke?: (invitation: Invitation) => void;
+  onRevoke?: (invitation: Invitation, trigger: HTMLButtonElement) => void;
 }) {
   const eventLine =
     invitation.status === "used" && invitation.used_at
@@ -963,7 +963,7 @@ function InvitationItem({
         <button
           className="danger-button compact-button"
           type="button"
-          onClick={() => onRevoke(invitation)}
+          onClick={(event) => onRevoke(invitation, event.currentTarget)}
           disabled={revoking || disabled}
         >
           {revoking ? "Revogando…" : "Revogar"}
@@ -995,7 +995,7 @@ function InvitationsView({
   onCreate: () => void;
   onCopy: () => Promise<void>;
   onHideCode: () => void;
-  onRevoke: (invitation: Invitation) => void;
+  onRevoke: (invitation: Invitation, trigger: HTMLButtonElement) => void;
   onRefresh: () => void;
 }) {
   const [showAllActive, setShowAllActive] = useState(false);
@@ -1092,7 +1092,7 @@ function InvitationsView({
         <>
           <section className="invitation-section" aria-labelledby="active-invitations-title">
             <div className="subsection-heading">
-              <h3 id="active-invitations-title">Convites ativos</h3>
+              <h3 id="active-invitations-title" tabIndex={-1}>Convites ativos</h3>
               <span className="count">{active.length}</span>
             </div>
             {active.length === 0 ? (
@@ -1602,16 +1602,26 @@ export function ProfessionalDashboard({
     await copyText(latestCode);
   }
 
-  async function revokeInvitation(invitation: Invitation) {
+  async function revokeInvitation(
+    invitation: Invitation,
+    trigger: HTMLButtonElement,
+  ) {
     if (revokeInvitationLocks.current.has(invitation.id)) return;
     if (!window.confirm("Revogar este convite?")) return;
+    const item = trigger.closest(".invitation-item");
+    const adjacentAction =
+      item?.nextElementSibling?.querySelector<HTMLButtonElement>("button") ??
+      item?.previousElementSibling?.querySelector<HTMLButtonElement>("button") ??
+      null;
     revokeInvitationLocks.current.add(invitation.id);
     setRevokingIds((current) => new Set(current).add(invitation.id));
     setNotice(null);
     let shouldRefresh = true;
+    let shouldRestoreFocus = false;
     try {
       await portalRequest(`/invitations/${invitation.id}`, { method: "DELETE" }, csrf);
       setNotice({ tone: "success", message: "Convite revogado." });
+      shouldRestoreFocus = true;
     } catch (error) {
       if (isSessionError(error)) {
         shouldRefresh = false;
@@ -1630,6 +1640,16 @@ export function ProfessionalDashboard({
         return next;
       });
       if (shouldRefresh) await loadInvitations();
+      if (shouldRestoreFocus) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            const focusTarget = adjacentAction?.isConnected
+              ? adjacentAction
+              : document.getElementById("active-invitations-title");
+            focusTarget?.focus();
+          });
+        });
+      }
     }
   }
 
@@ -1799,7 +1819,9 @@ export function ProfessionalDashboard({
           onCreate={() => void createInvitation()}
           onCopy={copyLatestCode}
           onHideCode={() => setLatestCode("")}
-          onRevoke={(invitation) => void revokeInvitation(invitation)}
+          onRevoke={(invitation, trigger) =>
+            void revokeInvitation(invitation, trigger)
+          }
           onRefresh={() => void loadInvitations()}
         />
       )}
