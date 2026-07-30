@@ -84,7 +84,7 @@ O portal usa Cloudflare D1. As relações principais são:
 - `users`: contas de pacientes e profissional;
 - `patient_links`: vínculo entre profissional e paciente;
 - `entries`: registros pertencentes ao paciente;
-- `entry_views`: data em que o profissional abriu cada registro compartilhado;
+- `entry_views`: data em que o profissional concluiu deliberadamente a visualização de cada registro compartilhado;
 - `invitations`: convites de uso único, válidos por 7 dias;
 - `sessions`: sessões armazenadas somente pelo hash do token;
 - `assisted_recovery_grants`: validade dos códigos temporários emitidos pelo profissional;
