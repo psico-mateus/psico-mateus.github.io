@@ -799,6 +799,7 @@ function PatientDashboard({
   const [editorDirty, setEditorDirty] = useState(false);
   const [editorAnnouncement, setEditorAnnouncement] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [entriesError, setEntriesError] = useState("");
   const [entryFilter, setEntryFilter] =
     useState<PatientEntrySharingFilter>("all");
@@ -808,23 +809,38 @@ function PatientDashboard({
     Record<string, "sharing" | "removing">
   >({});
   const entryActionLocks = useRef<Set<string>>(new Set());
+  const entriesRequestSequence = useRef(0);
+  const manualRefreshLock = useRef(false);
   const editorOriginRef = useRef<{
     entryId: string;
     scrollY: number;
     trigger: HTMLButtonElement;
   } | null>(null);
   const initialScrollResetRef = useRef(false);
-  const load = useCallback(async () => {
+  const load = useCallback(async (showRefreshing = false) => {
+    const sequence = entriesRequestSequence.current + 1;
+    entriesRequestSequence.current = sequence;
+    if (showRefreshing) setRefreshing(true);
     setEntriesError("");
-    try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
+    try {
+      const result = await portalRequest<{ entries: Entry[] }>("/entries");
+      if (sequence !== entriesRequestSequence.current) return;
+      setEntries(result.entries);
+    }
     catch (error) {
+      if (sequence !== entriesRequestSequence.current) return;
       if (isSessionExpiredError(error)) {
         onSessionLost();
       } else {
         setEntriesError((error as Error).message);
       }
     }
-    finally { setLoading(false); }
+    finally {
+      if (sequence === entriesRequestSequence.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
   }, [onSessionLost]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
@@ -1037,9 +1053,13 @@ function PatientDashboard({
       document.getElementById("education-title")?.focus(),
     );
   }
-  function retryEntries() {
-    setLoading(true);
-    void load();
+  function refreshEntries(retryAfterError = false) {
+    if (manualRefreshLock.current) return;
+    manualRefreshLock.current = true;
+    if (retryAfterError) setLoading(true);
+    void load(!retryAfterError).finally(() => {
+      manualRefreshLock.current = false;
+    });
   }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
@@ -1097,13 +1117,17 @@ function PatientDashboard({
         </button>
       </nav>
 
+      <p className="sr-status" role="status" aria-live="polite">
+        {refreshing ? "Atualizando seus registros." : ""}
+      </p>
+
       {entriesError && area !== "education" ? (
         <div className="panel error-state">
           <Notice
             tone="error"
             message={`${entriesError} Nenhum registro foi alterado por esta tentativa.`}
           />
-          <button className="secondary-button" type="button" onClick={retryEntries}>
+          <button className="secondary-button" type="button" onClick={() => refreshEntries(true)}>
             Tentar carregar os registros novamente
           </button>
         </div>
@@ -1163,15 +1187,25 @@ function PatientDashboard({
                   </span>
                 )}
               </div>
-              {!loading && sharedCount > 0 ? (
+              <div className="patient-sharing-actions">
                 <button
                   className="patient-sharing-history-link"
                   type="button"
-                  onClick={() => changeArea("records")}
+                  disabled={loading || refreshing}
+                  onClick={() => refreshEntries()}
                 >
-                  Ver no histórico
+                  {refreshing ? "Atualizando…" : "Atualizar resumo"}
                 </button>
-              ) : null}
+                {!loading && sharedCount > 0 ? (
+                  <button
+                    className="patient-sharing-history-link"
+                    type="button"
+                    onClick={() => changeArea("records")}
+                  >
+                    Ver no histórico
+                  </button>
+                ) : null}
+              </div>
             </article>
             <a href={config.guide_url} target="_blank" rel="noopener noreferrer"><span>Não sabe bem o que está sentindo?</span><strong>Abrir o Guia de Emoções → <span className="sr-status">(abre em nova aba)</span></strong></a>
           </section>
@@ -1229,6 +1263,14 @@ function PatientDashboard({
                 ? `${visibleEntries.length} de ${entries.length}`
                 : `${entries.length} ${entries.length === 1 ? "registro" : "registros"}`}
             </span>
+            <button
+              className="secondary-button compact-button"
+              type="button"
+              disabled={loading || refreshing}
+              onClick={() => refreshEntries()}
+            >
+              {refreshing ? "Atualizando…" : "Atualizar"}
+            </button>
             {!editing ? <button className="primary-button compact-button" type="button" onClick={openNewRecord}>Novo registro</button> : null}
           </div>
         </div>

@@ -757,9 +757,14 @@ input[type="range"]{accent-color:#9a6d27}
   border-radius:50%;
   background:currentColor;
 }
-.patient-sharing-history-link{
+.patient-sharing-actions{
   grid-column:2;
-  justify-self:start;
+  display:flex;
+  align-items:center;
+  gap:.8rem;
+  flex-wrap:wrap;
+}
+.patient-sharing-history-link{
   min-height:40px;
   border:0;
   background:transparent;

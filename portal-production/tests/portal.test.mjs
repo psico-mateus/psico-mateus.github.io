@@ -241,6 +241,13 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     app,
     /entriesError && entries\.length === 0 \? null : entries\.length === 0/,
   );
+  assert.match(app, /const \[refreshing, setRefreshing\] = useState\(false\)/);
+  assert.match(app, /entriesRequestSequence\.current = sequence/);
+  assert.match(app, /if \(sequence !== entriesRequestSequence\.current\) return/);
+  assert.match(app, /if \(manualRefreshLock\.current\) return/);
+  assert.match(app, /Atualizar resumo/);
+  assert.match(app, /Atualizando seus registros/);
+  assert.match(styles, /\.patient-sharing-actions\{/);
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);
