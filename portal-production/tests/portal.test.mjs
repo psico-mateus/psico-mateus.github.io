@@ -236,6 +236,15 @@ test("patient access and editing refinements remain accessible and loss-aware", 
 
   assert.match(app, /role="group" aria-label="Forma de acesso"/);
   assert.doesNotMatch(app, /role="tablist"/);
+  assert.match(app, /<form className="stack" key=\{mode\} onSubmit=\{submit\}>/);
+  assert.match(
+    app,
+    /aria-pressed=\{mode === "login"\} disabled=\{busy\}/,
+  );
+  assert.match(
+    app,
+    /className="text-action" type="button" disabled=\{busy\}/,
+  );
   assert.match(app, /inputMode="numeric"/);
   assert.match(app, /autoCapitalize="characters"/);
   assert.match(app, /com ou sem espaços e hífens/);

@@ -440,10 +440,10 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
             </p>
           ) : null}
           <div className="tab-list" role="group" aria-label="Forma de acesso">
-            <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
-            <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
+            <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} disabled={busy} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
+            <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} disabled={busy} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
           </div>
-          <form className="stack" onSubmit={submit}>
+          <form className="stack" key={mode} onSubmit={submit}>
             {mode === "register" ? (
               <>
                 <Field
@@ -501,7 +501,7 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
             {message ? <Notice tone={message.startsWith("Senha alterada") ? "success" : "error"} message={message} /> : null}
             <button className="primary-button" disabled={busy}>{busy ? "Aguarde…" : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Alterar senha"}</button>
           </form>
-          {mode === "login" ? <button className="text-action" type="button" onClick={() => { setMode("recover"); setMessage(""); }}>Esqueci minha senha</button> : <button className="text-action" type="button" onClick={() => { setMode("login"); setMessage(""); }}>Voltar para o login</button>}
+          {mode === "login" ? <button className="text-action" type="button" disabled={busy} onClick={() => { setMode("recover"); setMessage(""); }}>Esqueci minha senha</button> : <button className="text-action" type="button" disabled={busy} onClick={() => { setMode("login"); setMessage(""); }}>Voltar para o login</button>}
           {!config.configured ? <details className="setup-details"><summary>Primeiro acesso profissional</summary><SetupPanel onAuthenticated={onAuthenticated} /></details> : null}
         </section>
       </main>
