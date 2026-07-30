@@ -144,7 +144,7 @@ function RecoveryAuthorizationDialog({
           />
         </label>
         <label className="field">
-          <span>Novo código do seu autenticador</span>
+          <span>Código atual do autenticador</span>
           <input
             name="totp"
             inputMode="numeric"
@@ -154,7 +154,10 @@ function RecoveryAuthorizationDialog({
             maxLength={12}
             required
           />
-          <small>Se acabou de entrar, aguarde o próximo código. Você pode colar com espaços ou hífens.</small>
+          <small>
+            Se acabou de entrar, aguarde o número exibido mudar e use o próximo
+            código de 6 dígitos. Você pode colar com espaços ou hífens.
+          </small>
         </label>
         {error ? <Notice tone="error" message={error} /> : null}
         <div className="button-row">
@@ -546,7 +549,7 @@ function PatientList({
       ) : patients.length === 0 ? (
         <div className="empty-state">
           <h3>Nenhum registro criado agora.</h3>
-          <p>As contas continuam disponíveis na área “Pacientes”.</p>
+          <p>As contas continuam disponíveis em “Acessos de pacientes”.</p>
         </div>
       ) : visiblePatients.length === 0 ? (
         <div className="empty-state">
@@ -1623,6 +1626,7 @@ export function ProfessionalDashboard({
             ref={privacyToggleRef}
             className="privacy-mode-toggle active"
             type="button"
+            aria-label="Mostrar dados na tela"
             aria-pressed={true}
             onClick={hidePrivacyMode}
           >
@@ -1673,6 +1677,7 @@ export function ProfessionalDashboard({
             ref={privacyToggleRef}
             className="privacy-mode-toggle"
             type="button"
+            aria-label="Ocultar dados na tela"
             aria-pressed={false}
             onClick={showPrivacyMode}
           >

@@ -245,6 +245,8 @@ test("professional privacy mode renders a sanitized, action-free surface", async
   assert.match(dashboard, /useState\(false\)/u);
   assert.match(dashboard, /Ocultar dados na tela/u);
   assert.match(privacyBranch, /Mostrar dados na tela/u);
+  assert.match(dashboard, /aria-label="Ocultar dados na tela"/u);
+  assert.match(privacyBranch, /aria-label="Mostrar dados na tela"/u);
   assert.match(privacyBranch, /Dados ocultos na tela/u);
   assert.doesNotMatch(
     privacyBranch,
@@ -844,7 +846,8 @@ test("professional API groups by stable patient id and filters every detail quer
     dashboard.match(/onToggle=\{\(event\) => \{[\s\S]*?\}\}/u)?.[0] ?? "";
   assert.doesNotMatch(disclosureToggle, /onViewed/u);
   assert.match(dashboard, /Sua senha profissional/);
-  assert.match(dashboard, /Novo código do seu autenticador/);
+  assert.match(dashboard, /Código atual do autenticador/);
+  assert.match(dashboard, /aguarde o número exibido mudar/);
   assert.match(dashboard, /Ele aparece\s+somente agora/u);
   assert.match(dashboard, /AbortController/);
   assert.match(dashboard, /type="search"/);
