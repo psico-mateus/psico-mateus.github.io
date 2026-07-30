@@ -1025,6 +1025,11 @@ function PatientDashboard({
   async function remove(entry: Entry) {
     if (entryActionLocks.current.has(entry.id)) return;
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
+    const card = document.getElementById(`record-${entry.id}`);
+    const adjacentSummary =
+      card?.nextElementSibling?.querySelector<HTMLElement>("summary") ??
+      card?.previousElementSibling?.querySelector<HTMLElement>("summary") ??
+      null;
     entryActionLocks.current.add(entry.id);
     setEntryActions((current) => ({ ...current, [entry.id]: "removing" }));
     try {
@@ -1032,6 +1037,14 @@ function PatientDashboard({
       setMessageTone("success");
       setMessage("Registro excluído.");
       await load();
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const focusTarget = adjacentSummary?.isConnected
+            ? adjacentSummary
+            : document.getElementById("records-title");
+          focusTarget?.focus();
+        });
+      });
     } catch (error) {
       if (isSessionExpiredError(error)) {
         onSessionLost();

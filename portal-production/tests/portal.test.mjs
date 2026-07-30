@@ -259,6 +259,14 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /entryAction === "removing" \? "Excluindo…"/);
   assert.match(
     app,
+    /card\?\.nextElementSibling\?\.querySelector<HTMLElement>\("summary"\)[\s\S]*?card\?\.previousElementSibling/,
+  );
+  assert.match(
+    app,
+    /const focusTarget = adjacentSummary\?\.isConnected[\s\S]*?document\.getElementById\("records-title"\)[\s\S]*?focusTarget\?\.focus\(\)/,
+  );
+  assert.match(
+    app,
     /const \[entriesError, setEntriesError\] = useState\(""\)/,
   );
   assert.match(app, /Nenhum registro foi alterado por esta tentativa/);
