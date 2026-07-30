@@ -1261,13 +1261,26 @@ function PatientDashboard({
           onCreateRecord={createRecordFromEducation}
         />
       )}
-      {!editing ? <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} /> : null}
+      {!editing ? <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={onSessionLost} /> : null}
     </main>
   );
 }
 
-function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: string; config: Config; setRecovery: (code: string) => void }) {
+function AccountPanel({
+  role,
+  csrf,
+  config,
+  setRecovery,
+  onSessionsEnded,
+}: {
+  role: Role;
+  csrf: string;
+  config: Config;
+  setRecovery: (code: string) => void;
+  onSessionsEnded: () => void;
+}) {
   const [message, setMessage] = useState("");
+  const [endingSessions, setEndingSessions] = useState(false);
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);
     if (form.get("new_password") !== form.get("confirmation")) return setMessage("As novas senhas não coincidem.");
@@ -1284,6 +1297,36 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
     const form = new FormData(event.currentTarget);
     try { await portalRequest("/account", { method: "DELETE", body: JSON.stringify({ current_password: form.get("current_password") }) }, csrf); window.location.reload(); }
     catch (error) { setMessage((error as Error).message); }
+  }
+  async function endAllSessions(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !window.confirm(
+        "Encerrar sua conta em todos os dispositivos? Você precisará entrar novamente. Seus registros e dados não serão apagados.",
+      )
+    ) {
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    setEndingSessions(true);
+    setMessage("");
+    try {
+      await portalRequest(
+        "/account/sessions",
+        {
+          method: "DELETE",
+          body: JSON.stringify({
+            current_password: form.get("current_password"),
+            totp: form.get("totp"),
+          }),
+        },
+        csrf,
+      );
+      onSessionsEnded();
+    } catch (error) {
+      setMessage((error as Error).message);
+      setEndingSessions(false);
+    }
   }
   return (
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
@@ -1309,6 +1352,22 @@ function AccountPanel({ role, csrf, config, setRecovery }: { role: Role; csrf: s
         </form>
       </div>
       {message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}
+      <section className="account-sessions" aria-labelledby={`account-sessions-title-${role}`}>
+        <div>
+          <h3 id={`account-sessions-title-${role}`}>Sessões e dispositivos</h3>
+          <p>
+            Use esta opção se perdeu um aparelho ou deixou sua conta aberta. Você sairá
+            de todos os dispositivos, inclusive deste. Seus registros não serão apagados.
+          </p>
+        </div>
+        <form className="stack" onSubmit={endAllSessions}>
+          <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
+          {role === "therapist" ? <Field label="Novo código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Por segurança, use um código diferente do usado para entrar. Se necessário, aguarde o próximo." required /> : null}
+          <button className="danger-button" disabled={endingSessions}>
+            {endingSessions ? "Encerrando sessões…" : "Encerrar em todos os dispositivos"}
+          </button>
+        </form>
+      </section>
       {role === "patient" ? (
         <div className="patient-account-actions">
           <section className="account-data-copy" aria-labelledby="account-data-copy-title">
@@ -1453,7 +1512,7 @@ export function PortalApp() {
       );
     }
     if (!user) return <Guest config={config} onAuthenticated={authenticated} />;
-    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={clear} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>

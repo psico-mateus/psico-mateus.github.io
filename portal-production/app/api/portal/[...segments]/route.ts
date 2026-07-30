@@ -92,6 +92,7 @@ function technicalRoute(path: string): string {
     "/account",
     "/account/password",
     "/account/recovery-code",
+    "/account/sessions",
     "/professional/patients",
     "/professional/accesses",
   ]);
@@ -1218,9 +1219,56 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
 }
 
 async function handleDelete(request: Request, path: string): Promise<Response> {
-  const { DB } = getPortalEnv();
+  const { DB, APP_SECRET } = getPortalEnv();
   const session = await requireSession(request);
   requireCsrf(request, session);
+  if (path === "/account/sessions") {
+    const input = await readJson(request);
+    const user = (await DB.prepare("SELECT * FROM users WHERE id = ?")
+      .bind(session.userId)
+      .first<UserRow>()) as UserRow;
+    if (
+      !(await passwordMatches(
+        String(input.current_password ?? ""),
+        user.password_salt,
+        user.password_hash,
+        user.password_iterations,
+      ))
+    ) {
+      throw new PortalError(400, "A senha atual não confere.");
+    }
+
+    if (user.role === "therapist") {
+      if (!user.totp_secret || !user.totp_enabled) {
+        throw new PortalError(400, "O MFA profissional não está configurado.");
+      }
+      const verification = await verifyTotp(
+        await decrypt(APP_SECRET, user.totp_secret),
+        String(input.totp ?? ""),
+        user.last_totp_counter,
+      );
+      if (!verification.valid || verification.counter === null) {
+        throw new PortalError(
+          400,
+          "O código do autenticador não confere. Se acabou de entrar, aguarde o próximo código.",
+        );
+      }
+      await DB.batch([
+        DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?").bind(
+          verification.counter,
+          user.id,
+        ),
+        DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+        prepareAudit(user.id, "revoke_all_sessions", "account"),
+      ]);
+    } else {
+      await DB.batch([
+        DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+        prepareAudit(user.id, "revoke_all_sessions", "account"),
+      ]);
+    }
+    return noContent({ "Set-Cookie": clearSessionCookie(request) });
+  }
   const invitation = path.match(/^\/invitations\/([A-Za-z0-9_-]+)$/u);
   if (invitation) {
     if (session.role !== "therapist") throw new PortalError(403, "Ação não permitida.");

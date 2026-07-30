@@ -533,6 +533,77 @@ assert.deepEqual(
   new Set([privateEntryA, sharedEntryA]),
 );
 
+const patientASecondSession = session();
+const patientASecondLogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: synthetic.patientPasswordA,
+  },
+  auth: patientASecondSession,
+});
+expectStatus(patientASecondLogin, 200, "segunda sessão do paciente");
+
+const revokeSessionsWithoutCsrf = await api("/account/sessions", {
+  method: "DELETE",
+  body: { current_password: synthetic.patientPasswordA },
+  auth: patientA,
+  includeCsrf: false,
+});
+expectStatus(revokeSessionsWithoutCsrf, 403, "revogação de sessões sem CSRF");
+
+const revokeSessionsWrongPassword = await api("/account/sessions", {
+  method: "DELETE",
+  body: { current_password: "SenhaPacienteIncorreta123" },
+  auth: patientA,
+});
+expectStatus(
+  revokeSessionsWrongPassword,
+  400,
+  "revogação de sessões sem a senha atual",
+);
+expectStatus(
+  await api("/entries", { auth: patientASecondSession }),
+  200,
+  "segunda sessão preservada após confirmação inválida",
+);
+
+const revokePatientSessions = await api("/account/sessions", {
+  method: "DELETE",
+  body: { current_password: synthetic.patientPasswordA },
+  auth: patientA,
+});
+expectStatus(revokePatientSessions, 204, "revogação de todas as sessões do paciente");
+expectStatus(
+  await api("/entries", { auth: patientA }),
+  401,
+  "sessão atual encerrada pela revogação global",
+);
+expectStatus(
+  await api("/entries", { auth: patientASecondSession }),
+  401,
+  "segunda sessão encerrada pela revogação global",
+);
+
+const patientReloginAfterSessionRevocation = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: synthetic.patientPasswordA,
+  },
+  auth: patientA,
+});
+expectStatus(
+  patientReloginAfterSessionRevocation,
+  200,
+  "novo login depois de encerrar todos os dispositivos",
+);
+expectStatus(
+  await api("/entries", { auth: patientA }),
+  200,
+  "registros preservados após encerrar todas as sessões",
+);
+
 const patientCannotListProfessional = await api("/professional/patients", {
   auth: patientA,
 });
@@ -1201,7 +1272,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 115,
+    checks: 124,
     data: "synthetic-only",
     production_requests: 0,
   }),

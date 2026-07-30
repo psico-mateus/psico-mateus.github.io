@@ -93,6 +93,10 @@ O portal usa Cloudflare D1. As relações principais são:
 
 O cadastro de paciente exige convite, confirmação de 18 anos ou mais e aceite do aviso de privacidade. Registros nascem privados. O servidor filtra o acesso profissional por vínculo ativo e compartilhamento atual. O acesso profissional exige MFA.
 
+Pacientes e profissional podem encerrar todas as sessões da própria conta em caso
+de aparelho perdido ou acesso esquecido. A ação exige a senha atual, exige também
+um novo código MFA no perfil profissional e não altera nem exclui registros.
+
 O painel profissional marca um registro como visto depois que Mateus abre o conteúdo e conclui a leitura. Uma edição ou um novo compartilhamento posterior faz o registro voltar à lista de pendências. Esse estado organiza a leitura e não permite editar, responder ou transformar o texto do paciente em prontuário. O paciente vê a data da visualização apenas nos próprios registros compartilhados; registros privados não exibem estado profissional.
 
 A área “Leitura complementar” reúne conteúdo estático de psicoeducação para pacientes

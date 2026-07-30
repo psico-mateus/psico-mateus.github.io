@@ -473,6 +473,29 @@ test("patient data copy explains private records and device responsibility", asy
   assert.match(app, /Esta ação apaga permanentemente sua conta/);
 });
 
+test("account owner can securely revoke every open session", async () => {
+  const [app, route] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(app, /Sessões e dispositivos/);
+  assert.match(app, /Encerrar em todos os dispositivos/);
+  assert.match(app, /Seus registros não serão apagados/);
+  assert.match(app, /method: "DELETE"/);
+  assert.match(app, /current_password: form\.get\("current_password"\)/);
+  assert.match(app, /totp: form\.get\("totp"\)/);
+  assert.match(route, /path === "\/account\/sessions"/);
+  assert.match(route, /passwordMatches\(/);
+  assert.match(route, /user\.role === "therapist"[\s\S]*?verifyTotp\(/u);
+  assert.match(route, /DELETE FROM sessions WHERE user_id = \?/);
+  assert.match(route, /revoke_all_sessions/);
+  assert.match(route, /clearSessionCookie\(request\)/);
+});
+
 test("copy buttons support Safari fallback and keep codes selectable", async () => {
   const [app, clipboard, dashboard, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
