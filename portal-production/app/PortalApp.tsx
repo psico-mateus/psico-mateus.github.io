@@ -651,12 +651,12 @@ function EntryForm({
         </div>
         <label className="field">
           <span className="field-label-line"><span>Título breve</span><small>Necessário</small></span>
-          <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required aria-describedby={guidance ? "education-entry-guidance" : undefined} />
+          <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required disabled={busy} aria-describedby={guidance ? "education-entry-guidance" : undefined} />
           <CharacterLimit value={draft.title} maxLength={120} />
         </label>
         <label className="field">
           <span className="field-label-line"><span>O que aconteceu?</span><small>Necessário</small></span>
-          <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required />
+          <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required disabled={busy} />
           <CharacterLimit value={draft.happened} maxLength={2000} />
         </label>
       </section>
@@ -669,7 +669,7 @@ function EntryForm({
         <div className="emotion-row">
           <div className="field">
             <label htmlFor="entry-emotion"><span>Emoção principal, se souber</span></label>
-            <input id="entry-emotion" value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} />
+            <input id="entry-emotion" value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} disabled={busy} />
             <CharacterLimit value={draft.emotion} maxLength={120} />
             <a
               className="field-help-link"
@@ -683,13 +683,13 @@ function EntryForm({
           </div>
           <div className="field range-field">
             <label htmlFor="entry-intensity">Intensidade percebida: <strong>{draft.intensity}</strong>/10</label>
-            <input id="entry-intensity" type="range" min="0" max="10" value={draft.intensity} onChange={(e) => update("intensity", Number(e.target.value))} />
+            <input id="entry-intensity" type="range" min="0" max="10" value={draft.intensity} onChange={(e) => update("intensity", Number(e.target.value))} disabled={busy} />
             <small className="range-scale"><span>0 · muito leve</span><span>10 · muito intensa</span></small>
             <div className="range-adjustments" aria-label="Ajustar intensidade sem arrastar">
               <button
                 type="button"
                 onClick={() => update("intensity", Math.max(0, draft.intensity - 1))}
-                disabled={draft.intensity === 0}
+                disabled={busy || draft.intensity === 0}
               >
                 − Diminuir
               </button>
@@ -697,7 +697,7 @@ function EntryForm({
               <button
                 type="button"
                 onClick={() => update("intensity", Math.min(10, draft.intensity + 1))}
-                disabled={draft.intensity === 10}
+                disabled={busy || draft.intensity === 10}
               >
                 Aumentar +
               </button>
@@ -720,22 +720,22 @@ function EntryForm({
         <div className="two-columns optional-fields">
           <label className="field">
             <span>O que percebeu no corpo?</span>
-            <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} />
+            <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} />
             <CharacterLimit value={draft.body} maxLength={1500} />
           </label>
           <label className="field">
             <span>Quais pensamentos apareceram?</span>
-            <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} />
+            <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} />
             <CharacterLimit value={draft.thoughts} maxLength={1500} />
           </label>
           <label className="field">
             <span>O que teve vontade de fazer?</span>
-            <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} />
+            <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} />
             <CharacterLimit value={draft.urge} maxLength={1500} />
           </label>
           <label className="field">
             <span>Há algo que queira levar para a sessão?</span>
-            <textarea value={draft.message} maxLength={1500} rows={4} placeholder="Uma dúvida, assunto ou ponto que queira lembrar depois." onChange={(e) => update("message", e.target.value)} />
+            <textarea value={draft.message} maxLength={1500} rows={4} placeholder="Uma dúvida, assunto ou ponto que queira lembrar depois." onChange={(e) => update("message", e.target.value)} disabled={busy} />
             <CharacterLimit value={draft.message} maxLength={1500} />
           </label>
         </div>

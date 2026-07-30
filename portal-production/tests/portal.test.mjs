@@ -219,6 +219,12 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     2,
   );
   assert.match(app, /disabled=\{busy\}>Cancelar/);
+  assert.equal(
+    app.match(/onChange=\{\(e\) => update\([^\n]+disabled=\{busy\}/g)?.length,
+    8,
+  );
+  assert.match(app, /disabled=\{busy \|\| draft\.intensity === 0\}/);
+  assert.match(app, /disabled=\{busy \|\| draft\.intensity === 10\}/);
   assert.match(app, /Atualizando compartilhamento…/);
   assert.match(app, /entryAction === "removing" \? "Excluindo…"/);
   assert.match(installButton, /beforeinstallprompt/);
