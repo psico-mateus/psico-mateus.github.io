@@ -194,6 +194,10 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     /<Guest[\s\S]*?onRecoveryCode=\{setRecovery\}/,
   );
   assert.match(app, /<RecoveryCard code=\{recovery\}/);
+  assert.match(
+    app,
+    /previouslyFocused\?\.isConnected[\s\S]*?document\.getElementById\("conteudo"\)\?\.focus\(\)/,
+  );
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);

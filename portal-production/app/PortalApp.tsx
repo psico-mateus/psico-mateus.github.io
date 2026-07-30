@@ -228,7 +228,11 @@ function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) 
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     titleRef.current?.focus();
     return () => {
-      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus();
+      } else {
+        document.getElementById("conteudo")?.focus();
+      }
     };
   }, []);
   function keepFocusInside(event: KeyboardEvent<HTMLElement>) {
