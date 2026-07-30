@@ -57,6 +57,7 @@ pnpm lint
 pnpm build
 pnpm test
 pnpm test:restore-local
+pnpm test:smoke-public
 ```
 
 `pnpm test` executa o build antes dos testes.
@@ -72,6 +73,12 @@ requer `PORTAL_TEST_BASE_URL`, `PORTAL_TEST_SETUP_SECRET` e
 `PORTAL_TEST_DB_PATH`, apontando para o SQLite local criado pelo Miniflare. O
 caminho do banco é usado somente para simular a expiração de um convite
 sintético; a suíte recusa URLs que não sejam locais.
+
+`pnpm test:smoke-public` faz somente consultas públicas de leitura ao site, ao
+Guia e aos dois endereços do portal. Ele confirma disponibilidade, o endpoint
+público de saúde, ausência de criação de sessão e os cabeçalhos essenciais de
+proteção. O comando não faz login, não envia dados, não consulta registros e não
+substitui os testes autenticados em ambiente local sintético.
 
 ## Configuração local
 

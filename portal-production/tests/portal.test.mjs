@@ -944,6 +944,28 @@ test("local restore rehearsal stays synthetic and offline", async () => {
   );
 });
 
+test("public smoke check stays unauthenticated and read-only", async () => {
+  const [script, packageText] = await Promise.all([
+    readFile(new URL("../scripts/smoke-public.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  const packageJson = JSON.parse(packageText);
+
+  assert.equal(
+    packageJson.scripts["test:smoke-public"],
+    "node scripts/smoke-public.mjs",
+  );
+  assert.match(script, /scope: "public-read-only"/u);
+  assert.match(script, /authenticated_requests: 0/u);
+  assert.match(script, /production_writes: 0/u);
+  assert.match(script, /method: "GET"/u);
+  assert.match(script, /\/api\/portal\/health/u);
+  assert.doesNotMatch(
+    script,
+    /method:\s*"(?:POST|PUT|PATCH|DELETE)"|authorization|x-csrf-token|cookie\s*:/iu,
+  );
+});
+
 test("unexpected registration errors emit only bounded technical metadata", async () => {
   const route = await readFile(
     new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
