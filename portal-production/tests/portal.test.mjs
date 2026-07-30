@@ -29,7 +29,44 @@ import {
   remainingCharactersNearLimit,
 } from "../app/patient-dashboard-data.ts";
 import { copyText } from "../app/copy-text.ts";
-import { formatViewTimestamp } from "../app/portal-client.ts";
+import {
+  PortalRequestError,
+  formatViewTimestamp,
+  portalRequest,
+} from "../app/portal-client.ts";
+
+test("portal requests translate connection and malformed-response failures", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => {
+      throw new TypeError("fetch failed");
+    };
+    await assert.rejects(
+      portalRequest("/entries"),
+      (error) =>
+        error instanceof PortalRequestError &&
+        error.status === 0 &&
+        error.message ===
+          "Não foi possível se conectar. Verifique sua internet e tente novamente.",
+    );
+
+    globalThis.fetch = async () =>
+      new Response("<html>resposta inesperada</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    await assert.rejects(
+      portalRequest("/entries"),
+      (error) =>
+        error instanceof PortalRequestError &&
+        error.status === 502 &&
+        error.message ===
+          "A resposta do serviço não pôde ser lida. Tente novamente.",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 test("passwords are salted and verified", async () => {
   assert.equal(PASSWORD_ITERATIONS, 100_000);

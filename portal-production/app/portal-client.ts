@@ -16,11 +16,20 @@ export async function portalRequest<T>(
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
   if (csrf) headers.set("x-csrf-token", csrf);
-  const response = await fetch(`/api/portal${path}`, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`/api/portal${path}`, {
+      ...init,
+      headers,
+      credentials: "same-origin",
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new PortalRequestError(
+      0,
+      "Não foi possível se conectar. Verifique sua internet e tente novamente.",
+    );
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new PortalRequestError(
@@ -29,7 +38,14 @@ export async function portalRequest<T>(
     );
   }
   if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new PortalRequestError(
+      502,
+      "A resposta do serviço não pôde ser lida. Tente novamente.",
+    );
+  }
 }
 
 export function formatDate(value: string): string {
