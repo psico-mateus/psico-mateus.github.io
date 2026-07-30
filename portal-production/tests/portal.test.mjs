@@ -1062,6 +1062,47 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(dashboard, /Vistos/);
   assert.match(dashboard, /Salvando visualização/);
   assert.match(dashboard, /Concluir visualização/);
+  assert.match(dashboard, /const restoreFocusAfterView = useRef\(false\)/);
+  assert.match(
+    dashboard,
+    /if \(!restoreFocusAfterView\.current \|\| viewing\) return;[\s\S]*?if \(!unread\) summaryRef\.current\?\.focus\(\)/,
+  );
+  assert.match(
+    dashboard,
+    /restoreFocusAfterView\.current = true;[\s\S]*?onViewed\(entry\.id\)/,
+  );
+  assert.match(
+    dashboard,
+    /setNotice\(null\);[\s\S]*?Visualização confirmada\. O paciente poderá ver essa confirmação no histórico\./,
+  );
+  assert.match(
+    dashboard,
+    /onGenerateRecovery\(patient, event\.currentTarget\)/,
+  );
+  assert.match(
+    dashboard,
+    /const recoveryTriggerRef = useRef<HTMLButtonElement \| null>\(null\)/,
+  );
+  assert.match(
+    dashboard,
+    /if \(trigger\?\.isConnected\)[\s\S]*?trigger\.focus\(\)[\s\S]*?patient-access-title/,
+  );
+  assert.equal(
+    dashboard.match(/restoreRecoveryTriggerFocus\(\);/g)?.length,
+    2,
+  );
+  assert.match(
+    dashboard,
+    /id="patient-access-title" tabIndex=\{-1\}/,
+  );
+  assert.match(
+    dashboard,
+    /const titleRef = useRef<HTMLHeadingElement>\(null\)[\s\S]*?titleRef\.current\?\.focus\(\)/,
+  );
+  assert.match(
+    dashboard,
+    /id="issued-recovery-title" ref=\{titleRef\} tabIndex=\{-1\}/,
+  );
   const disclosureToggle =
     dashboard.match(/onToggle=\{\(event\) => \{[\s\S]*?\}\}/u)?.[0] ?? "";
   assert.doesNotMatch(disclosureToggle, /onViewed/u);

@@ -186,11 +186,13 @@ function IssuedRecoveryDialog({
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
+    titleRef.current?.focus();
   }, []);
 
   async function copy() {
@@ -213,7 +215,7 @@ function IssuedRecoveryDialog({
         <div className="assisted-recovery-heading">
           <div>
             <p className="eyebrow">CÓDIGO CRIADO</p>
-            <h2 id="issued-recovery-title">
+            <h2 id="issued-recovery-title" ref={titleRef} tabIndex={-1}>
               Entregue diretamente ao paciente
             </h2>
           </div>
@@ -354,6 +356,8 @@ function RecordDisclosure({
 }) {
   const [open, setOpen] = useState(false);
   const unread = Boolean(entry.is_unread);
+  const summaryRef = useRef<HTMLElement>(null);
+  const restoreFocusAfterView = useRef(false);
   const details = [
     ["O que aconteceu", entry.happened],
     ["Percepções no corpo", entry.body],
@@ -361,6 +365,12 @@ function RecordDisclosure({
     ["Vontade de agir", entry.urge],
     ["Para levar à sessão", entry.message],
   ].filter((item): item is [string, string] => Boolean(item[1]));
+
+  useEffect(() => {
+    if (!restoreFocusAfterView.current || viewing) return;
+    restoreFocusAfterView.current = false;
+    if (!unread) summaryRef.current?.focus();
+  }, [unread, viewing]);
 
   return (
     <details
@@ -371,7 +381,7 @@ function RecordDisclosure({
         setOpen(nextOpen);
       }}
     >
-      <summary>
+      <summary ref={summaryRef}>
         <span className="record-summary-main">
           <span
             className={`record-view-state ${unread ? "unread" : "viewed"}`}
@@ -418,7 +428,10 @@ function RecordDisclosure({
               className="primary-button"
               type="button"
               disabled={viewing}
-              onClick={() => onViewed(entry.id)}
+              onClick={() => {
+                restoreFocusAfterView.current = true;
+                onViewed(entry.id);
+              }}
             >
               {viewing ? "Salvando visualização…" : "Concluir visualização"}
             </button>
@@ -767,7 +780,10 @@ function PatientAccessView({
   onQueryChange: (value: string) => void;
   onRefresh: () => void;
   onChangeAccess: (patient: PatientAccess, active: boolean) => void;
-  onGenerateRecovery: (patient: PatientAccess) => void;
+  onGenerateRecovery: (
+    patient: PatientAccess,
+    trigger: HTMLButtonElement,
+  ) => void;
 }) {
   const visiblePatients = useMemo(
     () => filterPatientAccesses(patients, query),
@@ -782,7 +798,7 @@ function PatientAccessView({
       <div className="section-heading professional-section-heading">
         <div>
           <p className="eyebrow">CONTROLE DE ACESSO</p>
-          <h2 id="patient-access-title">Acessos de pacientes</h2>
+          <h2 id="patient-access-title" tabIndex={-1}>Acessos de pacientes</h2>
           <p className="section-description">
             {activeCount} {activeCount === 1 ? "acesso ativo" : "acessos ativos"}.
             Use a revogação quando o acompanhamento terminar.
@@ -883,7 +899,9 @@ function PatientAccessView({
                     <button
                       className="secondary-button"
                       type="button"
-                      onClick={() => onGenerateRecovery(patient)}
+                      onClick={(event) =>
+                        onGenerateRecovery(patient, event.currentTarget)
+                      }
                       disabled={updating || loading}
                     >
                       Gerar recuperação
@@ -1189,6 +1207,19 @@ export function ProfessionalDashboard({
   const createInvitationLock = useRef(false);
   const revokeInvitationLocks = useRef<Set<string>>(new Set());
   const privacyToggleRef = useRef<HTMLButtonElement>(null);
+  const recoveryTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  function restoreRecoveryTriggerFocus() {
+    const trigger = recoveryTriggerRef.current;
+    recoveryTriggerRef.current = null;
+    window.requestAnimationFrame(() => {
+      if (trigger?.isConnected) {
+        trigger.focus();
+        return;
+      }
+      document.getElementById("patient-access-title")?.focus();
+    });
+  }
 
   const expireSession = useCallback(() => {
     patientRequest.current?.abort();
@@ -1386,6 +1417,7 @@ export function ProfessionalDashboard({
     if (!entry || !entry.is_unread) return;
     viewingEntryLocks.current.add(entryId);
     setViewingEntryIds((current) => new Set(current).add(entryId));
+    setNotice(null);
     try {
       const result = await portalRequest<{ viewed_at: string }>(
         `/professional/entries/${encodeURIComponent(entryId)}/viewed`,
@@ -1412,6 +1444,11 @@ export function ProfessionalDashboard({
           current ? updatePatient(current) : current,
         );
       }
+      setNotice({
+        tone: "success",
+        message:
+          "Visualização confirmada. O paciente poderá ver essa confirmação no histórico.",
+      });
     } catch (error) {
       if (!isSessionError(error)) {
         setNotice({
@@ -1744,7 +1781,8 @@ export function ProfessionalDashboard({
           onChangeAccess={(patient, active) =>
             void changePatientAccess(patient, active)
           }
-          onGenerateRecovery={(patient) => {
+          onGenerateRecovery={(patient, trigger) => {
+            recoveryTriggerRef.current = trigger;
             setRecoveryError("");
             setIssuedRecovery(null);
             setRecoveryPatient(patient);
@@ -1776,6 +1814,7 @@ export function ProfessionalDashboard({
             if (issuingRecovery) return;
             setRecoveryPatient(null);
             setRecoveryError("");
+            restoreRecoveryTriggerFocus();
           }}
           onSubmit={(currentPassword, totp) =>
             void issuePatientRecovery(currentPassword, totp)
@@ -1785,7 +1824,10 @@ export function ProfessionalDashboard({
       {issuedRecovery ? (
         <IssuedRecoveryDialog
           recovery={issuedRecovery}
-          onClose={() => setIssuedRecovery(null)}
+          onClose={() => {
+            setIssuedRecovery(null);
+            restoreRecoveryTriggerFocus();
+          }}
         />
       ) : null}
     </main>
