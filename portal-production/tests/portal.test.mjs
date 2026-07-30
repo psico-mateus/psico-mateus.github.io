@@ -227,6 +227,20 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /disabled=\{busy \|\| draft\.intensity === 10\}/);
   assert.match(app, /Atualizando compartilhamento…/);
   assert.match(app, /entryAction === "removing" \? "Excluindo…"/);
+  assert.match(
+    app,
+    /const \[entriesError, setEntriesError\] = useState\(""\)/,
+  );
+  assert.match(app, /Nenhum registro foi alterado por esta tentativa/);
+  assert.match(app, /Tentar carregar os registros novamente/);
+  assert.equal(
+    app.match(/entriesError && entries\.length === 0 \? "—"/g)?.length,
+    2,
+  );
+  assert.match(
+    app,
+    /entriesError && entries\.length === 0 \? null : entries\.length === 0/,
+  );
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);

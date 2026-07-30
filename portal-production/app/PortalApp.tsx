@@ -799,6 +799,7 @@ function PatientDashboard({
   const [editorDirty, setEditorDirty] = useState(false);
   const [editorAnnouncement, setEditorAnnouncement] = useState("");
   const [loading, setLoading] = useState(true);
+  const [entriesError, setEntriesError] = useState("");
   const [entryFilter, setEntryFilter] =
     useState<PatientEntrySharingFilter>("all");
   const [entryQuery, setEntryQuery] = useState("");
@@ -814,13 +815,13 @@ function PatientDashboard({
   } | null>(null);
   const initialScrollResetRef = useRef(false);
   const load = useCallback(async () => {
+    setEntriesError("");
     try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
     catch (error) {
       if (isSessionExpiredError(error)) {
         onSessionLost();
       } else {
-        setMessageTone("error");
-        setMessage((error as Error).message);
+        setEntriesError((error as Error).message);
       }
     }
     finally { setLoading(false); }
@@ -1036,6 +1037,10 @@ function PatientDashboard({
       document.getElementById("education-title")?.focus(),
     );
   }
+  function retryEntries() {
+    setLoading(true);
+    void load();
+  }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
   const sharedViewCounts = entries.reduce(
@@ -1092,6 +1097,18 @@ function PatientDashboard({
         </button>
       </nav>
 
+      {entriesError && area !== "education" ? (
+        <div className="panel error-state">
+          <Notice
+            tone="error"
+            message={`${entriesError} Nenhum registro foi alterado por esta tentativa.`}
+          />
+          <button className="secondary-button" type="button" onClick={retryEntries}>
+            Tentar carregar os registros novamente
+          </button>
+        </div>
+      ) : null}
+
       {area === "home" ? (
         <section className="patient-home" aria-labelledby="patient-home-title">
           <section className="dashboard-hero patient-hero">
@@ -1108,9 +1125,9 @@ function PatientDashboard({
           </section>
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
-            <article><span className="overview-number">{loading ? "…" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
+            <article><span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Seu histórico nesta conta</small></div></article>
             <article className="patient-sharing-overview">
-              <span className="overview-number">{loading ? "…" : sharedCount}</span>
+              <span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : sharedCount}</span>
               <div>
                 <strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong>
                 {loading ? (
@@ -1219,7 +1236,7 @@ function PatientDashboard({
           <span>Está difícil nomear o que sentiu?</span>
           <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>
         </a>
-        {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entries.length === 0 ? (
+        {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entriesError && entries.length === 0 ? null : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
             <h3>Seu histórico começa quando você quiser.</h3>
