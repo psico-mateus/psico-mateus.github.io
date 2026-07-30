@@ -209,6 +209,18 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Gerando código…/);
   assert.match(app, /disabled=\{deletingAccount\}/);
   assert.match(app, /Excluindo conta…/);
+  assert.equal(
+    app.match(/if \(requestInFlight\.current\) return/g)?.length,
+    3,
+  );
+  assert.match(app, /if \(submissionInFlight\.current\) return/);
+  assert.equal(
+    app.match(/if \(entryActionLocks\.current\.has\(entry\.id\)\) return/g)?.length,
+    2,
+  );
+  assert.match(app, /disabled=\{busy\}>Cancelar/);
+  assert.match(app, /Atualizando compartilhamento…/);
+  assert.match(app, /entryAction === "removing" \? "Excluindo…"/);
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);
@@ -265,7 +277,10 @@ test("patient access and editing refinements remain accessible and loss-aware", 
 
   assert.match(app, /role="group" aria-label="Forma de acesso"/);
   assert.doesNotMatch(app, /role="tablist"/);
-  assert.match(app, /<form className="stack" key=\{mode\} onSubmit=\{submit\}>/);
+  assert.match(
+    app,
+    /<form className="stack" key=\{mode\} onSubmit=\{submit\} aria-busy=\{busy\}>/,
+  );
   assert.match(
     app,
     /aria-pressed=\{mode === "login"\} disabled=\{busy\}/,

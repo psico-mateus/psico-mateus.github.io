@@ -311,11 +311,14 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
   const [recovery, setRecovery] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const requestInFlight = useRef(false);
 
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (requestInFlight.current) return;
     const form = new FormData(event.currentTarget);
     if (form.get("password") !== form.get("confirmation")) return setMessage("As senhas não coincidem.");
+    requestInFlight.current = true;
     setBusy(true); setMessage("");
     try {
       const result = await portalRequest<{ recovery_code: string; totp_secret: string }>("/setup", {
@@ -329,12 +332,17 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
       setTotpSecret(result.totp_secret);
       setRecovery(result.recovery_code);
       setStep("confirm");
-    } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
+    } catch (error) { setMessage((error as Error).message); } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
   }
 
   async function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (requestInFlight.current) return;
     const form = new FormData(event.currentTarget);
+    requestInFlight.current = true;
     setBusy(true); setMessage("");
     try {
       const result = await portalRequest<{ user: User; csrf: string }>("/setup/confirm", {
@@ -342,11 +350,14 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
         body: JSON.stringify({ setup_secret: setupSecret, email, totp: form.get("totp") }),
       });
       onAuthenticated(result.user, result.csrf, recovery);
-    } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
+    } catch (error) { setMessage((error as Error).message); } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
   }
 
   if (step === "confirm") return (
-    <form className="stack" onSubmit={confirm}>
+    <form className="stack" onSubmit={confirm} aria-busy={busy}>
       <h3>Proteja o acesso profissional</h3>
       <p>Adicione uma conta manualmente no seu aplicativo autenticador usando esta chave:</p>
       <code className="secret-code">{totpSecret}</code>
@@ -368,7 +379,7 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
   );
 
   return (
-    <form className="stack" onSubmit={start}>
+    <form className="stack" onSubmit={start} aria-busy={busy}>
       <h3>Configuração inicial do profissional</h3>
       <p>Esta etapa só é feita uma vez por Mateus.</p>
       <Field label="Código de configuração" name="setup_secret" type="password" autoComplete="off" required />
@@ -394,13 +405,16 @@ function Guest({
   const [mode, setMode] = useState<"login" | "register" | "recover">("login");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const requestInFlight = useRef(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (requestInFlight.current) return;
     const form = new FormData(event.currentTarget);
     if ((mode === "register" || mode === "recover") && form.get("password") !== form.get("confirmation")) {
       setMessage("As senhas não coincidem."); return;
     }
+    requestInFlight.current = true;
     setBusy(true); setMessage("");
     try {
       if (mode === "login") {
@@ -425,7 +439,10 @@ function Guest({
         setMessage("Senha alterada. Guarde o novo código de recuperação antes de entrar.");
         onRecoveryCode(result.recovery_code);
       }
-    } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
+    } catch (error) { setMessage((error as Error).message); } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
   }
 
   return (
@@ -466,7 +483,7 @@ function Guest({
             <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} disabled={busy} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
             <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} disabled={busy} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
           </div>
-          <form className="stack" key={mode} onSubmit={submit}>
+          <form className="stack" key={mode} onSubmit={submit} aria-busy={busy}>
             {mode === "register" ? (
               <>
                 <Field
@@ -586,6 +603,7 @@ function EntryForm({
   const [draft, setDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const submissionInFlight = useRef(false);
   const dirty = (Object.keys(originalDraft) as Array<keyof EntryDraft>).some(
     (key) => draft[key] !== originalDraft[key],
   );
@@ -595,11 +613,18 @@ function EntryForm({
   }, [dirty, onDirtyChange]);
   function update(name: keyof EntryDraft, value: string | number) { setDraft((current) => ({ ...current, [name]: value })); }
   async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setMessage("");
-    try { await onSave(draft); } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
+    event.preventDefault();
+    if (submissionInFlight.current) return;
+    submissionInFlight.current = true;
+    setBusy(true);
+    setMessage("");
+    try { await onSave(draft); } catch (error) { setMessage((error as Error).message); } finally {
+      submissionInFlight.current = false;
+      setBusy(false);
+    }
   }
   return (
-    <form className="entry-form panel patient-entry-form" id="entry-editor" onSubmit={submit}>
+    <form className="entry-form panel patient-entry-form" id="entry-editor" onSubmit={submit} aria-busy={busy}>
       {guidance ? (
         <p className="education-entry-guidance" id="education-entry-guidance">
           {guidance}
@@ -611,7 +636,7 @@ function EntryForm({
           <h2 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
           <p>Comece pelo que estiver mais claro agora.</p>
         </div>
-        <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário">
+        <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário" disabled={busy}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
@@ -734,7 +759,7 @@ function EntryForm({
           </p>
         </div>
         <div className="button-row">
-          <button className="secondary-button" type="button" onClick={onCancel}>Cancelar</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={busy}>Cancelar</button>
           <button className="primary-button" disabled={busy}>
             {busy ? "Salvando…" : initial ? "Salvar alterações" : "Salvar registro privado"}
           </button>
@@ -778,6 +803,10 @@ function PatientDashboard({
     useState<PatientEntrySharingFilter>("all");
   const [entryQuery, setEntryQuery] = useState("");
   const [entrySort, setEntrySort] = useState<PatientEntrySort>("newest");
+  const [entryActions, setEntryActions] = useState<
+    Record<string, "sharing" | "removing">
+  >({});
+  const entryActionLocks = useRef<Set<string>>(new Set());
   const editorOriginRef = useRef<{
     entryId: string;
     scrollY: number;
@@ -866,11 +895,14 @@ function PatientDashboard({
     });
   }
   async function sharing(entry: Entry) {
+    if (entryActionLocks.current.has(entry.id)) return;
     const shared = isEntryShared(entry);
     const question = shared
       ? "Mateus deixará de ver este registro. Retirar o compartilhamento?"
       : "Compartilhar este registro com Mateus? Ele poderá lê-lo no painel profissional, mas não editá-lo.";
     if (!window.confirm(question)) return;
+    entryActionLocks.current.add(entry.id);
+    setEntryActions((current) => ({ ...current, [entry.id]: "sharing" }));
     try {
       await portalRequest(`/entries/${entry.id}/sharing`, { method: "PATCH", body: JSON.stringify({ shared: !shared }) }, csrf);
       setMessageTone("success");
@@ -883,10 +915,20 @@ function PatientDashboard({
         setMessageTone("error");
         setMessage((error as Error).message);
       }
+    } finally {
+      entryActionLocks.current.delete(entry.id);
+      setEntryActions((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
     }
   }
   async function remove(entry: Entry) {
+    if (entryActionLocks.current.has(entry.id)) return;
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
+    entryActionLocks.current.add(entry.id);
+    setEntryActions((current) => ({ ...current, [entry.id]: "removing" }));
     try {
       await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf);
       setMessageTone("success");
@@ -899,6 +941,13 @@ function PatientDashboard({
         setMessageTone("error");
         setMessage((error as Error).message);
       }
+    } finally {
+      entryActionLocks.current.delete(entry.id);
+      setEntryActions((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
     }
   }
   function openNewRecord() {
@@ -1236,6 +1285,7 @@ function PatientDashboard({
           ) : <div className="record-list patient-record-list">{visibleEntries.map((entry) => {
           const shared = isEntryShared(entry);
           const viewStatus = patientEntryViewStatus(entry);
+          const entryAction = entryActions[entry.id];
           return (
             <details className="record-card patient-record-card" id={`record-${entry.id}`} key={entry.id}>
               <summary>
@@ -1255,7 +1305,7 @@ function PatientDashboard({
                 </span>
                 <span className="patient-record-toggle" aria-hidden="true"><span className="when-closed">Abrir</span><span className="when-open">Fechar</span></span>
               </summary>
-              <div className="patient-record-content">
+              <div className="patient-record-content" aria-busy={Boolean(entryAction)}>
                 {shared ? (
                   <>
                     <p className={`patient-view-status ${viewStatus.kind}`}>
@@ -1272,9 +1322,34 @@ function PatientDashboard({
                 ) : null}
                 <EntryDetails entry={entry} />
                 <div className="record-actions">
-                  <button className={shared ? "secondary-button" : "share-button"} onClick={() => void sharing(entry)}>{shared ? "Deixar privado novamente" : "Compartilhar com Mateus"}</button>
-                  <button className="quiet-button" onClick={(event) => openEditRecord(entry, event.currentTarget)}>Editar</button>
-                  <button className="danger-link" onClick={() => void remove(entry)}>Excluir</button>
+                  <button
+                    className={shared ? "secondary-button" : "share-button"}
+                    type="button"
+                    disabled={Boolean(entryAction)}
+                    onClick={() => void sharing(entry)}
+                  >
+                    {entryAction === "sharing"
+                      ? "Atualizando compartilhamento…"
+                      : shared
+                        ? "Deixar privado novamente"
+                        : "Compartilhar com Mateus"}
+                  </button>
+                  <button
+                    className="quiet-button"
+                    type="button"
+                    disabled={Boolean(entryAction)}
+                    onClick={(event) => openEditRecord(entry, event.currentTarget)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    className="danger-link"
+                    type="button"
+                    disabled={Boolean(entryAction)}
+                    onClick={() => void remove(entry)}
+                  >
+                    {entryAction === "removing" ? "Excluindo…" : "Excluir"}
+                  </button>
                 </div>
               </div>
             </details>
