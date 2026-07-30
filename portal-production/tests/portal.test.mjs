@@ -200,6 +200,21 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     app,
     /onValueChange=\{\(\) => \{[\s\S]*?setInvalidField\(null\);[\s\S]*?setMessage\(""\)/,
   );
+  assert.match(app, /id="setup-form-message"/);
+  assert.match(
+    app,
+    /errorId=\{invalidField === "confirmation" \? "setup-form-message" : undefined\}/,
+  );
+  assert.match(app, /id="account-form-message"/);
+  assert.match(
+    app,
+    /setInvalidPasswordField\("confirmation"\)[\s\S]*?confirmation\.focus\(\)/,
+  );
+  assert.match(
+    app,
+    /focusOnMount=\{!message\.includes\("alterada"\) && !invalidPasswordField\}/,
+  );
+  assert.equal(app.match(/confirmation\.focus\(\)/g)?.length, 3);
   assert.doesNotMatch(
     app,
     /Senha alterada\.[^`]*\$\{result\.recovery_code\}/,

@@ -324,14 +324,25 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
   const [totpSecret, setTotpSecret] = useState("");
   const [recovery, setRecovery] = useState("");
   const [message, setMessage] = useState("");
+  const [invalidField, setInvalidField] = useState<"confirmation" | null>(null);
   const [busy, setBusy] = useState(false);
   const requestInFlight = useRef(false);
 
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (requestInFlight.current) return;
-    const form = new FormData(event.currentTarget);
-    if (form.get("password") !== form.get("confirmation")) return setMessage("As senhas não coincidem.");
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setInvalidField(null);
+    if (form.get("password") !== form.get("confirmation")) {
+      setInvalidField("confirmation");
+      setMessage("As senhas não coincidem.");
+      window.requestAnimationFrame(() => {
+        const confirmation = formElement.elements.namedItem("confirmation");
+        if (confirmation instanceof HTMLInputElement) confirmation.focus();
+      });
+      return;
+    }
     requestInFlight.current = true;
     setBusy(true); setMessage("");
     try {
@@ -400,8 +411,28 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
       <Field label="Nome profissional" name="name" autoComplete="name" required />
       <Field label="E-mail de acesso" name="email" type="email" autoComplete="username" required />
       <Field label="Crie uma senha ou frase-senha" name="password" type="password" autoComplete="new-password" required passwordRequirements hint="Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." />
-      <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required />
-      {message ? <Notice tone="error" message={message} /> : null}
+      <Field
+        label="Repita a senha"
+        name="confirmation"
+        type="password"
+        autoComplete="new-password"
+        required
+        invalid={invalidField === "confirmation"}
+        errorId={invalidField === "confirmation" ? "setup-form-message" : undefined}
+        onValueChange={() => {
+          if (invalidField !== "confirmation") return;
+          setInvalidField(null);
+          setMessage("");
+        }}
+      />
+      {message ? (
+        <Notice
+          id="setup-form-message"
+          tone="error"
+          message={message}
+          focusOnMount={!invalidField}
+        />
+      ) : null}
       <button className="primary-button" disabled={busy}>{busy ? "Preparando…" : "Continuar"}</button>
     </form>
   );
@@ -1496,6 +1527,9 @@ function AccountPanel({
   onSessionsEnded: () => void;
 }) {
   const [message, setMessage] = useState("");
+  const [invalidPasswordField, setInvalidPasswordField] = useState<
+    "confirmation" | null
+  >(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [endingSessions, setEndingSessions] = useState(false);
@@ -1516,7 +1550,16 @@ function AccountPanel({
     if (passwordRequestInFlight.current) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    if (form.get("new_password") !== form.get("confirmation")) return setMessage("As novas senhas não coincidem.");
+    setInvalidPasswordField(null);
+    if (form.get("new_password") !== form.get("confirmation")) {
+      setInvalidPasswordField("confirmation");
+      setMessage("As novas senhas não coincidem.");
+      window.requestAnimationFrame(() => {
+        const confirmation = formElement.elements.namedItem("confirmation");
+        if (confirmation instanceof HTMLInputElement) confirmation.focus();
+      });
+      return;
+    }
     passwordRequestInFlight.current = true;
     setPasswordBusy(true);
     setMessage("");
@@ -1532,6 +1575,7 @@ function AccountPanel({
     if (recoveryRequestInFlight.current) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    setInvalidPasswordField(null);
     recoveryRequestInFlight.current = true;
     setRecoveryBusy(true);
     setMessage("");
@@ -1547,6 +1591,7 @@ function AccountPanel({
     if (deleteAccountRequestInFlight.current) return;
     if (!window.confirm("Excluir sua conta e todos os registros de forma permanente? Esta ação não pode ser desfeita.")) return;
     const form = new FormData(event.currentTarget);
+    setInvalidPasswordField(null);
     deleteAccountRequestInFlight.current = true;
     setDeletingAccount(true);
     setMessage("");
@@ -1568,6 +1613,7 @@ function AccountPanel({
       return;
     }
     const form = new FormData(event.currentTarget);
+    setInvalidPasswordField(null);
     endSessionsRequestInFlight.current = true;
     setEndingSessions(true);
     setMessage("");
@@ -1602,7 +1648,24 @@ function AccountPanel({
           <h3>Alterar senha</h3>
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
           <Field label="Nova senha ou frase-senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." />
-          <Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />
+          <Field
+            label="Repita a nova senha"
+            name="confirmation"
+            type="password"
+            autoComplete="new-password"
+            required
+            invalid={invalidPasswordField === "confirmation"}
+            errorId={
+              invalidPasswordField === "confirmation"
+                ? "account-form-message"
+                : undefined
+            }
+            onValueChange={() => {
+              if (invalidPasswordField !== "confirmation") return;
+              setInvalidPasswordField(null);
+              setMessage("");
+            }}
+          />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
           <button className="secondary-button" disabled={passwordBusy}>
             {passwordBusy ? "Alterando senha…" : "Alterar senha"}
@@ -1618,7 +1681,14 @@ function AccountPanel({
           </button>
         </form>
       </div>
-      {message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}
+      {message ? (
+        <Notice
+          id="account-form-message"
+          tone={message.includes("alterada") ? "success" : "error"}
+          message={message}
+          focusOnMount={!message.includes("alterada") && !invalidPasswordField}
+        />
+      ) : null}
       <section className="account-sessions" aria-labelledby={`account-sessions-title-${role}`}>
         <div>
           <h3 id={`account-sessions-title-${role}`}>Sessões e dispositivos</h3>
