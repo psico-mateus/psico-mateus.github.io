@@ -461,7 +461,7 @@ test("education CTA opens the existing blank and private record flow", async () 
     /O que chamou sua atenção neste texto\? Registre somente o que fizer sentido para você\./,
   );
   assert.match(app, /initial=\{editing === "new" \? undefined : editing\}/);
-  assert.match(app, /Privado ao salvar/);
+  assert.match(app, /Você escreve com privacidade/);
   assert.match(app, /setArea\("education"\)/);
 });
 

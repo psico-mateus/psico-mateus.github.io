@@ -508,12 +508,12 @@ function Guest({
         <section className="guest-intro">
           <p className="eyebrow">ÁREA DO PACIENTE</p>
           <h1>Acompanhe seu processo. <em>Use este espaço no seu tempo.</em></h1>
-          <p className="lead">Um espaço privado para organizar situações, pensamentos e emoções, consultar materiais e levar o que fizer sentido para a psicoterapia.</p>
-          <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> O acesso é reservado a pessoas em acompanhamento com Mateus e a criação da conta acontece somente por convite.</p>
+          <p className="lead">Aqui você pode anotar situações, pensamentos e emoções, consultar materiais e levar para a sessão o que fizer sentido.</p>
+          <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> Esta área é para quem está em acompanhamento com Mateus. Para criar a conta, use o convite enviado por ele.</p>
           <div className="principles">
-            <article><span>01</span><div><strong>Privado ao salvar</strong><p>Mateus só vê um registro quando você decide compartilhá-lo.</p></div></article>
-            <article><span>02</span><div><strong>Compartilhar é opcional</strong><p>Você pode permitir ou retirar o acesso a cada registro.</p></div></article>
-            <article><span>03</span><div><strong>Sem acompanhamento imediato</strong><p>Este espaço não é monitorado em tempo real.</p></div></article>
+            <article><span>1</span><div><strong>Você escreve com privacidade</strong><p>Cada registro fica só para você até que decida compartilhá-lo.</p></div></article>
+            <article><span>2</span><div><strong>Você escolhe o que compartilhar</strong><p>Compartilhe apenas o que fizer sentido e retire o acesso quando quiser.</p></div></article>
+            <article><span>3</span><div><strong>Não há acompanhamento em tempo real</strong><p>Mateus não recebe alertas quando você escreve ou compartilha um registro.</p></div></article>
           </div>
           <p className="education-public-note">
             Os materiais da área “Leitura complementar” são informativos. Abrir ou
@@ -530,7 +530,7 @@ function Guest({
             <Notice tone="info" message={sessionMessage} />
           ) : null}
           {mode !== "recover" ? (
-            <p className="auth-audience-note">O cadastro é destinado a pacientes em acompanhamento atual e exige um convite entregue por Mateus.</p>
+            <p className="auth-audience-note">Para criar a conta, use o convite enviado por Mateus.</p>
           ) : null}
           {mode === "recover" ? (
             <p className="recovery-help">

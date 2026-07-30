@@ -164,7 +164,7 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Salvar registro privado/);
   assert.match(app, /\{!editing \? \(\s*<section className="records-section"/);
   assert.match(app, /\{!editing \? <AccountPanel role="patient"/);
-  assert.match(app, /Privado ao salvar/);
+  assert.match(app, /Você escreve com privacidade/);
   assert.match(app, /Compartilhado com Mateus/);
   assert.match(app, /patient-record-card/);
   assert.match(app, /Filtrar registros por compartilhamento/);
