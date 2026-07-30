@@ -322,6 +322,18 @@ const setupConfirmation = await api("/setup/confirm", {
 });
 expectStatus(setupConfirmation, 200, "confirmação de MFA");
 assert.equal(therapist.user.role, "therapist");
+const professionalSessionCookie =
+  setupConfirmation.response.headers.get("set-cookie") ?? "";
+assert.match(professionalSessionCookie, /^portal_session=[^;]+/u);
+assert.match(professionalSessionCookie, /;\s*HttpOnly(?:;|$)/u);
+assert.match(professionalSessionCookie, /;\s*SameSite=Strict(?:;|$)/u);
+assert.match(professionalSessionCookie, /;\s*Path=\/(?:;|$)/u);
+assert.match(professionalSessionCookie, /;\s*Max-Age=28800(?:;|$)/u);
+assert.doesNotMatch(
+  professionalSessionCookie,
+  /;\s*Secure(?:;|$)/u,
+  "o cookie local HTTP não deve simular o atributo Secure de produção HTTPS",
+);
 
 const professionalLoginWithoutMfa = await api("/login", {
   method: "POST",
