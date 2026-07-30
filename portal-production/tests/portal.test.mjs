@@ -12,6 +12,11 @@ import {
   verifyTotp,
 } from "../lib/crypto.ts";
 import {
+  clearSessionCookie,
+  parseCookies,
+  sessionCookie,
+} from "../lib/session-cookie.ts";
+import {
   filterAndSortPatients,
   filterPatientAccesses,
   invitationStatusLabel,
@@ -66,6 +71,42 @@ test("portal requests translate connection and malformed-response failures", asy
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("session cookies keep secure attributes and tolerate corrupted values", () => {
+  const secureCookie = sessionCookie(
+    new Request("https://area-do-paciente.psico-mateus.workers.dev/"),
+    "token com espaço",
+    300,
+  );
+  assert.equal(
+    secureCookie,
+    "portal_session=token%20com%20espa%C3%A7o; HttpOnly; SameSite=Strict; Path=/; Max-Age=300; Secure",
+  );
+  assert.doesNotMatch(
+    sessionCookie(new Request("http://localhost:3000/"), "local", 60),
+    /;\s*Secure/u,
+  );
+  assert.equal(
+    clearSessionCookie(
+      new Request("https://area-do-paciente.psico-mateus.workers.dev/"),
+    ),
+    "portal_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure",
+  );
+
+  assert.deepEqual(
+    parseCookies(
+      new Request("https://example.test/", {
+        headers: {
+          cookie: "portal_session=%E0%A4%A; preference=sim%20por%20favor",
+        },
+      }),
+    ),
+    {
+      portal_session: "",
+      preference: "sim por favor",
+    },
+  );
 });
 
 test("passwords are salted and verified", async () => {

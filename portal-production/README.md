@@ -39,6 +39,7 @@ drizzle/                                Migrações versionadas
 lib/
   crypto.ts                             Hashes, códigos, criptografia e TOTP
   portal.ts                             Sessões, CSRF, validação, auditoria e limites
+  session-cookie.ts                     Cookie de sessão e leitura tolerante a corrupção
 tests/
   portal.test.mjs                       Testes unitários e regressões estruturais
 worker/

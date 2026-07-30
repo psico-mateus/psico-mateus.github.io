@@ -1,9 +1,21 @@
 import { getPortalEnv } from "@/db/runtime";
 import { hmac, identifier, normalizeEmail, randomToken, sha256 } from "@/lib/crypto";
+import {
+  SESSION_COOKIE,
+  SESSION_SECONDS,
+  parseCookies,
+  sessionCookie,
+} from "@/lib/session-cookie";
+
+export {
+  SESSION_COOKIE,
+  SESSION_SECONDS,
+  clearSessionCookie,
+  parseCookies,
+  sessionCookie,
+} from "@/lib/session-cookie";
 
 export const PRIVACY_VERSION = "2026-07-29";
-export const SESSION_COOKIE = "portal_session";
-const SESSION_SECONDS = 8 * 60 * 60;
 
 export class PortalError extends Error {
   status: number;
@@ -156,30 +168,6 @@ export function requireTrustedOrigin(request: Request): void {
   if (fetchSite && !["same-origin", "same-site"].includes(fetchSite)) {
     throw new PortalError(403, "A origem desta ação não pôde ser confirmada.");
   }
-}
-
-function parseCookies(request: Request): Record<string, string> {
-  const value = request.headers.get("cookie") ?? "";
-  return Object.fromEntries(
-    value
-      .split(";")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const separator = part.indexOf("=");
-        if (separator < 0) return [part, ""];
-        return [part.slice(0, separator), decodeURIComponent(part.slice(separator + 1))];
-      }),
-  );
-}
-
-export function sessionCookie(request: Request, token: string, maxAge = SESSION_SECONDS): string {
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
-}
-
-export function clearSessionCookie(request: Request): string {
-  return sessionCookie(request, "", 0);
 }
 
 export async function prepareSession(request: Request, user: SessionIdentity) {
