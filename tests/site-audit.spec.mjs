@@ -71,3 +71,36 @@ test("política de segurança direciona relatos ao canal privado", async ({}, te
     "sem incluir detalhes técnicos ou dados pessoais na primeira mensagem",
   );
 });
+
+test("site e Guia respeitam a preferência de reduzir movimento", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Verificação estrutural única.");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
+  for (const [path, selector] of [
+    ["/", ".button"],
+    ["/guia-emocoes/", ".button-primary"],
+  ]) {
+    await page.goto(path);
+    const motion = await page.locator(selector).first().evaluate((element) => {
+      const toMilliseconds = (duration) =>
+        Math.max(
+          ...duration.split(",").map((part) => {
+            const value = Number.parseFloat(part);
+            return part.trim().endsWith("ms") ? value : value * 1_000;
+          }),
+        );
+      const style = getComputedStyle(element);
+      return {
+        preference: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
+        transitionMilliseconds: toMilliseconds(style.transitionDuration),
+        animationMilliseconds: toMilliseconds(style.animationDuration),
+      };
+    });
+
+    expect(motion.preference).toBe(true);
+    expect(motion.scrollBehavior).toBe("auto");
+    expect(motion.transitionMilliseconds).toBeLessThanOrEqual(0.1);
+    expect(motion.animationMilliseconds).toBeLessThanOrEqual(0.1);
+  }
+});
