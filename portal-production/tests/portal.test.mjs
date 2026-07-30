@@ -294,6 +294,11 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(education, /target="_blank"/);
   assert.match(education, /rel="noopener noreferrer"/);
   assert.match(app, /Tentar novamente/);
+  assert.match(
+    app,
+    /error instanceof PortalRequestError && error\.status === 401/,
+  );
+  assert.doesNotMatch(app, /message\.includes\("login"\)/);
   assert.doesNotMatch(app, /Nome novo, mesmo espaço/);
   assert.doesNotMatch(app, /SHOW_AREA_NAME_CHANGE_NOTICE/);
   assert.match(privacy, /entender se o recurso está[\s\S]*?sendo utilizado/u);

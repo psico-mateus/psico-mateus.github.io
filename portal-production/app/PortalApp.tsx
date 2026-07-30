@@ -23,7 +23,12 @@ import {
   type PatientEntrySharingFilter,
   type PatientEntrySort,
 } from "./patient-dashboard-data";
-import { formatDate, formatViewTimestamp, portalRequest } from "./portal-client";
+import {
+  PortalRequestError,
+  formatDate,
+  formatViewTimestamp,
+  portalRequest,
+} from "./portal-client";
 
 type Role = "patient" | "therapist";
 type PatientArea = "home" | "records" | "education";
@@ -778,8 +783,9 @@ function PatientDashboard({
   const load = useCallback(async () => {
     try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
     catch (error) {
-      if ((error as Error).message.includes("login")) onSessionLost();
-      else {
+      if (error instanceof PortalRequestError && error.status === 401) {
+        onSessionLost();
+      } else {
         setMessageTone("error");
         setMessage((error as Error).message);
       }
