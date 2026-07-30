@@ -1184,6 +1184,7 @@ export function ProfessionalDashboard({
   const viewingEntryLocks = useRef<Set<string>>(new Set());
   const patientAccessRequestLock = useRef(false);
   const patientAccessUpdateLocks = useRef<Set<string>>(new Set());
+  const recoveryRequestLock = useRef(false);
   const invitationsRequestLock = useRef(false);
   const createInvitationLock = useRef(false);
   const revokeInvitationLocks = useRef<Set<string>>(new Set());
@@ -1484,7 +1485,8 @@ export function ProfessionalDashboard({
   }
 
   async function issuePatientRecovery(currentPassword: string, totp: string) {
-    if (!recoveryPatient || issuingRecovery) return;
+    if (!recoveryPatient || recoveryRequestLock.current) return;
+    recoveryRequestLock.current = true;
     setIssuingRecovery(true);
     setRecoveryError("");
     try {
@@ -1522,6 +1524,7 @@ export function ProfessionalDashboard({
         );
       }
     } finally {
+      recoveryRequestLock.current = false;
       setIssuingRecovery(false);
     }
   }

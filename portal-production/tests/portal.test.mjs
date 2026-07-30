@@ -401,6 +401,12 @@ test("professional privacy mode renders a sanitized, action-free surface", async
   assert.match(dashboard, /setLatestCode\(""\)/u);
   assert.match(dashboard, /setRecoveryPatient\(null\)/u);
   assert.match(dashboard, /setIssuedRecovery\(null\)/u);
+  assert.match(
+    dashboard,
+    /if \(!recoveryPatient \|\| recoveryRequestLock\.current\) return/u,
+  );
+  assert.match(dashboard, /recoveryRequestLock\.current = true/u);
+  assert.match(dashboard, /recoveryRequestLock\.current = false/u);
   assert.doesNotMatch(dashboard, /localStorage|sessionStorage/u);
 });
 
