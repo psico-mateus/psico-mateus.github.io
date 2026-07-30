@@ -591,12 +591,15 @@ function Guest({
             {mode === "login" ? (
               <details className="professional-login-details">
                 <summary>
-                  Acesso profissional <small>Somente Mateus</small>
+                  <span>
+                    <strong>Acesso profissional</strong>
+                    <small>uso exclusivo de Mateus</small>
+                  </span>
                 </summary>
                 <div>
                   <p>
-                    Somente Mateus usa este campo para entrar no painel
-                    profissional. Pacientes não precisam abri-lo.
+                    Este código é usado somente por Mateus para abrir o painel
+                    profissional. Pacientes podem ignorar esta opção.
                   </p>
                   <Field
                     label="Código do aplicativo autenticador"
