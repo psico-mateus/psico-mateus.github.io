@@ -6,7 +6,9 @@ Somente a versão atualmente publicada do site, do Guia de Emoções e da Área 
 
 ## Como relatar uma vulnerabilidade
 
-Não publique detalhes de uma possível vulnerabilidade em issue, discussão ou pull request. Use um dos canais privados apresentados na seção [Contato do site profissional](https://psico-mateus.github.io/#contato) e informe que se trata de um relato de segurança.
+Não publique detalhes de uma possível vulnerabilidade em issue, discussão ou pull request. Use o formulário [Relatar uma vulnerabilidade de forma privada](https://github.com/psico-mateus/psico-mateus.github.io/security/advisories/new) do GitHub. O relato ficará restrito ao responsável pelo repositório e às pessoas envolvidas na análise.
+
+Se o formulário estiver temporariamente indisponível, use a seção [Contato do site profissional](https://psico-mateus.github.io/#contato) apenas para pedir um canal privado de retorno, sem incluir detalhes técnicos ou dados pessoais na primeira mensagem.
 
 Inclua, quando possível:
 
