@@ -180,6 +180,20 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Para pacientes atuais/);
   assert.match(app, /Aberto a qualquer pessoa, sem conta/);
   assert.match(app, /peça a Mateus um novo código de recuperação/i);
+  assert.match(app, /onRecoveryCode\(result\.recovery_code\)/);
+  assert.match(
+    app,
+    /Senha alterada\. Guarde o novo código de recuperação antes de entrar\./,
+  );
+  assert.doesNotMatch(
+    app,
+    /Senha alterada\.[^`]*\$\{result\.recovery_code\}/,
+  );
+  assert.match(
+    app,
+    /<Guest[\s\S]*?onRecoveryCode=\{setRecovery\}/,
+  );
+  assert.match(app, /<RecoveryCard code=\{recovery\}/);
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);

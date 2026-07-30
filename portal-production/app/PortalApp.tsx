@@ -369,7 +369,15 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
   );
 }
 
-function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (user: User, csrf: string, recovery?: string) => void }) {
+function Guest({
+  config,
+  onAuthenticated,
+  onRecoveryCode,
+}: {
+  config: Config;
+  onAuthenticated: (user: User, csrf: string, recovery?: string) => void;
+  onRecoveryCode: (code: string) => void;
+}) {
   const [mode, setMode] = useState<"login" | "register" | "recover">("login");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -401,7 +409,8 @@ function Guest({ config, onAuthenticated }: { config: Config; onAuthenticated: (
           method: "POST", body: JSON.stringify({ email: form.get("email"), recovery_code: form.get("recovery_code"), new_password: form.get("password") }),
         });
         setMode("login");
-        setMessage(`Senha alterada. Seu novo código de recuperação é ${result.recovery_code}. Guarde-o antes de entrar.`);
+        setMessage("Senha alterada. Guarde o novo código de recuperação antes de entrar.");
+        onRecoveryCode(result.recovery_code);
       }
     } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
   }
@@ -1512,7 +1521,15 @@ export function PortalApp() {
         </main>
       );
     }
-    if (!user) return <Guest config={config} onAuthenticated={authenticated} />;
+    if (!user) {
+      return (
+        <Guest
+          config={config}
+          onAuthenticated={authenticated}
+          onRecoveryCode={setRecovery}
+        />
+      );
+    }
     return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={clear} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
