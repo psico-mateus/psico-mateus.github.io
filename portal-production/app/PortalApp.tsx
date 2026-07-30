@@ -41,6 +41,10 @@ type Config = {
   care_url: string;
   privacy_version: string;
 };
+
+function isSessionExpiredError(error: unknown): boolean {
+  return error instanceof PortalRequestError && error.status === 401;
+}
 type Entry = {
   id: string;
   title: string;
@@ -783,7 +787,7 @@ function PatientDashboard({
   const load = useCallback(async () => {
     try { setEntries((await portalRequest<{ entries: Entry[] }>("/entries")).entries); }
     catch (error) {
-      if (error instanceof PortalRequestError && error.status === 401) {
+      if (isSessionExpiredError(error)) {
         onSessionLost();
       } else {
         setMessageTone("error");
@@ -873,8 +877,12 @@ function PatientDashboard({
       setMessage(shared ? "Compartilhamento retirado." : "Registro compartilhado com Mateus.");
       await load();
     } catch (error) {
-      setMessageTone("error");
-      setMessage((error as Error).message);
+      if (isSessionExpiredError(error)) {
+        onSessionLost();
+      } else {
+        setMessageTone("error");
+        setMessage((error as Error).message);
+      }
     }
   }
   async function remove(entry: Entry) {
@@ -885,8 +893,12 @@ function PatientDashboard({
       setMessage("Registro excluído.");
       await load();
     } catch (error) {
-      setMessageTone("error");
-      setMessage((error as Error).message);
+      if (isSessionExpiredError(error)) {
+        onSessionLost();
+      } else {
+        setMessageTone("error");
+        setMessage((error as Error).message);
+      }
     }
   }
   function openNewRecord() {
@@ -1301,22 +1313,29 @@ function AccountPanel({
 }) {
   const [message, setMessage] = useState("");
   const [endingSessions, setEndingSessions] = useState(false);
+  function handleAccountError(error: unknown) {
+    if (isSessionExpiredError(error)) {
+      onSessionsEnded();
+      return;
+    }
+    setMessage((error as Error).message);
+  }
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);
     if (form.get("new_password") !== form.get("confirmation")) return setMessage("As novas senhas não coincidem.");
     try { await portalRequest("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setMessage("Senha alterada."); }
-    catch (error) { setMessage((error as Error).message); }
+    catch (error) { handleAccountError(error); }
   }
   async function rotate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = new FormData(event.currentTarget);
     try { const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setRecovery(result.recovery_code); }
-    catch (error) { setMessage((error as Error).message); }
+    catch (error) { handleAccountError(error); }
   }
   async function deleteAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!window.confirm("Excluir sua conta e todos os registros de forma permanente? Esta ação não pode ser desfeita.")) return;
     const form = new FormData(event.currentTarget);
     try { await portalRequest("/account", { method: "DELETE", body: JSON.stringify({ current_password: form.get("current_password") }) }, csrf); window.location.reload(); }
-    catch (error) { setMessage((error as Error).message); }
+    catch (error) { handleAccountError(error); }
   }
   async function endAllSessions(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1344,7 +1363,7 @@ function AccountPanel({
       );
       onSessionsEnded();
     } catch (error) {
-      setMessage((error as Error).message);
+      handleAccountError(error);
       setEndingSessions(false);
     }
   }

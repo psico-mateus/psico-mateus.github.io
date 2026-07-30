@@ -296,7 +296,12 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(app, /Tentar novamente/);
   assert.match(
     app,
-    /error instanceof PortalRequestError && error\.status === 401/,
+    /function isSessionExpiredError\(error: unknown\): boolean[\s\S]*?error instanceof PortalRequestError && error\.status === 401/,
+  );
+  assert.match(app, /if \(isSessionExpiredError\(error\)\) \{\s*onSessionLost\(\)/);
+  assert.match(
+    app,
+    /function handleAccountError\(error: unknown\)[\s\S]*?onSessionsEnded\(\)/,
   );
   assert.doesNotMatch(app, /message\.includes\("login"\)/);
   assert.doesNotMatch(app, /Nome novo, mesmo espaço/);
