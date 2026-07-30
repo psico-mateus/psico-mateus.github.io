@@ -496,6 +496,24 @@ test("account owner can securely revoke every open session", async () => {
   assert.match(route, /clearSessionCookie\(request\)/);
 });
 
+test("privacy notice explains account closure and data-rights requests", async () => {
+  const [app, portal, privacy] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(app, /Código atual do autenticador/);
+  assert.match(app, /aguarde o número exibido mudar/);
+  assert.match(portal, /PRIVACY_VERSION = "2026-07-30"/);
+  assert.match(privacy, /Versão de 30 de julho de 2026/);
+  assert.match(privacy, /não\s+apaga automaticamente a conta nem os registros/u);
+  assert.match(privacy, /Mateus deixa de acessar também os registros/);
+  assert.match(privacy, /Como exercer seus direitos/);
+  assert.match(privacy, /acesso, correção das informações\s+de identificação ou exclusão/u);
+  assert.match(privacy, /confirmar sua identidade/);
+});
+
 test("copy buttons support Safari fallback and keep codes selectable", async () => {
   const [app, clipboard, dashboard, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),

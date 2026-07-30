@@ -1332,7 +1332,7 @@ function AccountPanel({
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
       <summary>
         <span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>
-        {role === "patient" ? <small>Senha, recuperação, cópia dos dados e exclusão</small> : null}
+        {role === "patient" ? <small>Senha, recuperação, sessões, cópia dos dados e exclusão</small> : null}
       </summary>
       <div className="account-grid">
         <form className="stack panel" onSubmit={password}>
@@ -1362,7 +1362,7 @@ function AccountPanel({
         </div>
         <form className="stack" onSubmit={endAllSessions}>
           <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
-          {role === "therapist" ? <Field label="Novo código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Por segurança, use um código diferente do usado para entrar. Se necessário, aguarde o próximo." required /> : null}
+          {role === "therapist" ? <Field label="Código atual do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Se acabou de entrar, aguarde o número exibido mudar e use o próximo código de 6 dígitos." required /> : null}
           <button className="danger-button" disabled={endingSessions}>
             {endingSessions ? "Encerrando sessões…" : "Encerrar em todos os dispositivos"}
           </button>

@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       <h1 style={{ fontSize: "clamp(2.7rem,7vw,5rem)" }}>
         Seus registros, suas escolhas.
       </h1>
-      <p className="lead">Versão de 26 de julho de 2026.</p>
+      <p className="lead">Versão de 30 de julho de 2026.</p>
       <section className="panel stack">
         <h2>O que este espaço guarda</h2>
         <p>
@@ -63,11 +63,31 @@ export default function PrivacyPage() {
         </p>
         <h2>Seus controles</h2>
         <p>
-          Na área “Segurança e conta”, você pode baixar uma cópia dos registros,
-          alterar sua senha, gerar novo código de recuperação e excluir
-          permanentemente sua conta e seus registros. Se você perder a senha e esse
-          código, pode pedir a Mateus uma recuperação assistida. O novo código
-          temporário substitui o anterior e encerra as sessões abertas da conta.
+          Na área “Conta e privacidade”, você pode baixar uma cópia dos registros,
+          alterar sua senha, gerar novo código de recuperação, encerrar a conta em
+          todos os dispositivos e excluir permanentemente sua conta e seus registros.
+          Se você perder a senha e o código de recuperação, pode pedir a Mateus uma
+          recuperação assistida. O novo código temporário substitui o anterior e
+          encerra as sessões abertas da conta.
+        </p>
+        <h2>Quando o acompanhamento ou o acesso termina</h2>
+        <p>
+          O acesso à Área do paciente pode ser desativado quando o acompanhamento
+          termina. Isso encerra as sessões abertas e impede novas entradas, mas não
+          apaga automaticamente a conta nem os registros. Com o vínculo encerrado,
+          Mateus deixa de acessar também os registros que estavam compartilhados.
+          Para pedir uma cópia ou a exclusão dos dados depois da desativação, use os
+          meios de contato indicados abaixo.
+        </p>
+        <h2>Como exercer seus direitos</h2>
+        <p>
+          Além dos controles disponíveis na própria conta, você pode pedir
+          confirmação sobre o tratamento dos dados, acesso, correção das informações
+          de identificação ou exclusão dos dados da Área do paciente. Entre em
+          contato pelos meios disponíveis no site profissional e informe que o
+          pedido é sobre a Área do paciente. Para evitar que dados sejam entregues ou
+          alterados para outra pessoa, Mateus poderá confirmar sua identidade antes
+          de atender ao pedido.
         </p>
         <h2>Limites importantes</h2>
         <p>

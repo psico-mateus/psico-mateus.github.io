@@ -97,6 +97,11 @@ Pacientes e profissional podem encerrar todas as sessões da própria conta em c
 de aparelho perdido ou acesso esquecido. A ação exige a senha atual, exige também
 um novo código MFA no perfil profissional e não altera nem exclui registros.
 
+O encerramento do vínculo desativa o acesso e encerra sessões, mas não apaga
+automaticamente a conta ou os registros. O aviso de privacidade orienta como
+pedir cópia, correção de identificação ou exclusão quando o acesso já estiver
+desativado.
+
 O painel profissional marca um registro como visto depois que Mateus abre o conteúdo e conclui a leitura. Uma edição ou um novo compartilhamento posterior faz o registro voltar à lista de pendências. Esse estado organiza a leitura e não permite editar, responder ou transformar o texto do paciente em prontuário. O paciente vê a data da visualização apenas nos próprios registros compartilhados; registros privados não exibem estado profissional.
 
 A área “Leitura complementar” reúne conteúdo estático de psicoeducação para pacientes

@@ -169,6 +169,18 @@ async function registrationState(invitationId) {
   }
 }
 
+async function storedPrivacyVersion(userId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare("SELECT privacy_version FROM users WHERE id = ?")
+      .get(userId)?.privacy_version;
+  } finally {
+    database.close();
+  }
+}
+
 async function setSyntheticRegistrationFailure(target, enabled) {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath);
@@ -397,6 +409,11 @@ const registeredA = await registerPatient({
 expectStatus(registeredA.result, 201, "cadastro do paciente A");
 const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
+assert.equal(
+  await storedPrivacyVersion(patientA.user.id),
+  "2026-07-30",
+  "novo cadastro deve registrar a versão atual do aviso de privacidade",
+);
 
 const duplicateEmail = await registerPatient({
   invitationCode: invitationForDuplicateEmail.code,
@@ -1272,7 +1289,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 124,
+    checks: 125,
     data: "synthetic-only",
     production_requests: 0,
   }),
