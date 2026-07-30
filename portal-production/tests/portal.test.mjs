@@ -250,6 +250,11 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(app, /com ou sem espaços e hífens/);
   assert.match(app, /beforeunload/);
   assert.match(app, /Descartar as alterações que ainda não foram salvas/);
+  assert.match(
+    app,
+    /<a className="brand" href="\/" aria-label="Início da Área do paciente">/,
+  );
+  assert.doesNotMatch(app, /import Link from "next\/link"/);
   assert.match(app, /Alterações salvas\. O compartilhamento com Mateus foi mantido/);
   assert.match(app, /record-\$\{entry\.id\}/);
   assert.match(app, /target="_blank" rel="noopener noreferrer"/);

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   FormEvent,
   type KeyboardEvent,
@@ -199,11 +198,13 @@ function Notice({
 function Header({ config, user, onLogout }: { config: Config; user?: User | null; onLogout?: () => void }) {
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="Início da Área do paciente">
+      {/* A navegação completa mantém o aviso nativo de alterações não salvas. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+      <a className="brand" href="/" aria-label="Início da Área do paciente">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-192.png" alt="" width="48" height="48" />
         <span><strong>Área do paciente</strong><small>Mateus Ribeiro Marcos · Psicólogo</small></span>
-      </Link>
+      </a>
       <nav className="top-links" aria-label="Links principais">
         <a href={config.public_site_url} target="_blank" rel="noopener noreferrer">
           Site profissional<span className="sr-status"> (abre em nova aba)</span>
