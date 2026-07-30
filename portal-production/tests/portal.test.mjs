@@ -198,6 +198,17 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     app,
     /previouslyFocused\?\.isConnected[\s\S]*?document\.getElementById\("conteudo"\)\?\.focus\(\)/,
   );
+  assert.match(app, /if \(passwordRequestInFlight\.current\) return/);
+  assert.match(app, /if \(recoveryRequestInFlight\.current\) return/);
+  assert.match(app, /if \(endSessionsRequestInFlight\.current\) return/);
+  assert.match(app, /if \(deleteAccountRequestInFlight\.current\) return/);
+  assert.match(app, /aria-busy=\{passwordBusy\}/);
+  assert.match(app, /disabled=\{passwordBusy\}/);
+  assert.match(app, /Alterando senha…/);
+  assert.match(app, /disabled=\{recoveryBusy\}/);
+  assert.match(app, /Gerando código…/);
+  assert.match(app, /disabled=\{deletingAccount\}/);
+  assert.match(app, /Excluindo conta…/);
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);

@@ -1312,7 +1312,14 @@ function AccountPanel({
   onSessionsEnded: () => void;
 }) {
   const [message, setMessage] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [endingSessions, setEndingSessions] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const passwordRequestInFlight = useRef(false);
+  const recoveryRequestInFlight = useRef(false);
+  const endSessionsRequestInFlight = useRef(false);
+  const deleteAccountRequestInFlight = useRef(false);
   function handleAccountError(error: unknown) {
     if (isSessionExpiredError(error)) {
       onSessionsEnded();
@@ -1321,24 +1328,54 @@ function AccountPanel({
     setMessage((error as Error).message);
   }
   async function password(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = new FormData(event.currentTarget);
+    event.preventDefault();
+    if (passwordRequestInFlight.current) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     if (form.get("new_password") !== form.get("confirmation")) return setMessage("As novas senhas não coincidem.");
-    try { await portalRequest("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setMessage("Senha alterada."); }
+    passwordRequestInFlight.current = true;
+    setPasswordBusy(true);
+    setMessage("");
+    try { await portalRequest("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); formElement.reset(); setMessage("Senha alterada."); }
     catch (error) { handleAccountError(error); }
+    finally {
+      passwordRequestInFlight.current = false;
+      setPasswordBusy(false);
+    }
   }
   async function rotate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = new FormData(event.currentTarget);
-    try { const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); event.currentTarget.reset(); setRecovery(result.recovery_code); }
+    event.preventDefault();
+    if (recoveryRequestInFlight.current) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    recoveryRequestInFlight.current = true;
+    setRecoveryBusy(true);
+    setMessage("");
+    try { const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); formElement.reset(); setRecovery(result.recovery_code); }
     catch (error) { handleAccountError(error); }
+    finally {
+      recoveryRequestInFlight.current = false;
+      setRecoveryBusy(false);
+    }
   }
   async function deleteAccount(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!window.confirm("Excluir sua conta e todos os registros de forma permanente? Esta ação não pode ser desfeita.")) return;
+    event.preventDefault();
+    if (deleteAccountRequestInFlight.current) return;
+    if (!window.confirm("Excluir sua conta e todos os registros de forma permanente? Esta ação não pode ser desfeita.")) return;
     const form = new FormData(event.currentTarget);
+    deleteAccountRequestInFlight.current = true;
+    setDeletingAccount(true);
+    setMessage("");
     try { await portalRequest("/account", { method: "DELETE", body: JSON.stringify({ current_password: form.get("current_password") }) }, csrf); window.location.reload(); }
     catch (error) { handleAccountError(error); }
+    finally {
+      deleteAccountRequestInFlight.current = false;
+      setDeletingAccount(false);
+    }
   }
   async function endAllSessions(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (endSessionsRequestInFlight.current) return;
     if (
       !window.confirm(
         "Encerrar sua conta em todos os dispositivos? Você precisará entrar novamente. Seus registros e dados não serão apagados.",
@@ -1347,6 +1384,7 @@ function AccountPanel({
       return;
     }
     const form = new FormData(event.currentTarget);
+    endSessionsRequestInFlight.current = true;
     setEndingSessions(true);
     setMessage("");
     try {
@@ -1364,6 +1402,8 @@ function AccountPanel({
       onSessionsEnded();
     } catch (error) {
       handleAccountError(error);
+    } finally {
+      endSessionsRequestInFlight.current = false;
       setEndingSessions(false);
     }
   }
@@ -1374,20 +1414,24 @@ function AccountPanel({
         {role === "patient" ? <small>Senha, recuperação, sessões, cópia dos dados e exclusão</small> : null}
       </summary>
       <div className="account-grid">
-        <form className="stack panel" onSubmit={password}>
+        <form className="stack panel" onSubmit={password} aria-busy={passwordBusy}>
           <h3>Alterar senha</h3>
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
           <Field label="Nova senha ou frase-senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." />
           <Field label="Repita a nova senha" name="confirmation" type="password" autoComplete="new-password" required />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
-          <button className="secondary-button">Alterar senha</button>
+          <button className="secondary-button" disabled={passwordBusy}>
+            {passwordBusy ? "Alterando senha…" : "Alterar senha"}
+          </button>
         </form>
-        <form className="stack panel" onSubmit={rotate}>
+        <form className="stack panel" onSubmit={rotate} aria-busy={recoveryBusy}>
           <h3>Novo código de recuperação</h3>
           <p>O código atual deixará de funcionar.</p>
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
-          <button className="secondary-button">Gerar novo código</button>
+          <button className="secondary-button" disabled={recoveryBusy}>
+            {recoveryBusy ? "Gerando código…" : "Gerar novo código"}
+          </button>
         </form>
       </div>
       {message ? <Notice tone={message.includes("alterada") ? "success" : "error"} message={message} /> : null}
@@ -1399,7 +1443,7 @@ function AccountPanel({
             de todos os dispositivos, inclusive deste. Seus registros não serão apagados.
           </p>
         </div>
-        <form className="stack" onSubmit={endAllSessions}>
+        <form className="stack" onSubmit={endAllSessions} aria-busy={endingSessions}>
           <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
           {role === "therapist" ? <Field label="Código atual do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Se acabou de entrar, aguarde o número exibido mudar e use o próximo código de 6 dígitos." required /> : null}
           <button className="danger-button" disabled={endingSessions}>
@@ -1422,9 +1466,11 @@ function AccountPanel({
           <section className="account-delete" aria-labelledby="account-delete-title">
             <h3 id="account-delete-title">Excluir conta</h3>
             <p>Esta ação apaga permanentemente sua conta e todos os seus registros.</p>
-            <form onSubmit={deleteAccount}>
+            <form onSubmit={deleteAccount} aria-busy={deletingAccount}>
               <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
-              <button className="danger-button">Excluir conta e registros</button>
+              <button className="danger-button" disabled={deletingAccount}>
+                {deletingAccount ? "Excluindo conta…" : "Excluir conta e registros"}
+              </button>
             </form>
           </section>
         </div>
