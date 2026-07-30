@@ -589,16 +589,27 @@ function Guest({
               />
             ) : null}
             {mode === "login" ? (
-              <Field
-                label="Código do autenticador (somente acesso profissional)"
-                name="totp"
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                autoCapitalize="none"
-                spellCheck={false}
-                maxLength={12}
-                hint="Pacientes deixam este campo vazio. No acesso profissional, espaços e hífens são ignorados."
-              />
+              <details className="professional-login-details">
+                <summary>
+                  Acesso profissional <small>Somente Mateus</small>
+                </summary>
+                <div>
+                  <p>
+                    Somente Mateus usa este campo para entrar no painel
+                    profissional. Pacientes não precisam abri-lo.
+                  </p>
+                  <Field
+                    label="Código do aplicativo autenticador"
+                    name="totp"
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    maxLength={12}
+                    hint="Digite ou cole os 6 números. Espaços e hífens são ignorados."
+                  />
+                </div>
+              </details>
             ) : null}
             {mode === "register" ? (
               <div className="checks">

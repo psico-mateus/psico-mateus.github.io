@@ -175,6 +175,14 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /InstallAppButton/);
   assert.match(app, /Não são 12 dígitos/);
   assert.match(app, /12 caracteres; espaços também contam/);
+  assert.match(app, /<details className="professional-login-details">/);
+  assert.match(app, /Acesso profissional <small>Somente Mateus<\/small>/);
+  assert.match(
+    app,
+    /Somente Mateus usa este campo para entrar no painel[\s\S]*?Pacientes não precisam abri-lo/,
+  );
+  assert.match(app, /label="Código do aplicativo autenticador"[\s\S]*?name="totp"/);
+  assert.match(styles, /\.professional-login-details\{/);
   assert.match(app, /addEventListener\("reset", clearRequirements\)/);
   assert.match(app, /user\?\.role !== "therapist"/);
   assert.match(app, /Para pacientes atuais/);
