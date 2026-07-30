@@ -1,7 +1,9 @@
+minimumReleaseAgeExclude:
+  - brace-expansion@1.1.17
 overrides:
   "@babel/core": 7.29.7
-  "brace-expansion@1.1.14": 1.1.16
-  "brace-expansion@5.0.6": 5.0.7
+  "brace-expansion@1.1.14": 1.1.17
+  "brace-expansion@5.0.6": 5.0.8
   "fast-uri@3.1.2": 3.1.4
   "js-yaml@4.1.1": 4.3.0
   postcss: 8.5.18
