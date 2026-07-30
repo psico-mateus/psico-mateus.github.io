@@ -86,6 +86,9 @@ function Field({
   autoCapitalize,
   spellCheck,
   maxLength,
+  invalid = false,
+  errorId,
+  onValueChange,
 }: {
   label: string;
   name: string;
@@ -98,6 +101,9 @@ function Field({
   autoCapitalize?: string;
   spellCheck?: boolean;
   maxLength?: number;
+  invalid?: boolean;
+  errorId?: string;
+  onValueChange?: () => void;
 }) {
   const inputId = useId();
   const hintId = useId();
@@ -109,6 +115,7 @@ function Field({
   const describedBy = [
     hint ? hintId : "",
     passwordRequirements ? requirementsId : "",
+    invalid ? errorId : "",
   ]
     .filter(Boolean)
     .join(" ") || undefined;
@@ -146,10 +153,14 @@ function Field({
           minLength={passwordRequirements ? 12 : undefined}
           maxLength={isPassword ? 128 : maxLength}
           aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
           inputMode={inputMode}
           autoCapitalize={isPassword ? "none" : autoCapitalize}
           spellCheck={isPassword ? false : spellCheck}
-          onChange={passwordRequirements ? (event) => setTypedValue(event.target.value) : undefined}
+          onChange={(event) => {
+            if (passwordRequirements) setTypedValue(event.target.value);
+            onValueChange?.();
+          }}
         />
         {isPassword ? (
           <button
@@ -179,10 +190,12 @@ function Field({
 }
 
 function Notice({
+  id,
   message,
   tone = "info",
   focusOnMount = tone === "error",
 }: {
+  id?: string;
   message: string;
   tone?: "info" | "error" | "success";
   focusOnMount?: boolean;
@@ -193,6 +206,7 @@ function Notice({
   }, [focusOnMount, message]);
   return (
     <p
+      id={id}
       ref={noticeRef}
       className={`notice notice-${tone}`}
       role={tone === "error" ? "alert" : "status"}
@@ -406,15 +420,24 @@ function Guest({
 }) {
   const [mode, setMode] = useState<"login" | "register" | "recover">("login");
   const [message, setMessage] = useState("");
+  const [invalidField, setInvalidField] = useState<"confirmation" | null>(null);
   const [busy, setBusy] = useState(false);
   const requestInFlight = useRef(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (requestInFlight.current) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setInvalidField(null);
     if ((mode === "register" || mode === "recover") && form.get("password") !== form.get("confirmation")) {
-      setMessage("As senhas não coincidem."); return;
+      setInvalidField("confirmation");
+      setMessage("As senhas não coincidem.");
+      window.requestAnimationFrame(() => {
+        const confirmation = formElement.elements.namedItem("confirmation");
+        if (confirmation instanceof HTMLInputElement) confirmation.focus();
+      });
+      return;
     }
     requestInFlight.current = true;
     setBusy(true); setMessage("");
@@ -485,8 +508,8 @@ function Guest({
             </p>
           ) : null}
           <div className="tab-list" role="group" aria-label="Forma de acesso">
-            <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} disabled={busy} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
-            <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} disabled={busy} onClick={() => { setMode("register"); setMessage(""); }}>Criar conta</button>
+            <button type="button" className={mode === "login" ? "active" : ""} aria-pressed={mode === "login"} disabled={busy} onClick={() => { setMode("login"); setMessage(""); setInvalidField(null); }}>Entrar</button>
+            <button type="button" className={mode === "register" ? "active" : ""} aria-pressed={mode === "register"} disabled={busy} onClick={() => { setMode("register"); setMessage(""); setInvalidField(null); }}>Criar conta</button>
           </div>
           <form className="stack" key={mode} onSubmit={submit} aria-busy={busy}>
             {mode === "register" ? (
@@ -518,7 +541,22 @@ function Guest({
               />
             ) : null}
             <Field label={mode === "recover" ? "Nova senha ou frase-senha" : mode === "register" ? "Crie uma senha ou frase-senha" : "Senha"} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required passwordRequirements={mode !== "login"} hint={mode !== "login" ? "Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." : undefined} />
-            {mode !== "login" ? <Field label="Repita a senha" name="confirmation" type="password" autoComplete="new-password" required /> : null}
+            {mode !== "login" ? (
+              <Field
+                label="Repita a senha"
+                name="confirmation"
+                type="password"
+                autoComplete="new-password"
+                required
+                invalid={invalidField === "confirmation"}
+                errorId={invalidField === "confirmation" ? "access-form-message" : undefined}
+                onValueChange={() => {
+                  if (invalidField !== "confirmation") return;
+                  setInvalidField(null);
+                  setMessage("");
+                }}
+              />
+            ) : null}
             {mode === "login" ? (
               <Field
                 label="Código do autenticador (somente acesso profissional)"
@@ -543,10 +581,17 @@ function Guest({
                 </label>
               </div>
             ) : null}
-            {message ? <Notice tone={message.startsWith("Senha alterada") ? "success" : "error"} message={message} /> : null}
+            {message ? (
+              <Notice
+                id="access-form-message"
+                tone={message.startsWith("Senha alterada") ? "success" : "error"}
+                message={message}
+                focusOnMount={!message.startsWith("Senha alterada") && !invalidField}
+              />
+            ) : null}
             <button className="primary-button" disabled={busy}>{busy ? "Aguarde…" : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Alterar senha"}</button>
           </form>
-          {mode === "login" ? <button className="text-action" type="button" disabled={busy} onClick={() => { setMode("recover"); setMessage(""); }}>Esqueci minha senha</button> : <button className="text-action" type="button" disabled={busy} onClick={() => { setMode("login"); setMessage(""); }}>Voltar para o login</button>}
+          {mode === "login" ? <button className="text-action" type="button" disabled={busy} onClick={() => { setMode("recover"); setMessage(""); setInvalidField(null); }}>Esqueci minha senha</button> : <button className="text-action" type="button" disabled={busy} onClick={() => { setMode("login"); setMessage(""); setInvalidField(null); }}>Voltar para o login</button>}
           {!config.configured ? <details className="setup-details"><summary>Primeiro acesso profissional</summary><SetupPanel onAuthenticated={onAuthenticated} /></details> : null}
         </section>
       </main>

@@ -185,6 +185,21 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     app,
     /Senha alterada\. Guarde o novo código de recuperação antes de entrar\./,
   );
+  assert.match(app, /aria-invalid=\{invalid \|\| undefined\}/);
+  assert.match(app, /invalid \? errorId : ""/);
+  assert.match(
+    app,
+    /setInvalidField\("confirmation"\)[\s\S]*?formElement\.elements\.namedItem\("confirmation"\)[\s\S]*?confirmation\.focus\(\)/,
+  );
+  assert.match(app, /id="access-form-message"/);
+  assert.match(
+    app,
+    /focusOnMount=\{!message\.startsWith\("Senha alterada"\) && !invalidField\}/,
+  );
+  assert.match(
+    app,
+    /onValueChange=\{\(\) => \{[\s\S]*?setInvalidField\(null\);[\s\S]*?setMessage\(""\)/,
+  );
   assert.doesNotMatch(
     app,
     /Senha alterada\.[^`]*\$\{result\.recovery_code\}/,
