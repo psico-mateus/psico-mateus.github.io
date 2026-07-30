@@ -56,9 +56,16 @@ pnpm dev
 pnpm lint
 pnpm build
 pnpm test
+pnpm test:restore-local
 ```
 
 `pnpm test` executa o build antes dos testes.
+
+`pnpm test:restore-local` cria um SQLite temporário com dados totalmente
+sintéticos, aplica as migrações versionadas, faz uma cópia local, simula perda
+de registros e sessões e verifica a restauração da cópia com integridade e
+chaves estrangeiras. O diretório temporário é removido ao final. Esse ensaio não
+consulta produção e não comprova o procedimento de Time Travel do Cloudflare D1.
 
 A suíte `pnpm test:integration` aceita somente um servidor local isolado. Ela
 requer `PORTAL_TEST_BASE_URL`, `PORTAL_TEST_SETUP_SECRET` e

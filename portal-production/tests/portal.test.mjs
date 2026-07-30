@@ -882,6 +882,31 @@ test("registration commits account, invitation, link, session and audit atomical
   assert.match(portal, /export function prepareAudit/);
 });
 
+test("local restore rehearsal stays synthetic and offline", async () => {
+  const [rehearsal, packageSource] = await Promise.all([
+    readFile(
+      new URL("../scripts/rehearse-local-restore.mjs", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  const packageJson = JSON.parse(packageSource);
+
+  assert.equal(
+    packageJson.scripts["test:restore-local"],
+    "node scripts/rehearse-local-restore.mjs",
+  );
+  assert.match(rehearsal, /mkdtemp/);
+  assert.match(rehearsal, /data: "synthetic-only"/);
+  assert.match(rehearsal, /production_requests: 0/);
+  assert.match(rehearsal, /PRAGMA integrity_check/);
+  assert.match(rehearsal, /PRAGMA foreign_key_check/);
+  assert.doesNotMatch(
+    rehearsal,
+    /fetch\(|XMLHttpRequest|WebSocket|https?:\/\/|wrangler|cloudflare/iu,
+  );
+});
+
 test("unexpected registration errors emit only bounded technical metadata", async () => {
   const route = await readFile(
     new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
