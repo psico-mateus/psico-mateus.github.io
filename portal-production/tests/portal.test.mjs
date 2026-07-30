@@ -248,6 +248,17 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Atualizar resumo/);
   assert.match(app, /Atualizando seus registros/);
   assert.match(styles, /\.patient-sharing-actions\{/);
+  assert.match(
+    app,
+    /Sua sessão terminou\. Entre novamente para continuar\./,
+  );
+  assert.match(app, /sessionMessage=\{sessionMessage\}/);
+  assert.match(app, /onSessionLost=\{sessionEnded\}/);
+  assert.match(app, /onSessionsEnded=\{sessionEnded\}/);
+  assert.match(
+    app,
+    /mode === "login" && sessionMessage[\s\S]*?<Notice tone="info" message=\{sessionMessage\}/,
+  );
   assert.match(installButton, /beforeinstallprompt/);
   assert.match(installButton, /Adicionar à Tela de Início/);
   assert.match(installButton, /MacBook e iMac/);

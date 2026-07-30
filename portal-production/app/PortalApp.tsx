@@ -395,10 +395,12 @@ function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: s
 
 function Guest({
   config,
+  sessionMessage,
   onAuthenticated,
   onRecoveryCode,
 }: {
   config: Config;
+  sessionMessage: string;
   onAuthenticated: (user: User, csrf: string, recovery?: string) => void;
   onRecoveryCode: (code: string) => void;
 }) {
@@ -470,6 +472,9 @@ function Guest({
         <section className="auth-card" aria-labelledby="auth-title">
           <p className="eyebrow">ACESSO PROTEGIDO</p>
           <h2 id="auth-title">{mode === "login" ? "Entre na sua conta" : mode === "register" ? "Crie sua conta" : "Recupere seu acesso"}</h2>
+          {mode === "login" && sessionMessage ? (
+            <Notice tone="info" message={sessionMessage} />
+          ) : null}
           {mode !== "recover" ? (
             <p className="auth-audience-note">O cadastro é destinado a pacientes em acompanhamento atual e exige um convite entregue por Mateus.</p>
           ) : null}
@@ -1642,12 +1647,17 @@ export function PortalApp() {
   const [fatal, setFatal] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
   const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
-  const clear = useCallback(() => {
+  const [sessionMessage, setSessionMessage] = useState("");
+  const clear = useCallback((message = "") => {
     setUser(null);
     setCsrf("");
     setHasUnsavedDraft(false);
+    setSessionMessage(message);
     scrollPageToTop();
   }, []);
+  const sessionEnded = useCallback(() => {
+    clear("Sua sessão terminou. Entre novamente para continuar.");
+  }, [clear]);
   const loadInitial = useCallback(async () => {
     setFatal("");
     setInitialLoading(true);
@@ -1694,6 +1704,7 @@ export function PortalApp() {
     scrollPageToTop();
     setUser(nextUser);
     setCsrf(token);
+    setSessionMessage("");
     if (nextRecovery) setRecovery(nextRecovery);
     scrollPageToTop();
   }, []);
@@ -1734,12 +1745,13 @@ export function PortalApp() {
       return (
         <Guest
           config={config}
+          sessionMessage={sessionMessage}
           onAuthenticated={authenticated}
           onRecoveryCode={setRecovery}
         />
       );
     }
-    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={clear} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={clear} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={clear} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>
