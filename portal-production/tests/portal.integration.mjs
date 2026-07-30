@@ -411,7 +411,7 @@ const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
 assert.equal(
   await storedPrivacyVersion(patientA.user.id),
-  "2026-07-30",
+  "2026-07-29",
   "novo cadastro deve registrar a versão atual do aviso de privacidade",
 );
 

@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       <h1 style={{ fontSize: "clamp(2.7rem,7vw,5rem)" }}>
         Seus registros, suas escolhas.
       </h1>
-      <p className="lead">Versão de 30 de julho de 2026.</p>
+      <p className="lead">Versão de 29 de julho de 2026.</p>
       <section className="panel stack">
         <h2>O que este espaço guarda</h2>
         <p>

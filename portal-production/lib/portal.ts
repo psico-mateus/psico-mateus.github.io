@@ -1,7 +1,7 @@
 import { getPortalEnv } from "@/db/runtime";
 import { hmac, identifier, normalizeEmail, randomToken, sha256 } from "@/lib/crypto";
 
-export const PRIVACY_VERSION = "2026-07-30";
+export const PRIVACY_VERSION = "2026-07-29";
 export const SESSION_COOKIE = "portal_session";
 const SESSION_SECONDS = 8 * 60 * 60;
 

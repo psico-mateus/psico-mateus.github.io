@@ -505,8 +505,8 @@ test("privacy notice explains account closure and data-rights requests", async (
 
   assert.match(app, /Código atual do autenticador/);
   assert.match(app, /aguarde o número exibido mudar/);
-  assert.match(portal, /PRIVACY_VERSION = "2026-07-30"/);
-  assert.match(privacy, /Versão de 30 de julho de 2026/);
+  assert.match(portal, /PRIVACY_VERSION = "2026-07-29"/);
+  assert.match(privacy, /Versão de 29 de julho de 2026/);
   assert.match(privacy, /não\s+apaga automaticamente a conta nem os registros/u);
   assert.match(privacy, /Mateus deixa de acessar também os registros/);
   assert.match(privacy, /Como exercer seus direitos/);
