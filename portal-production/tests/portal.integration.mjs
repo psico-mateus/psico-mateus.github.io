@@ -257,6 +257,18 @@ async function createEntry(patient, values) {
 }
 
 const therapist = session();
+const corruptedCookieSession = session();
+corruptedCookieSession.cookie = "portal_session=%E0%A4%A";
+const sessionWithCorruptedCookie = await api("/session", {
+  auth: corruptedCookieSession,
+});
+expectStatus(
+  sessionWithCorruptedCookie,
+  200,
+  "cookie de sessão corrompido tratado como acesso desconectado",
+);
+assert.equal(sessionWithCorruptedCookie.payload.user, null);
+
 const untrustedOrigin = await api("/login", {
   method: "POST",
   body: {
