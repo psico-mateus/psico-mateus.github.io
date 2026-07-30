@@ -56,3 +56,18 @@ test("fonte do preview social preserva o posicionamento público do Guia", async
   expect(mainScript).toContain("Recurso aberto para reconhecer emoções");
   expect(mainScript).not.toContain("Material de apoio para reconhecer emoções");
 });
+
+test("política de segurança direciona relatos ao canal privado", async ({}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Verificação estrutural única.");
+  const securityPolicy = await readFile("SECURITY.md", "utf8");
+
+  expect(securityPolicy).toContain(
+    "https://github.com/psico-mateus/psico-mateus.github.io/security/advisories/new",
+  );
+  expect(securityPolicy).toContain(
+    "Não publique detalhes de uma possível vulnerabilidade em issue, discussão ou pull request.",
+  );
+  expect(securityPolicy).toContain(
+    "sem incluir detalhes técnicos ou dados pessoais na primeira mensagem",
+  );
+});
