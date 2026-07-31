@@ -690,18 +690,46 @@ input[type="range"]{accent-color:#9a6d27}
 
 .patient-overview{
   display:grid;
-  grid-template-columns:minmax(0,.62fr) minmax(260px,1.08fr) minmax(280px,1.35fr);
-  gap:.8rem;
-  margin:-.55rem 0 2.7rem;
-}
-.patient-overview article,.patient-overview>a{
-  min-width:0;
-  min-height:108px;
+  gap:0;
+  margin:0 0 1.2rem;
   border:1px solid rgba(36,36,35,.12);
-  border-radius:18px;
+  border-radius:24px;
   background:var(--card);
-  padding:1.15rem 1.25rem;
+  box-shadow:0 12px 36px rgba(72,52,27,.055);
+  padding:clamp(1.15rem,3vw,1.7rem);
 }
+.patient-overview-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding-bottom:1rem;
+}
+.patient-overview-heading .eyebrow{margin-bottom:.25rem}
+.patient-overview-heading h2{margin:0;font-size:clamp(1.55rem,3vw,2rem)}
+.patient-overview-refresh{
+  min-height:44px;
+  border:1px solid rgba(36,36,35,.13);
+  border-radius:999px;
+  background:#f5eee4;
+  padding:.55rem .85rem;
+  color:#654b27;
+  font-size:.78rem;
+  font-weight:800;
+}
+.patient-overview-refresh span{display:inline-block;margin-right:.2rem;font-size:1rem}
+.patient-overview-metrics{
+  display:grid;
+  grid-template-columns:minmax(180px,.72fr) minmax(0,1.28fr);
+  border-top:1px solid rgba(36,36,35,.1);
+  border-bottom:1px solid rgba(36,36,35,.1);
+}
+.patient-overview article{
+  min-width:0;
+  min-height:112px;
+  padding:1.2rem .9rem;
+}
+.patient-overview article:first-child{border-right:1px solid rgba(36,36,35,.1)}
 .patient-overview article{display:flex;align-items:center;gap:1rem}
 .overview-number{
   min-width:2.2rem;
@@ -712,18 +740,6 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-overview article div{display:grid;min-width:0}
 .patient-overview article strong{font-size:.9rem}
 .patient-overview article small{color:var(--muted);line-height:1.4}
-.patient-overview>a{
-  display:grid;
-  align-content:center;
-  border-color:var(--ink);
-  background:var(--ink);
-  color:#fffdfa;
-  text-decoration:none;
-  transition:transform 180ms ease,background-color 180ms ease;
-}
-.patient-overview>a span{color:#d8cdbf;font-size:.78rem}
-.patient-overview>a strong{margin-top:.15rem;font-size:.98rem}
-.patient-overview>a:hover{background:#3b3b36;transform:translateY(-2px)}
 .patient-sharing-overview{
   display:grid!important;
   grid-template-columns:auto minmax(0,1fr);
@@ -773,14 +789,14 @@ input[type="range"]{accent-color:#9a6d27}
   background:currentColor;
 }
 .patient-sharing-actions{
-  grid-column:2;
   display:flex;
   align-items:center;
   gap:.8rem;
   flex-wrap:wrap;
 }
+.patient-sharing-actions>span{color:var(--muted);font-size:.78rem}
 .patient-sharing-history-link{
-  min-height:40px;
+  min-height:44px;
   border:0;
   background:transparent;
   color:var(--green-2);
@@ -790,6 +806,25 @@ input[type="range"]{accent-color:#9a6d27}
   text-decoration:underline;
   text-underline-offset:3px;
 }
+.patient-overview-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding-top:1rem;
+}
+.patient-overview-footer>a{
+  display:grid;
+  min-width:min(100%,290px);
+  border-radius:14px;
+  background:var(--ink);
+  padding:.7rem .9rem;
+  color:#fffdfa;
+  text-decoration:none;
+}
+.patient-overview-footer>a>span{color:#d8cdbf;font-size:.72rem}
+.patient-overview-footer>a strong{font-size:.82rem}
+.patient-overview-footer>a:hover{background:#3b3b36}
 
 .patient-entry-form{
   margin:0 0 3rem;
@@ -1284,8 +1319,6 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-account-panel .account-links a{min-height:44px;display:inline-flex;align-items:center}
 
 @media(max-width:850px){
-  .patient-overview{grid-template-columns:1fr 1fr}
-  .patient-overview>a{grid-column:1/-1}
   .patient-account-actions{grid-template-columns:1fr}
   .account-sessions{grid-template-columns:1fr}
 }
@@ -1293,12 +1326,17 @@ input[type="range"]{accent-color:#9a6d27}
 @media(max-width:560px){
   .patient-hero{gap:1.4rem}
   .patient-hero .primary-button{width:100%}
-  .patient-overview{grid-template-columns:1fr;margin-top:-.3rem}
-  .patient-overview>a{grid-column:auto}
-  .patient-sharing-overview{padding:1.15rem}
+  .patient-overview{padding:1rem}
+  .patient-overview-heading{align-items:flex-start}
+  .patient-overview-refresh{padding:.5rem .7rem}
+  .patient-overview-metrics{grid-template-columns:1fr}
+  .patient-overview article:first-child{border-right:0;border-bottom:1px solid rgba(36,36,35,.1)}
+  .patient-sharing-overview{padding:1.15rem .15rem}
   .patient-sharing-states{display:grid}
   .patient-sharing-state{width:100%;min-height:38px;border-radius:10px}
   .patient-sharing-history-link{min-height:44px}
+  .patient-overview-footer{display:grid}
+  .patient-overview-footer>a{width:100%}
   .patient-entry-form{padding:1.1rem}
   .patient-entry-form{scroll-margin-top:9.2rem}
   .entry-form-heading{display:grid;grid-template-columns:minmax(0,1fr) auto}
