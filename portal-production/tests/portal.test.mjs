@@ -1005,8 +1005,9 @@ test("mobile access shortcut and patient summary remain simple and private", asy
     readFile(new URL("./manual-visual-review.mjs", import.meta.url), "utf8"),
   ]);
 
-  assert.match(app, /className="guest-access-shortcut" href="#acesso"/u);
+  assert.match(app, /className="guest-access-shortcut"\s*href="#acesso"/u);
   assert.match(app, /className="auth-card" id="acesso" tabIndex=\{-1\}/u);
+  assert.match(app, /getElementById\("acesso"\)\?\.focus\(\{ preventScroll: true \}\)/u);
   assert.match(app, /Resumo dos registros/u);
   assert.match(app, /registros continuam privados · só você vê/u);
   assert.match(
@@ -1024,7 +1025,31 @@ test("mobile access shortcut and patient summary remain simple and private", asy
   );
   assert.match(visualReview, /PORTAL_VISUAL_BASE_URL/u);
   assert.match(visualReview, /localhost/u);
+  assert.match(visualReview, /document\.activeElement\?\.id === "acesso"/u);
   assert.doesNotMatch(visualReview, /https:\/\/area-do-paciente/u);
+});
+
+test("record form allows an early private save without hiding optional fields", async () => {
+  const [app, styles] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  const optionalStep =
+    app.match(
+      /<section className="entry-step entry-step-optional"[\s\S]*?<div className="two-columns optional-fields">[\s\S]*?<\/section>/u,
+    )?.[0] ?? "";
+  assert.match(optionalStep, /Quer parar por aqui\?/u);
+  assert.match(optionalStep, /type="submit"/u);
+  assert.match(optionalStep, /Salvar agora como privado/u);
+  assert.match(optionalStep, /As perguntas abaixo são opcionais/u);
+  assert.match(optionalStep, /O que percebeu no corpo\?/u);
+  assert.match(optionalStep, /Quais pensamentos apareceram\?/u);
+  assert.match(styles, /\.optional-save-shortcut\{/u);
+  assert.match(
+    styles,
+    /@media\(max-width:560px\)\{[\s\S]*?\.optional-save-shortcut\{align-items:stretch;flex-direction:column\}/u,
+  );
 });
 
 test("patient views keep one clear top-level heading", async () => {

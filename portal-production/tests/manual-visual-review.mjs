@@ -95,6 +95,14 @@ async function routePortal(page, sessionRole = "patient") {
       return;
     }
     if (path === "/entries") {
+      if (route.request().method() === "POST") {
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({ id: "synthetic-created" }),
+        });
+        return;
+      }
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ entries }),
@@ -121,6 +129,7 @@ async function reviewGuest(browserType, label, viewport) {
   if (viewport.width <= 850) {
     const shortcut = page.getByRole("link", { name: /Entrar ou criar conta/ });
     await shortcut.click();
+    await page.waitForFunction(() => document.activeElement?.id === "acesso");
     const authBox = await page.locator("#acesso").boundingBox();
     const headerBox = await page.locator(".site-header").boundingBox();
     const visibleTop = headerBox && headerBox.y >= 0 ? headerBox.y + headerBox.height : 0;
@@ -161,6 +170,20 @@ async function review(browserType, label, viewport) {
   await page.getByRole("button", { name: "Novo registro", exact: true }).click();
   await page.getByRole("heading", { name: "O que você quer guardar?", exact: true }).waitFor();
   await page.screenshot({ path: resolve(outputDir, `${label}-novo-registro.png`), fullPage: true });
+  await page.getByLabel("Título breve").fill("Registro visual sintético");
+  await page.getByLabel("O que aconteceu?").fill("Conteúdo neutro usado somente no teste local.");
+  const saveRequest = page.waitForRequest((request) =>
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/portal/entries"
+  );
+  await page.getByRole("button", { name: "Salvar agora como privado", exact: true }).click();
+  const savePayload = (await saveRequest).postDataJSON();
+  if (
+    savePayload.title !== "Registro visual sintético" ||
+    savePayload.happened !== "Conteúdo neutro usado somente no teste local."
+  ) {
+    throw new Error(`${label}: o salvamento antecipado não preservou os campos necessários`);
+  }
+  await page.getByText("Registro salvo de forma privada.", { exact: true }).waitFor();
   const dimensions = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
     scrollWidth: document.documentElement.scrollWidth,

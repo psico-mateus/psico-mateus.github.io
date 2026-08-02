@@ -519,7 +519,15 @@ function Guest({
           <h1>Acompanhe seu processo. <em>Use este espaço no seu tempo.</em></h1>
           <p className="lead">Aqui você pode anotar situações, pensamentos e emoções, consultar materiais e levar para a sessão o que fizer sentido.</p>
           <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> Esta área é para quem está em acompanhamento com Mateus. Para criar a conta, use o convite enviado por ele.</p>
-          <a className="guest-access-shortcut" href="#acesso">
+          <a
+            className="guest-access-shortcut"
+            href="#acesso"
+            onClick={() => {
+              window.requestAnimationFrame(() => {
+                document.getElementById("acesso")?.focus({ preventScroll: true });
+              });
+            }}
+          >
             Entrar ou criar conta <span aria-hidden="true">↓</span>
           </a>
           <div className="principles">
@@ -823,6 +831,21 @@ function EntryForm({
             </div>
             <p>Estas perguntas podem ajudar a olhar o momento com mais calma. Você pode responder só às que fizerem sentido ou seguir direto para salvar.</p>
           </div>
+        </div>
+        <div className="optional-save-shortcut">
+          <p>
+            <strong>Quer parar por aqui?</strong>
+            <span>
+              {remainsShared
+                ? "Este registro continuará compartilhado com Mateus."
+                : initial
+                  ? "As perguntas abaixo são opcionais e o registro continuará privado."
+                  : "As perguntas abaixo são opcionais e o registro será salvo como privado."}
+            </span>
+          </p>
+          <button className="secondary-button" type="submit" disabled={busy}>
+            {busy ? "Salvando…" : initial ? "Salvar alterações agora" : "Salvar agora como privado"}
+          </button>
         </div>
         <div className="two-columns optional-fields">
           <label className="field">
