@@ -63,6 +63,9 @@
     if (header) header.setAttribute("role", "group");
     if (footer) footer.setAttribute("role", "group");
     if (authorCard) authorCard.setAttribute("role", "presentation");
+    document
+      .querySelectorAll(".record-progress[aria-label]")
+      .forEach((progress) => progress.setAttribute("role", "group"));
 
     document
       .querySelectorAll(".modal-backdrop > .emotion-modal, .modal-backdrop > .install-modal")

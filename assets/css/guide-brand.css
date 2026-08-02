@@ -153,6 +153,17 @@ main .footer-links a:last-child {
   opacity: 1;
 }
 
+main .author-card summary {
+  min-height: 44px;
+  padding-block: 0.55rem;
+}
+
+main .footer-links a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
 main .author-card > p {
   color: #68645c;
 }

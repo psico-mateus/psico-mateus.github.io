@@ -625,10 +625,12 @@ h3 {
 .text-link {
   display: inline-flex;
   width: fit-content;
+  min-height: 44px;
   align-items: center;
   margin-top: auto;
   gap: 0.6rem;
   border-bottom: 1px solid currentColor;
+  padding-block: 0.45rem;
   font-weight: 800;
   text-decoration: none;
 }
@@ -1084,6 +1086,9 @@ h3 {
 
 .footer-nav a,
 .footer-contact a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
   color: #d8d3ca;
   font-size: 0.78rem;
   text-decoration: none;
@@ -1106,6 +1111,9 @@ h3 {
 }
 
 .footer-bottom a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
   color: #c5c0b7;
   text-decoration: none;
 }

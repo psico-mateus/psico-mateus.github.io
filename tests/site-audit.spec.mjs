@@ -148,6 +148,37 @@ test("ações principais ficam organizadas e fáceis de tocar", async ({ page },
   expect(Math.max(...mobileBoxes) - Math.min(...mobileBoxes)).toBeLessThanOrEqual(1);
 });
 
+test("rótulos e ações secundárias públicas permanecem acessíveis", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Verificação estrutural única.");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.locator(".hero-portrait")).not.toHaveAttribute("aria-label", /.+/u);
+  for (const selector of [
+    ".professional-identity",
+    ".modality-strip",
+    ".tcc-map",
+    ".guide-features",
+    ".portal-principles",
+  ]) {
+    await expect(page.locator(selector)).toHaveAttribute("role", "group");
+  }
+  const siteSecondaryHeights = await page
+    .locator(".text-link, .footer-nav a, .footer-contact a, .footer-bottom a")
+    .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
+  expect(siteSecondaryHeights.length).toBeGreaterThan(0);
+  for (const height of siteSecondaryHeights) expect(height).toBeGreaterThanOrEqual(44);
+
+  await page.goto("/guia-emocoes/");
+  await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
+  await expect(page.locator('.record-progress[aria-label]')).toHaveAttribute("role", "group");
+  const guideSecondaryHeights = await page
+    .locator(".author-card summary, .footer-links a")
+    .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
+  expect(guideSecondaryHeights.length).toBeGreaterThan(0);
+  for (const height of guideSecondaryHeights) expect(height).toBeGreaterThanOrEqual(44);
+});
+
 test("numerais e setas auxiliares do site permanecem legíveis", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Auditoria visual executada uma vez.");
   await page.goto("/");

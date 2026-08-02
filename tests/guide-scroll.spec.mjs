@@ -387,12 +387,12 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v24"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v25"');
   expect(serviceWorker).toContain(
-    '"/assets/css/guide-brand.css?v=20260802-contrast"',
+    '"/assets/css/guide-brand.css?v=20260802-a11y2"',
   );
   expect(serviceWorker).toContain(
-    '"/assets/js/guide-navigation.js?v=20260802-a11y"',
+    '"/assets/js/guide-navigation.js?v=20260802-a11y2"',
   );
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
