@@ -1258,13 +1258,19 @@ function PatientDashboard({
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <header className="patient-overview-heading">
-              <div><p className="eyebrow">SEU RESUMO</p><h2>Seus registros</h2></div>
+              <h2>Um olhar rápido</h2>
               <button className="patient-overview-refresh" type="button" disabled={loading || refreshing} onClick={() => refreshEntries()}>
-                <span aria-hidden="true">↻</span> {refreshing ? "Atualizando…" : "Atualizar resumo"}
+                <span aria-hidden="true">↻</span> {refreshing ? "Atualizando…" : "Atualizar"}
               </button>
             </header>
             <div className="patient-overview-metrics">
-              <article><span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : entries.length}</span><div><strong>{entries.length === 1 ? "registro salvo" : "registros salvos"}</strong><small>Guardados no seu histórico</small></div></article>
+              <article>
+                <span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : entries.length}</span>
+                <div>
+                  <strong>{entries.length === 1 ? "registro no histórico" : "registros no histórico"}</strong>
+                  <small>Só você vê os que continuam privados.</small>
+                </div>
+              </article>
               <article className="patient-sharing-overview">
                 <span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : sharedCount}</span>
                 <div>
@@ -1272,23 +1278,21 @@ function PatientDashboard({
                   {loading ? (
                     <small>Consultando visualizações…</small>
                   ) : sharedCount === 0 ? (
-                    <small>Nenhum registro está visível para Mateus</small>
+                    <small>Nenhum registro está visível para Mateus.</small>
                   ) : (
-                    <span className="patient-sharing-states" aria-label="Visualização dos registros compartilhados">
-                      {sharedViewCounts.viewed ? <span className="patient-sharing-state viewed"><span aria-hidden="true">✓</span>{sharedViewCounts.viewed} {sharedViewCounts.viewed === 1 ? "visualizado" : "visualizados"}</span> : null}
-                      {sharedViewCounts.unseen ? <span className="patient-sharing-state pending"><span aria-hidden="true" />{sharedViewCounts.unseen} {sharedViewCounts.unseen === 1 ? "ainda não visualizado" : "ainda não visualizados"}</span> : null}
-                      {sharedViewCounts.updated ? <span className="patient-sharing-state pending"><span aria-hidden="true" />{sharedViewCounts.updated} {sharedViewCounts.updated === 1 ? "atualizado após visualização" : "atualizados após visualização"}</span> : null}
-                      {sharedViewCounts.reshared ? <span className="patient-sharing-state pending"><span aria-hidden="true" />{sharedViewCounts.reshared} {sharedViewCounts.reshared === 1 ? "compartilhado novamente" : "compartilhados novamente"}</span> : null}
-                    </span>
+                    <ul className="patient-sharing-states" aria-label="Visualização dos registros compartilhados">
+                      {sharedViewCounts.viewed ? <li className="viewed"><span aria-hidden="true">✓</span>Mateus visualizou {sharedViewCounts.viewed} {sharedViewCounts.viewed === 1 ? "registro" : "registros"}.</li> : null}
+                      {sharedViewCounts.unseen ? <li className="pending"><span aria-hidden="true" />{sharedViewCounts.unseen} {sharedViewCounts.unseen === 1 ? "registro ainda não foi visualizado" : "registros ainda não foram visualizados"}.</li> : null}
+                      {sharedViewCounts.updated ? <li className="pending"><span aria-hidden="true" />{sharedViewCounts.updated} {sharedViewCounts.updated === 1 ? "registro atualizado após visualização" : "registros atualizados após visualização"}.</li> : null}
+                      {sharedViewCounts.reshared ? <li className="pending"><span aria-hidden="true" />{sharedViewCounts.reshared} {sharedViewCounts.reshared === 1 ? "registro foi compartilhado novamente" : "registros foram compartilhados novamente"}.</li> : null}
+                    </ul>
                   )}
                 </div>
               </article>
             </div>
             <footer className="patient-overview-footer">
-              <div className="patient-sharing-actions">
-                {!loading && sharedCount > 0 ? <button className="patient-sharing-history-link" type="button" onClick={() => changeArea("records")}>Ver no histórico →</button> : <span>Nada é compartilhado automaticamente.</span>}
-              </div>
-              <a href={config.guide_url} target="_blank" rel="noopener noreferrer"><span>Está difícil nomear o que sentiu?</span><strong>Abrir o Guia de Emoções → <span className="sr-status">(abre em nova aba)</span></strong></a>
+              <span>Nada é compartilhado automaticamente.</span>
+              <button className="patient-sharing-history-link" type="button" onClick={() => changeArea("records")}>Abrir meus registros <span aria-hidden="true">→</span></button>
             </footer>
           </section>
 

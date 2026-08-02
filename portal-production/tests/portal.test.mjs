@@ -292,9 +292,18 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /entriesRequestSequence\.current = sequence/);
   assert.match(app, /if \(sequence !== entriesRequestSequence\.current\) return/);
   assert.match(app, /if \(manualRefreshLock\.current\) return/);
-  assert.match(app, /Atualizar resumo/);
+  assert.match(app, /Atualizando…/);
   assert.match(app, /Atualizando seus registros/);
-  assert.match(styles, /\.patient-sharing-actions\{/);
+  assert.match(styles, /\.patient-overview-footer\{/);
+  assert.match(styles, /\.patient-overview-refresh\{[\s\S]*?min-height:44px/);
+  assert.match(styles, /\.patient-sharing-history-link\{[\s\S]*?min-height:44px/);
+  assert.match(styles, /\.patient-how-to a,\.education-safety a\{[\s\S]*?min-height:24px/);
+  assert.match(styles, /button,input,textarea,select\{font:inherit\}/);
+  assert.match(styles, /\.patient-record-search-row select\{[\s\S]*?height:48px/);
+  assert.match(styles, /\.password-visibility-button\{[\s\S]*?min-height:44px/);
+  assert.match(styles, /\.range-field input\[type="range"\]\{min-height:44px\}/);
+  assert.match(styles, /\.patient-record-content \.record-actions>\*\{width:100%;min-height:44px\}/);
+  assert.match(styles, /\.field-help-link\{[\s\S]*?min-height:44px/);
   assert.match(
     app,
     /Sua sessão terminou\. Entre novamente para continuar\./,
@@ -586,7 +595,7 @@ test("patient view state is server-derived and excluded from the data export", a
   );
   assert.match(app, /patientEntryViewSummary\(viewStatus\)/);
   assert.match(app, /patient-sharing-states/);
-  assert.match(app, /Ver no histórico/);
+  assert.match(app, /Abrir meus registros/);
   assert.match(app, /não é acompanhada em tempo real/);
   assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);
   assert.match(exportHandler, /delete exportedEntry\.viewed_at/);
