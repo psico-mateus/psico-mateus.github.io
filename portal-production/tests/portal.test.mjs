@@ -36,8 +36,10 @@ import {
 import { copyText } from "../app/copy-text.ts";
 import {
   PortalRequestError,
+  SLOW_MUTATION_NOTICE_MS,
   formatViewTimestamp,
   portalRequest,
+  subscribeToSlowPortalMutations,
 } from "../app/portal-client.ts";
 import {
   secureTransportRedirect,
@@ -132,6 +134,117 @@ test("portal requests translate connection and malformed-response failures", asy
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("slow mutations warn without aborting or repeating the request", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const events = [];
+  let timerCallback;
+  let resolveFetch;
+  let fetchCalls = 0;
+  const unsubscribe = subscribeToSlowPortalMutations((pending) => {
+    events.push(pending);
+  });
+
+  try {
+    globalThis.setTimeout = (callback, delay) => {
+      assert.equal(delay, SLOW_MUTATION_NOTICE_MS);
+      timerCallback = callback;
+      return 123;
+    };
+    globalThis.clearTimeout = () => {};
+    globalThis.fetch = async () => {
+      fetchCalls += 1;
+      return await new Promise((resolve) => {
+        resolveFetch = resolve;
+      });
+    };
+
+    const request = portalRequest("/entries", {
+      method: "POST",
+      body: JSON.stringify({ title: "conteúdo sintético" }),
+    });
+    assert.equal(fetchCalls, 1);
+    assert.deepEqual(events, []);
+    timerCallback();
+    assert.deepEqual(events, [true]);
+    assert.equal(fetchCalls, 1);
+
+    resolveFetch(new Response(null, { status: 204 }));
+    await request;
+    assert.deepEqual(events, [true, false]);
+    assert.equal(fetchCalls, 1);
+  } finally {
+    unsubscribe();
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
+test("read requests do not enter the slow-mutation tracker", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  let timerCalls = 0;
+  try {
+    globalThis.setTimeout = (...args) => {
+      timerCalls += 1;
+      return originalSetTimeout(...args);
+    };
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ entries: [] }), {
+        headers: { "content-type": "application/json" },
+      });
+    await portalRequest("/entries");
+    assert.equal(timerCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
+test("slow-mutation notice remains until every pending action finishes", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const events = [];
+  const timerCallbacks = [];
+  const resolvers = [];
+  const unsubscribe = subscribeToSlowPortalMutations((pending) => {
+    events.push(pending);
+  });
+
+  try {
+    globalThis.setTimeout = (callback) => {
+      timerCallbacks.push(callback);
+      return timerCallbacks.length;
+    };
+    globalThis.clearTimeout = () => {};
+    globalThis.fetch = async () =>
+      await new Promise((resolve) => {
+        resolvers.push(resolve);
+      });
+
+    const first = portalRequest("/first", { method: "POST" });
+    const second = portalRequest("/second", { method: "DELETE" });
+    timerCallbacks.forEach((callback) => callback());
+    assert.deepEqual(events, [true]);
+
+    resolvers[0](new Response(null, { status: 204 }));
+    await first;
+    assert.deepEqual(events, [true]);
+
+    resolvers[1](new Response(null, { status: 204 }));
+    await second;
+    assert.deepEqual(events, [true, false]);
+  } finally {
+    unsubscribe();
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
   }
 });
 
@@ -246,6 +359,11 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   );
   assert.match(app, /label="Código do aplicativo autenticador"[\s\S]*?name="totp"/);
   assert.match(styles, /\.professional-login-details\{/);
+  assert.match(app, /subscribeToSlowPortalMutations\(setPending\)/);
+  assert.match(app, /A ação está demorando mais que o normal/);
+  assert.match(app, /if \(logoutInFlight\.current\) return/);
+  assert.match(app, /logoutBusy \? "Saindo…" : "Sair"/);
+  assert.match(styles, /\.slow-mutation-status\{[\s\S]*?width:min\(600px,calc\(100vw - 1\.5rem\)\)/);
   assert.match(app, /addEventListener\("reset", clearRequirements\)/);
   assert.match(app, /user\?\.role !== "therapist"/);
   assert.match(app, /Para pacientes atuais/);

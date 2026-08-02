@@ -28,6 +28,7 @@ import {
   formatDate,
   formatViewTimestamp,
   portalRequest,
+  subscribeToSlowPortalMutations,
 } from "./portal-client";
 
 type Role = "patient" | "therapist";
@@ -227,7 +228,32 @@ function Notice({
   );
 }
 
-function Header({ config, user, onLogout }: { config: Config; user?: User | null; onLogout?: () => void }) {
+function SlowMutationStatus() {
+  const [pending, setPending] = useState(false);
+  useEffect(() => subscribeToSlowPortalMutations(setPending), []);
+  if (!pending) return null;
+  return (
+    <div className="slow-mutation-status">
+      <Notice
+        tone="info"
+        focusOnMount={false}
+        message="A ação está demorando mais que o normal. Mantenha esta tela aberta e não toque novamente no botão. Ela pode ainda estar sendo concluída."
+      />
+    </div>
+  );
+}
+
+function Header({
+  config,
+  user,
+  onLogout,
+  logoutBusy = false,
+}: {
+  config: Config;
+  user?: User | null;
+  onLogout?: () => void;
+  logoutBusy?: boolean;
+}) {
   return (
     <header className="site-header">
       {/* A navegação completa mantém o aviso nativo de alterações não salvas. */}
@@ -245,7 +271,16 @@ function Header({ config, user, onLogout }: { config: Config; user?: User | null
           Guia de Emoções<span className="sr-status"> (abre em nova aba)</span>
         </a>
         {user?.role !== "therapist" ? <InstallAppButton /> : null}
-        {user && onLogout ? <button type="button" className="link-button" onClick={onLogout}>Sair</button> : null}
+        {user && onLogout ? (
+          <button
+            type="button"
+            className="link-button"
+            onClick={onLogout}
+            disabled={logoutBusy}
+          >
+            {logoutBusy ? "Saindo…" : "Sair"}
+          </button>
+        ) : null}
       </nav>
     </header>
   );
@@ -1809,6 +1844,8 @@ export function PortalApp() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
   const [sessionMessage, setSessionMessage] = useState("");
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const logoutInFlight = useRef(false);
   const clear = useCallback((message = "") => {
     setUser(null);
     setCsrf("");
@@ -1870,13 +1907,22 @@ export function PortalApp() {
     scrollPageToTop();
   }, []);
   async function logout() {
+    if (logoutInFlight.current) return;
     if (
       hasUnsavedDraft &&
       !window.confirm("Sair da conta? As alterações que ainda não foram salvas serão perdidas.")
     ) {
       return;
     }
-    try { await portalRequest("/logout", { method: "POST" }, csrf); } finally { clear(); }
+    logoutInFlight.current = true;
+    setLogoutBusy(true);
+    try {
+      await portalRequest("/logout", { method: "POST" }, csrf);
+    } finally {
+      logoutInFlight.current = false;
+      setLogoutBusy(false);
+      clear();
+    }
   }
   const content = (() => {
     if (!config && fatal) {
@@ -1912,11 +1958,12 @@ export function PortalApp() {
         />
       );
     }
-    return <><Header config={config} user={user} onLogout={() => void logout()} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>
       <AppUpdateManager hasUnsavedDraft={hasUnsavedDraft} />
+      <SlowMutationStatus />
       {content}
       {recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}
     </>
