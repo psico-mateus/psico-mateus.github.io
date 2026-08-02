@@ -1026,6 +1026,8 @@ test("mobile access shortcut and patient summary remain simple and private", asy
   assert.match(visualReview, /PORTAL_VISUAL_BASE_URL/u);
   assert.match(visualReview, /localhost/u);
   assert.match(visualReview, /document\.activeElement\?\.id === "acesso"/u);
+  assert.match(visualReview, /window\.axe\.run/u);
+  assert.match(visualReview, /wcag22aa/u);
   assert.doesNotMatch(visualReview, /https:\/\/area-do-paciente/u);
 });
 

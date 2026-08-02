@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, webkit } from "../../node_modules/@playwright/test/index.mjs";
+import axe from "axe-core";
 
 const baseUrl = process.env.PORTAL_VISUAL_BASE_URL;
 if (!baseUrl) {
@@ -64,6 +65,27 @@ const entries = [
   },
 ];
 
+async function assertAccessible(page, label) {
+  await page.addScriptTag({ content: axe.source });
+  const violations = await page.evaluate(async () => {
+    const result = await window.axe.run(document, {
+      runOnly: {
+        type: "tag",
+        values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"],
+      },
+    });
+    return result.violations.map((violation) => ({
+      id: violation.id,
+      impact: violation.impact,
+      targets: violation.nodes.flatMap((node) => node.target).slice(0, 4),
+    }));
+  });
+
+  if (violations.length > 0) {
+    throw new Error(`${label}: falhas automáticas de acessibilidade ${JSON.stringify(violations)}`);
+  }
+}
+
 async function routePortal(page, sessionRole = "patient") {
   await page.route("**/api/portal/**", async (route) => {
     const url = new URL(route.request().url());
@@ -124,6 +146,7 @@ async function reviewGuest(browserType, label, viewport) {
   await routePortal(page, "guest");
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: /Acompanhe seu processo/ }).waitFor();
+  await assertAccessible(page, `${label}-acesso`);
   await page.screenshot({ path: resolve(outputDir, `${label}-acesso.png`), fullPage: true });
 
   if (viewport.width <= 850) {
@@ -163,12 +186,15 @@ async function review(browserType, label, viewport) {
   await routePortal(page);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Olá, Paciente." }).waitFor();
+  await assertAccessible(page, `${label}-inicio`);
   await page.screenshot({ path: resolve(outputDir, `${label}-inicio.png`), fullPage: true });
   await page.getByRole("button", { name: "Meus registros", exact: true }).click();
   await page.getByRole("heading", { name: "Meus registros" }).waitFor();
+  await assertAccessible(page, `${label}-historico`);
   await page.screenshot({ path: resolve(outputDir, `${label}-historico.png`), fullPage: true });
   await page.getByRole("button", { name: "Novo registro", exact: true }).click();
   await page.getByRole("heading", { name: "O que você quer guardar?", exact: true }).waitFor();
+  await assertAccessible(page, `${label}-novo-registro`);
   await page.screenshot({ path: resolve(outputDir, `${label}-novo-registro.png`), fullPage: true });
   await page.getByLabel("Título breve").fill("Registro visual sintético");
   await page.getByLabel("O que aconteceu?").fill("Conteúdo neutro usado somente no teste local.");
@@ -204,4 +230,10 @@ results.push(await reviewGuest(chromium, "guest-chromium-desktop", { width: 1366
 results.push(await review(webkit, "webkit-320", { width: 320, height: 700 }));
 results.push(await review(webkit, "webkit-390", { width: 390, height: 844 }));
 results.push(await review(chromium, "chromium-desktop", { width: 1366, height: 900 }));
-console.log(JSON.stringify({ ok: true, baseUrl, outputDir, results }));
+console.log(JSON.stringify({
+  ok: true,
+  baseUrl,
+  outputDir,
+  accessibility: "axe WCAG A/AA sem violações automáticas",
+  results,
+}));
