@@ -178,9 +178,9 @@ function EducationArticleView({
 
       <header className="education-article-header">
         <p className="eyebrow">{article.category}</p>
-        <h2 id="education-article-title" ref={titleRef} tabIndex={-1}>
+        <h1 id="education-article-title" ref={titleRef} tabIndex={-1}>
           {article.title}
-        </h2>
+        </h1>
         <p className="education-article-summary">{article.summary}</p>
         <p className="education-reading-time">
           Leitura de cerca de {educationReadingMinutes(article)} minutos
@@ -190,14 +190,14 @@ function EducationArticleView({
       <div className="education-article-body">
         {article.sections.map((section) => (
           <section key={section.heading}>
-            <h3>{section.heading}</h3>
+            <h2>{section.heading}</h2>
             <EducationBlocks blocks={section.blocks} />
           </section>
         ))}
 
         {article.safety !== undefined ? (
           <aside className="education-safety" aria-labelledby="education-safety-title">
-            <h3 id="education-safety-title">Ajuda imediata</h3>
+            <h2 id="education-safety-title">Ajuda imediata</h2>
             {article.safety ? <p>{article.safety}</p> : null}
             <a href={careUrl}>Cuidados e ajuda imediata</a>
           </aside>
@@ -205,13 +205,13 @@ function EducationArticleView({
 
         <section className="education-observe">
           <p className="eyebrow">PARA OBSERVAR DURANTE A SEMANA</p>
-          <h3>Leve somente o que fizer sentido</h3>
+          <h2>Leve somente o que fizer sentido</h2>
           <EducationBlocks blocks={article.observe} />
         </section>
 
         {article.relatedSlugs?.length ? (
           <nav className="education-related" aria-label="Temas relacionados">
-            <h3>Leia também</h3>
+            <h2>Leia também</h2>
             <ul>
               {article.relatedSlugs.slice(0, 3).map((slug) => {
                 const relatedArticle = findEducationArticle(slug);
@@ -253,7 +253,7 @@ function EducationArticleView({
         <div className="education-record-cta">
           <div>
             <p className="eyebrow">SE QUISER ESCREVER</p>
-            <h3>Guarde uma reflexão no seu espaço</h3>
+            <h2>Guarde uma reflexão no seu espaço</h2>
             <p>
               O formulário abrirá vazio e o registro continuará privado ao salvar.
             </p>
@@ -349,9 +349,9 @@ export function PatientEducation({
     <section className="education-library" aria-labelledby="education-title">
       <header className="education-library-header">
         <p className="eyebrow">PARA LER NO SEU TEMPO</p>
-        <h2 id="education-title" ref={libraryTitleRef} tabIndex={-1}>
+        <h1 id="education-title" ref={libraryTitleRef} tabIndex={-1}>
           Leitura complementar
-        </h2>
+        </h1>
         <p className="education-library-intro">
           Textos breves sobre questões que podem aparecer dentro e fora da
           terapia. Eles ajudam a organizar dúvidas, reconhecer padrões e
@@ -402,7 +402,7 @@ export function PatientEducation({
 
       {visibleArticles.length === 0 ? (
         <div className="empty-state education-empty-state">
-          <h3>Nenhuma leitura encontrada.</h3>
+          <h2>Nenhuma leitura encontrada.</h2>
           <p>Tente outra palavra ou veja todos os temas.</p>
           <button
             className="secondary-button"
@@ -425,9 +425,9 @@ export function PatientEducation({
             >
               <header className="education-group-header">
                 <div>
-                  <h3 id={`education-group-${groupIndex}`}>
+                  <h2 id={`education-group-${groupIndex}`}>
                     {group.category}
-                  </h3>
+                  </h2>
                   <p>{educationCategoryDescriptions[group.category]}</p>
                 </div>
                 <span>
@@ -445,7 +445,7 @@ export function PatientEducation({
                         {educationReadingMinutes(article)} min de leitura
                       </small>
                     </div>
-                    <h4>{article.title}</h4>
+                    <h3>{article.title}</h3>
                     <p>{article.summary}</p>
                     <button
                       id={`education-read-${article.slug}`}

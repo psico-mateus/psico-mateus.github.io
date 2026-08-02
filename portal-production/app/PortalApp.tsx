@@ -45,6 +45,15 @@ type Config = {
 function isSessionExpiredError(error: unknown): boolean {
   return error instanceof PortalRequestError && error.status === 401;
 }
+
+function entrySaveErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : "Não foi possível salvar agora.";
+  if (isSessionExpiredError(error)) {
+    return `${message} O que você escreveu continua nesta tela por enquanto. Copie o texto antes de recarregar e entre novamente.`;
+  }
+  return `${message} O que você escreveu continua nesta tela. Tente salvar novamente quando puder.`;
+}
 type Entry = {
   id: string;
   title: string;
@@ -713,7 +722,7 @@ function EntryForm({
     submissionInFlight.current = true;
     setBusy(true);
     setMessage("");
-    try { await onSave(draft); } catch (error) { setMessage((error as Error).message); } finally {
+    try { await onSave(draft); } catch (error) { setMessage(entrySaveErrorMessage(error)); } finally {
       submissionInFlight.current = false;
       setBusy(false);
     }
@@ -728,7 +737,7 @@ function EntryForm({
       <div className="section-heading entry-form-heading">
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
-          <h2 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h2>
+          <h1 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h1>
           <p>Comece pelo que estiver mais claro agora.</p>
         </div>
         <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário" disabled={busy}>
@@ -742,7 +751,7 @@ function EntryForm({
       <section className="entry-step entry-step-situation" aria-labelledby="entry-step-one">
         <div className="entry-step-heading">
           <span aria-hidden="true">01</span>
-          <div><h3 id="entry-step-one">Comece pela situação</h3><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
+          <div><h2 id="entry-step-one">Comece pela situação</h2><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
         </div>
         <label className="field">
           <span className="field-label-line"><span>Título breve</span><small>Necessário</small></span>
@@ -759,7 +768,7 @@ function EntryForm({
       <section className="entry-step entry-step-emotion" aria-labelledby="entry-step-two">
         <div className="entry-step-heading">
           <span aria-hidden="true">02</span>
-          <div><h3 id="entry-step-two">Como isso chegou em você?</h3><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
+          <div><h2 id="entry-step-two">Como isso chegou em você?</h2><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
         </div>
         <div className="emotion-row">
           <div className="field">
@@ -806,7 +815,7 @@ function EntryForm({
           <span aria-hidden="true">03</span>
           <div>
             <div className="optional-heading-line">
-              <h3 id="entry-step-three">Quer complementar?</h3>
+              <h2 id="entry-step-three">Quer complementar?</h2>
               <span className="optional-badge">Opcional</span>
             </div>
             <p>Estas perguntas podem ajudar a olhar o momento com mais calma. Você pode responder só às que fizerem sentido ou seguir direto para salvar.</p>
@@ -1340,7 +1349,7 @@ function PatientDashboard({
         <div className="section-heading patient-records-heading">
           <div>
             <p className="eyebrow">HISTÓRICO</p>
-            <h2 id="records-title" tabIndex={-1}>Meus registros</h2>
+            <h1 id="records-title" tabIndex={-1}>Meus registros</h1>
             <p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p>
           </div>
           <div className="patient-records-heading-actions">
@@ -1367,7 +1376,7 @@ function PatientDashboard({
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entriesError && entries.length === 0 ? null : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
-            <h3>Seu histórico começa quando você quiser.</h3>
+            <h2>Seu histórico começa quando você quiser.</h2>
             <p>Você pode começar com uma situação breve. Não precisa entender tudo antes de escrever.</p>
             <div className="empty-state-actions"><button className="primary-button" onClick={openNewRecord}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url} target="_blank" rel="noopener noreferrer">Explorar o Guia de Emoções <span className="sr-status">(abre em nova aba)</span></a></div>
           </div>
@@ -1420,7 +1429,7 @@ function PatientDashboard({
           </div>
           {visibleEntries.length === 0 ? (
             <div className="empty-state patient-filter-empty">
-              <h3>{hasEntryQuery ? "Nenhum registro encontrado." : entryFilter === "shared" ? "Nenhum registro compartilhado agora." : "Nenhum registro privado agora."}</h3>
+              <h2>{hasEntryQuery ? "Nenhum registro encontrado." : entryFilter === "shared" ? "Nenhum registro compartilhado agora." : "Nenhum registro privado agora."}</h2>
               <p>{hasEntryQuery ? "Tente outra palavra ou limpe a busca para voltar ao histórico." : entryFilter === "shared" ? "Quando você decidir compartilhar um registro com Mateus, ele aparecerá aqui." : "Você pode deixar um registro privado novamente abrindo-o e retirando o compartilhamento."}</p>
               <div className="button-row">
                 {hasEntryQuery ? <button className="secondary-button" type="button" onClick={() => setEntryQuery("")}>Limpar busca</button> : null}

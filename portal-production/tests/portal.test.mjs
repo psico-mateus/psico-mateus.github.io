@@ -388,6 +388,9 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(app, /com ou sem espaços e hífens/);
   assert.match(app, /beforeunload/);
   assert.match(app, /Descartar as alterações que ainda não foram salvas/);
+  assert.match(app, /O que você escreveu continua nesta tela por enquanto/);
+  assert.match(app, /O que você escreveu continua nesta tela\. Tente salvar novamente/);
+  assert.match(app, /setMessage\(entrySaveErrorMessage\(error\)\)/);
   assert.match(
     app,
     /<a className="brand" href="\/" aria-label="Início da Área do paciente">/,
@@ -882,6 +885,27 @@ test("mobile layout keeps the portal within the viewport", async () => {
   assert.match(finalMobileRules, /\.guest-layout\{[\s\S]*?padding:0 1rem/);
   assert.match(finalMobileRules, /\.disclosure-action\{[\s\S]*?calc\(100% - 2\.7rem\)/);
   assert.match(finalMobileRules, /#selected-patient-title[\s\S]*?scroll-margin-top:8\.5rem/);
+  assert.match(
+    styles,
+    /@media\(max-width:400px\)\{[\s\S]*?\.patient-navigation\{[\s\S]*?grid-template-columns:\.72fr \.92fr 1\.36fr/,
+  );
+  assert.match(
+    styles,
+    /@media\(min-width:561px\) and \(max-width:700px\)\{[\s\S]*?\.professional-navigation\{[\s\S]*?grid-template-columns:1\.18fr 1\.05fr \.77fr/,
+  );
+});
+
+test("patient views keep one clear top-level heading", async () => {
+  const [portal, education] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientEducation.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(portal, /<h1 id="records-title"/);
+  assert.match(portal, /<h1 id="entry-form-title"/);
+  assert.match(education, /<h1 id="education-title"/);
+  assert.match(education, /<h1 id="education-article-title"/);
+  assert.doesNotMatch(education, /<h4>/);
 });
 
 test("public Worker build does not duplicate the Sites database binding", async () => {
