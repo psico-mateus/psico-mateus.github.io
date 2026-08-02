@@ -104,3 +104,29 @@ test("site e Guia respeitam a preferência de reduzir movimento", async ({ page 
     expect(motion.animationMilliseconds).toBeLessThanOrEqual(0.1);
   }
 });
+
+test("ações principais ficam organizadas e fáceis de tocar", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Matriz executada uma vez com viewports explícitos.");
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  const desktopActions = page.locator(".hero-copy .button-row .button");
+  await expect(desktopActions).toHaveCount(3);
+  const desktopBoxes = await desktopActions.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { top: box.top, height: box.height };
+    }),
+  );
+  expect(Math.max(...desktopBoxes.map(({ top }) => top)) - Math.min(...desktopBoxes.map(({ top }) => top)))
+    .toBeLessThanOrEqual(1);
+  for (const box of desktopBoxes) expect(box.height).toBeGreaterThanOrEqual(44);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const mobileActions = page.locator(".hero-copy .button-row .button");
+  const mobileBoxes = await mobileActions.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().width),
+  );
+  expect(Math.max(...mobileBoxes) - Math.min(...mobileBoxes)).toBeLessThanOrEqual(1);
+});
