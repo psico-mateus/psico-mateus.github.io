@@ -3,242 +3,124 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex, nofollow" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="color-scheme" content="light" />
-    <title>Registros entre sessões | Mateus Ribeiro Marcos</title>
     <meta
-      name="description"
-      content="Registros pessoais que o paciente pode manter privados ou compartilhar para a sessão."
+      http-equiv="refresh"
+      content="0; url=https://area-do-paciente.psico-mateus.workers.dev/"
     />
-    <link rel="stylesheet" href="/espaco/styles.css" />
-    <script src="/espaco/app.js" defer></script>
+    <link
+      rel="canonical"
+      href="https://area-do-paciente.psico-mateus.workers.dev/"
+    />
+    <title>Área do paciente | Mateus Ribeiro Marcos</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f7f3ed;
+        color: #252423;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 1.25rem;
+      }
+
+      main {
+        width: min(100%, 34rem);
+        border: 1px solid #d9d1c6;
+        border-radius: 1.5rem;
+        background: #fffdfa;
+        padding: clamp(1.5rem, 6vw, 3rem);
+        box-shadow: 0 1.5rem 4rem rgb(45 39 31 / 9%);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+      }
+
+      .brand img { width: 3rem; height: 3rem; }
+      .brand strong { font-family: Georgia, "Times New Roman", serif; }
+
+      .eyebrow {
+        margin: 0 0 0.65rem;
+        color: #7c5a22;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.15em;
+      }
+
+      h1 {
+        margin: 0 0 1rem;
+        font: 500 clamp(2.2rem, 9vw, 3.4rem) / 1.02 Georgia, "Times New Roman", serif;
+        letter-spacing: -0.04em;
+      }
+
+      p { color: #69635d; line-height: 1.65; }
+
+      .primary-link {
+        min-height: 3rem;
+        margin-top: 1.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: #252622;
+        color: #fff;
+        padding: 0.75rem 1.2rem;
+        font-weight: 750;
+        text-decoration: none;
+      }
+
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.2rem;
+        margin-top: 2rem;
+        border-top: 1px solid #e4ddd4;
+        padding-top: 1.25rem;
+        font-size: 0.88rem;
+      }
+
+      nav a { color: #625d57; text-underline-offset: 0.2em; }
+
+      a:focus-visible {
+        outline: 3px solid #b8842d;
+        outline-offset: 4px;
+      }
+    </style>
+    <script>
+      window.location.replace("https://area-do-paciente.psico-mateus.workers.dev/");
+    </script>
   </head>
   <body>
-    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
-    <header class="site-header">
-      <a class="brand" href="/espaco/" aria-label="Ir para o início dos Registros entre sessões">
-        <img src="/espaco/brand-logo.svg" alt="" width="44" height="44" />
-        <span>
-          <strong>Registros entre sessões</strong>
-          <small>Uso opcional em psicoterapia · Mateus Ribeiro Marcos</small>
-        </span>
-      </a>
-      <div class="header-actions">
-        <span class="test-chip">Ambiente local</span>
-        <nav class="resource-navigation" aria-label="Outros recursos de Mateus Ribeiro Marcos">
-          <a href="/">Site profissional</a>
-          <a href="/guia-emocoes/">Guia de Emoções</a>
-        </nav>
-        <button id="logout-button" class="quiet-button" type="button" hidden>Sair</button>
+    <main>
+      <div class="brand">
+        <img src="/assets/images/logo-mateus.svg" alt="" width="48" height="48" />
+        <strong>Mateus Ribeiro Marcos</strong>
       </div>
-    </header>
-
-    <main id="conteudo">
-      <section id="login-view" class="login-layout">
-        <div class="login-intro">
-          <p class="eyebrow">REGISTROS ENTRE SESSÕES</p>
-          <h1>Anote o que aconteceu. <span>Você escolhe se quer compartilhar.</span></h1>
-          <p class="lead">
-            Use este recurso para organizar situações, pensamentos e emoções. Cada registro fica
-            privado até você decidir compartilhá-lo com Mateus.
-          </p>
-          <div class="principles" aria-label="Como funcionam os registros">
-            <div><strong>Privado ao salvar</strong><span>Mateus não vê o que você não compartilhou.</span></div>
-            <div><strong>Compartilhar é opcional</strong><span>Você decide registro por registro.</span></div>
-            <div><strong>Sem leitura imediata</strong><span>Este recurso não é acompanhado em tempo real.</span></div>
-          </div>
-        </div>
-
-        <div class="login-card">
-          <div>
-            <p class="eyebrow">ENTRAR</p>
-            <h2>Acesse sua conta</h2>
-            <p>O cadastro desta página é para pacientes. O acesso profissional é criado separadamente.</p>
-          </div>
-
-          <div class="auth-mode" role="group" aria-label="Escolha como acessar">
-            <button class="auth-mode-button active" type="button" data-auth-mode="login" aria-pressed="true">Entrar</button>
-            <button class="auth-mode-button" type="button" data-auth-mode="register" aria-pressed="false">Criar conta</button>
-          </div>
-
-          <form id="login-form" class="auth-form">
-            <label for="email">E-mail</label>
-            <input id="email" name="email" type="email" autocomplete="username" required />
-            <label for="password">Senha</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required />
-            <button class="primary-button" type="submit">Entrar</button>
-          </form>
-
-          <form id="register-form" class="auth-form" hidden>
-            <label for="register-name">Nome completo</label>
-            <input id="register-name" name="name" autocomplete="name" maxlength="100" required />
-            <label for="register-email">E-mail</label>
-            <input id="register-email" name="email" type="email" autocomplete="email" maxlength="180" required />
-            <label for="register-password">Crie uma senha</label>
-            <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" aria-describedby="password-guidance" required />
-            <small id="password-guidance" class="field-guidance">Use pelo menos 12 caracteres, com letras e números.</small>
-            <label for="register-password-confirmation">Repita a senha</label>
-            <input id="register-password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
-            <label class="confirmation-check" for="adult-confirmation">
-              <input id="adult-confirmation" name="adult_confirmation" type="checkbox" required />
-              <span>Tenho 18 anos ou mais e entendo que os registros não são lidos em tempo real nem substituem um serviço de emergência.</span>
-            </label>
-            <button class="primary-button" type="submit">Criar minha conta</button>
-            <p class="register-privacy"><strong>Sua conta ficará vinculada a Mateus.</strong> Nenhum registro será compartilhado automaticamente.</p>
-          </form>
-
-          <div class="demo-accounts" aria-label="Contas disponíveis para teste">
-            <p>Acessos disponíveis nesta versão local</p>
-            <button
-              type="button"
-              data-demo-email="ana@exemplo.local"
-              data-demo-password="TestePaciente!2026"
-            >
-              <strong>Paciente</strong>
-              <span>Cria, compartilha, revoga e exclui registros.</span>
-            </button>
-            <button
-              type="button"
-              data-demo-email="psico.mateus@outlook.com"
-              data-demo-password="TesteProfissional!2026"
-            >
-              <strong>Profissional</strong>
-              <span>Vê somente o que foi compartilhado.</span>
-            </button>
-          </div>
-          <p class="login-note">Ambiente local em validação. Ainda não insira informações clínicas reais.</p>
-        </div>
-      </section>
-
-      <section id="dashboard-view" class="dashboard" tabindex="-1" hidden>
-        <div class="dashboard-heading">
-          <div>
-            <p id="dashboard-eyebrow" class="eyebrow"></p>
-            <h1 id="dashboard-title"></h1>
-            <p id="dashboard-description" class="lead"></p>
-          </div>
-          <div id="privacy-summary" class="privacy-summary"></div>
-        </div>
-
-        <details class="account-settings">
-          <summary>
-            <span><strong>Conta e segurança</strong><small id="account-summary"></small></span>
-            <b>Alterar senha</b>
-          </summary>
-          <div class="account-settings-body">
-            <div>
-              <p class="eyebrow">SENHA</p>
-              <h2>Alterar sua senha</h2>
-              <p>A troca encerra outras sessões abertas desta conta. Use uma senha que você não utiliza em outro serviço.</p>
-            </div>
-            <form id="password-form">
-              <label for="current-password">Senha atual</label>
-              <input id="current-password" name="current_password" type="password" autocomplete="current-password" required />
-              <label for="new-password">Nova senha</label>
-              <input id="new-password" name="new_password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
-              <label for="new-password-confirmation">Repita a nova senha</label>
-              <input id="new-password-confirmation" name="new_password_confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="200" required />
-              <button class="secondary-button" type="submit">Atualizar minha senha</button>
-            </form>
-          </div>
-        </details>
-
-        <div id="patient-panel" hidden>
-          <div class="patient-grid">
-            <section class="entry-composer" aria-labelledby="new-entry-title">
-              <div class="section-title">
-                <span>01</span>
-                <div>
-                  <p class="eyebrow">PRIVADO AO SALVAR</p>
-                  <h2 id="new-entry-title">Novo registro</h2>
-                </div>
-              </div>
-              <form id="entry-form">
-                <label for="entry-title">Título curto</label>
-                <input id="entry-title" name="title" maxlength="120" required placeholder="Ex.: Antes de uma conversa" />
-
-                <label for="entry-happened">O que aconteceu?</label>
-                <textarea id="entry-happened" name="happened" rows="4" maxlength="2000" required></textarea>
-
-                <div class="field-grid">
-                  <label>Corpo<textarea name="body" rows="3" maxlength="1500"></textarea></label>
-                  <label>Pensamentos<textarea name="thoughts" rows="3" maxlength="1500"></textarea></label>
-                  <label>Vontade de agir<textarea name="urge" rows="3" maxlength="1500"></textarea></label>
-                  <label>Emoção<input name="emotion" maxlength="120" /></label>
-                </div>
-
-                <label for="entry-intensity">Intensidade percebida: <output id="intensity-output">5/10</output></label>
-                <input id="entry-intensity" name="intensity" type="range" min="0" max="10" value="5" />
-
-                <label for="entry-message">O que isso pode estar comunicando?</label>
-                <textarea id="entry-message" name="message" rows="3" maxlength="1500"></textarea>
-
-                <div class="form-footer">
-                  <p><strong>Será salvo como privado.</strong> Você decide depois se quer compartilhar.</p>
-                  <button class="primary-button" type="submit">Salvar registro privado</button>
-                </div>
-              </form>
-            </section>
-
-            <section class="records-section" aria-labelledby="records-title">
-              <div class="section-title records-heading">
-                <span>02</span>
-                <div>
-                  <p class="eyebrow">SEUS REGISTROS</p>
-                  <h2 id="records-title">Meus registros</h2>
-                </div>
-              <a class="secondary-button" href="/espaco/api/export">Exportar meus dados</a>
-              </div>
-              <div id="patient-records" class="records-list"></div>
-            </section>
-          </div>
-        </div>
-
-        <div id="therapist-panel" hidden>
-          <section class="shared-section" aria-labelledby="shared-title">
-            <div class="section-title">
-              <span>01</span>
-              <div>
-                <p class="eyebrow">COMPARTILHADOS</p>
-                <h2 id="shared-title">Registros compartilhados</h2>
-              </div>
-            </div>
-            <div class="professional-boundary">
-              <strong>O que aparece aqui</strong>
-              <p>Somente registros que um paciente vinculado decidiu compartilhar. Textos privados não aparecem neste painel.</p>
-            </div>
-            <div id="shared-records" class="records-list"></div>
-          </section>
-        </div>
-      </section>
-    </main>
-
-    <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
-
-    <dialog
-      id="confirmation-dialog"
-      class="confirmation-dialog"
-      aria-labelledby="confirmation-title"
-      aria-describedby="confirmation-description"
-    >
-      <form method="dialog">
-        <p class="eyebrow">CONFIRME SUA ESCOLHA</p>
-        <h2 id="confirmation-title"></h2>
-        <p id="confirmation-description"></p>
-        <div class="dialog-actions">
-          <button value="cancel" class="quiet-button">Cancelar</button>
-          <button id="confirmation-button" value="confirm" class="primary-button">Confirmar</button>
-        </div>
-      </form>
-    </dialog>
-
-    <footer>
-      <div><strong>Versão local em validação</strong><span>Ainda não utilizar com pacientes reais.</span></div>
-      <p>O Guia público e o site profissional continuam disponíveis sem exigir uma conta.</p>
-      <nav class="footer-resource-navigation" aria-label="Outros recursos">
-        <a href="/">Site profissional</a>
-        <a href="/guia-emocoes/">Guia de Emoções</a>
+      <p class="eyebrow">ENDEREÇO ATUALIZADO</p>
+      <h1>Área do paciente</h1>
+      <p>
+        Este endereço foi substituído. Você será levado para a Área do paciente,
+        onde estão o acesso e os recursos atuais.
+      </p>
+      <a class="primary-link" href="https://area-do-paciente.psico-mateus.workers.dev/">
+        Abrir a Área do paciente
+      </a>
+      <nav aria-label="Outros recursos">
+        <a href="https://psico-mateus.github.io/">Site profissional</a>
+        <a href="https://psico-mateus.github.io/guia-emocoes/">Guia de Emoções</a>
       </nav>
-    </footer>
+    </main>
   </body>
 </html>

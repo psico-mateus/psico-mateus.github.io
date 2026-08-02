@@ -130,3 +130,20 @@ test("ações principais ficam organizadas e fáceis de tocar", async ({ page },
   );
   expect(Math.max(...mobileBoxes) - Math.min(...mobileBoxes)).toBeLessThanOrEqual(1);
 });
+
+test("página pública obsoleta encaminha para a Área do paciente sem expor o protótipo", async ({}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Verificação estrutural única.");
+  const source = await readFile("portal-prototipo/public/index.html", "utf8");
+
+  expect(source).toContain(
+    'content="0; url=https://area-do-paciente.psico-mateus.workers.dev/"',
+  );
+  expect(source).toContain(
+    'rel="canonical"\n      href="https://area-do-paciente.psico-mateus.workers.dev/"',
+  );
+  expect(source).toContain('content="noindex, nofollow, noarchive"');
+  expect(source).not.toMatch(/<form|data-demo-|TestePaciente|TesteProfissional/u);
+  expect(source).not.toContain('src="/espaco/app.js"');
+  expect(source).not.toContain("Ambiente local");
+  expect(source).not.toContain("Versão local em validação");
+});
