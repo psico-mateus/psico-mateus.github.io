@@ -39,6 +39,68 @@ import {
   formatViewTimestamp,
   portalRequest,
 } from "../app/portal-client.ts";
+import {
+  secureTransportRedirect,
+  withSecurityHeaders,
+} from "../worker/security.ts";
+
+test("production HTTP requests redirect permanently to HTTPS", async () => {
+  const redirect = secureTransportRedirect(
+    new Request(
+      "http://area-do-paciente.psico-mateus.workers.dev/api/portal/session?origem=link",
+    ),
+  );
+
+  assert.ok(redirect);
+  assert.equal(redirect.status, 308);
+  assert.equal(
+    redirect.headers.get("location"),
+    "https://area-do-paciente.psico-mateus.workers.dev/api/portal/session?origem=link",
+  );
+  assert.equal(
+    redirect.headers.get("strict-transport-security"),
+    "max-age=31536000",
+  );
+  assert.equal(await redirect.text(), "");
+  assert.equal(
+    secureTransportRedirect(
+      new Request("https://area-do-paciente.psico-mateus.workers.dev/"),
+    ),
+    null,
+  );
+});
+
+test("loopback HTTP remains available for isolated local development", () => {
+  for (const url of [
+    "http://localhost:3000/",
+    "http://127.0.0.1:3000/",
+    "http://[::1]:3000/",
+  ]) {
+    assert.equal(secureTransportRedirect(new Request(url)), null, url);
+  }
+});
+
+test("security headers include HSTS without changing response semantics", async () => {
+  const secured = withSecurityHeaders(
+    new Response(JSON.stringify({ ok: true }), {
+      status: 503,
+      headers: { "content-type": "application/json" },
+    }),
+    "/api/portal/health",
+  );
+
+  assert.equal(secured.status, 503);
+  assert.equal(
+    secured.headers.get("strict-transport-security"),
+    "max-age=31536000",
+  );
+  assert.equal(secured.headers.get("cache-control"), "no-store, max-age=0");
+  assert.match(
+    secured.headers.get("content-security-policy") ?? "",
+    /frame-ancestors 'none'/u,
+  );
+  assert.deepEqual(await secured.json(), { ok: true });
+});
 
 test("portal requests translate connection and malformed-response failures", async () => {
   const originalFetch = globalThis.fetch;
@@ -139,7 +201,7 @@ test("protected values round-trip and one-time codes are well formed", async () 
 });
 
 test("public UI keeps privacy and safety boundaries visible", async () => {
-  const [app, installButton, layout, manifest, privacy, serviceWorker, styles, worker] = await Promise.all([
+  const [app, installButton, layout, manifest, privacy, serviceWorker, styles, security] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/InstallAppButton.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -147,7 +209,7 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/security.ts", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
   assert.match(app, /As outras perguntas podem ficar em branco/);
@@ -354,8 +416,8 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.doesNotMatch(layout, /materiais de apoio/);
   assert.doesNotMatch(installButton, /localStorage|sessionStorage/);
   assert.match(privacy, /não são usados para publicidade/);
-  assert.match(worker, /Content-Security-Policy/);
-  assert.match(worker, /X-Robots-Tag/);
+  assert.match(security, /Content-Security-Policy/);
+  assert.match(security, /X-Robots-Tag/);
   assert.match(app, /Acompanhe seu processo/);
   assert.doesNotMatch(app, /Guarde o que aconteceu/);
   assert.doesNotMatch(app, /piloto|fictício|ambiente local/i);
@@ -413,7 +475,7 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(styles, /@media\(max-width:760px\)\{[\s\S]*?\.site-header\{[\s\S]*?display:grid/);
   assert.match(styles, /\.entry-form-heading \.icon-button>span\{[\s\S]*?translateY\(-1px\)/);
   assert.match(app, /root\.style\.scrollBehavior = "auto"/);
-  assert.match(app, /atualizado após visualização/);
+  assert.match(app, /Atualizado após a última visualização/);
   assert.match(education, /target="_blank"/);
   assert.match(education, /rel="noopener noreferrer"/);
   assert.match(app, /Tentar novamente/);
@@ -435,8 +497,9 @@ test("patient access and editing refinements remain accessible and loss-aware", 
 });
 
 test("new and legacy workers have explicit, fail-closed API modes", async () => {
-  const [worker, currentConfigText, legacyConfigText, viteConfig] = await Promise.all([
+  const [worker, security, currentConfigText, legacyConfigText, viteConfig] = await Promise.all([
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/security.ts", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.legacy.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
@@ -454,8 +517,48 @@ test("new and legacy workers have explicit, fail-closed API modes", async () => 
   assert.match(worker, /env\.PORTAL_API_MODE !== "local"/u);
   assert.match(worker, /if \(!env\.LEGACY_PORTAL\)/u);
   assert.match(worker, /status: 503/u);
+  assert.match(
+    worker,
+    /const transportRedirect = secureTransportRedirect\(request\);\s*if \(transportRedirect\) return transportRedirect;/u,
+  );
+  assert.match(
+    worker,
+    /try \{[\s\S]*?await env\.LEGACY_PORTAL\.fetch\([\s\S]*?\)[\s\S]*?\} catch \{\s*console\.error\(JSON\.stringify\(\{ event: "legacy_portal_unavailable" \}\)\);\s*return withSecurityHeaders\(\s*Response\.json\([\s\S]*?\{ status: 503 \}[\s\S]*?url\.pathname,\s*\);\s*\}/u,
+  );
+  assert.doesNotMatch(
+    worker.match(/\} catch \{[\s\S]*?legacy_portal_unavailable[\s\S]*?\n        \}/u)?.[0] ?? "",
+    /error\.message|error\.stack|String\(error\)/u,
+  );
+  assert.match(security, /Strict-Transport-Security/u);
+  assert.match(security, /status: 308/u);
   assert.match(viteConfig, /PORTAL_TEST_PERSIST_PATH/u);
   assert.match(viteConfig, /persistState: isolatedTestStatePath/u);
+});
+
+test("expired-data maintenance is best-effort and cannot replace the requested response", async () => {
+  const route = await readFile(
+    new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+    "utf8",
+  );
+  const dispatch =
+    route.match(
+      /async function route\(request: Request,[\s\S]*?export const GET = route;/u,
+    )?.[0] ?? "";
+
+  assert.match(
+    dispatch,
+    /if \(Math\.random\(\) < 0\.01\) \{\s*try \{\s*await cleanupExpired\(\);\s*\} catch \(error\) \{[\s\S]*?logMaintenanceFailure\(error\);\s*\}\s*\}/u,
+  );
+  assert.match(
+    dispatch,
+    /logMaintenanceFailure\(error\);[\s\S]*?if \(request\.method === "GET"\)/u,
+  );
+  assert.doesNotMatch(
+    dispatch,
+    /if \(Math\.random\(\) < 0\.01\) await cleanupExpired\(\)/u,
+  );
+  assert.match(route, /event: "portal_maintenance_failed"/u);
+  assert.match(route, /operation: "cleanup\.expired"/u);
 });
 
 test("mutable portal requests require a trusted origin and JSON bodies", async () => {
@@ -884,7 +987,7 @@ test("mobile layout keeps the portal within the viewport", async () => {
   assert.match(finalMobileRules, /\.guest-intro,\.auth-card\{[\s\S]*?min-width:0/);
   assert.match(finalMobileRules, /\.guest-layout\{[\s\S]*?padding:0 1rem/);
   assert.match(finalMobileRules, /\.disclosure-action\{[\s\S]*?calc\(100% - 2\.7rem\)/);
-  assert.match(finalMobileRules, /#selected-patient-title[\s\S]*?scroll-margin-top:8\.5rem/);
+  assert.match(finalMobileRules, /#selected-patient-title[\s\S]*?scroll-margin-top:1rem/);
   assert.match(
     styles,
     /@media\(max-width:400px\)\{[\s\S]*?\.patient-navigation\{[\s\S]*?grid-template-columns:\.72fr \.92fr 1\.36fr/,
@@ -893,6 +996,35 @@ test("mobile layout keeps the portal within the viewport", async () => {
     styles,
     /@media\(min-width:561px\) and \(max-width:700px\)\{[\s\S]*?\.professional-navigation\{[\s\S]*?grid-template-columns:1\.18fr 1\.05fr \.77fr/,
   );
+});
+
+test("mobile access shortcut and patient summary remain simple and private", async () => {
+  const [app, styles, visualReview] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("./manual-visual-review.mjs", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(app, /className="guest-access-shortcut" href="#acesso"/u);
+  assert.match(app, /className="auth-card" id="acesso" tabIndex=\{-1\}/u);
+  assert.match(app, /Resumo dos registros/u);
+  assert.match(app, /registros continuam privados · só você vê/u);
+  assert.match(
+    app,
+    /sharedViewCounts\.unseen \+ sharedViewCounts\.updated \+ sharedViewCounts\.reshared/u,
+  );
+  assert.match(styles, /\.guest-access-shortcut\{display:none\}/u);
+  assert.match(
+    styles,
+    /@media\(max-width:850px\)\{[\s\S]*?\.guest-access-shortcut\{[\s\S]*?display:inline-flex/u,
+  );
+  assert.match(
+    styles,
+    /@media\(max-width:560px\)\{[\s\S]*?\.site-header\{[\s\S]*?position:relative;[\s\S]*?top:auto/u,
+  );
+  assert.match(visualReview, /PORTAL_VISUAL_BASE_URL/u);
+  assert.match(visualReview, /localhost/u);
+  assert.doesNotMatch(visualReview, /https:\/\/area-do-paciente/u);
 });
 
 test("patient views keep one clear top-level heading", async () => {
@@ -1063,14 +1195,14 @@ test("invitation status separates active codes from compact history", () => {
 });
 
 test("professional API groups by stable patient id and filters every detail query", async () => {
-  const [route, dashboard, portal, worker] = await Promise.all([
+  const [route, dashboard, portal, security] = await Promise.all([
     readFile(
       new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
       "utf8",
     ),
     readFile(new URL("../app/ProfessionalDashboard.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
-    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/security.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(route, /GROUP BY users\.id, users\.display_name/);
@@ -1097,7 +1229,7 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(route, /DELETE FROM sessions WHERE user_id = \?/);
   assert.match(route, /patient_links\.therapist_id = \? AND patient_links\.patient_id = \?/);
   assert.match(portal, /expires_at > \?/);
-  assert.match(worker, /Cache-Control", "no-store, max-age=0"/);
+  assert.match(security, /Cache-Control", "no-store, max-age=0"/);
   assert.doesNotMatch(
     route.match(/async function listSharedPatients[\s\S]*?return result\.results;/u)?.[0] ?? "",
     /email_hash|password|recovery|totp_secret/u,

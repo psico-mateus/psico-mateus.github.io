@@ -143,6 +143,18 @@ function logTechnicalFailure(
   );
 }
 
+function logMaintenanceFailure(error: unknown): void {
+  console.error(
+    JSON.stringify({
+      event: "portal_maintenance_failed",
+      operation: "cleanup.expired",
+      error_type: technicalErrorType(error),
+      d1_code: technicalD1Code(error),
+      occurrence_id: identifier("incident"),
+    }),
+  );
+}
+
 async function portalOperation<T>(
   operation: string,
   callback: () => Promise<T>,
@@ -1325,7 +1337,15 @@ async function route(request: Request, context: RouteContext): Promise<Response>
   const path = pathOf(segments);
   try {
     await ensureSchema();
-    if (Math.random() < 0.01) await cleanupExpired();
+    if (Math.random() < 0.01) {
+      try {
+        await cleanupExpired();
+      } catch (error) {
+        // Limpeza de dados já vencidos é manutenção: uma falha transitória não
+        // deve transformar login, cadastro ou salvamento válidos em erro 500.
+        logMaintenanceFailure(error);
+      }
+    }
     if (request.method === "GET") return await handleGet(request, path);
     requireTrustedOrigin(request);
     if (request.method === "POST") return await handlePost(request, path);

@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { secureTransportRedirect, withSecurityHeaders } from "./security";
 
 interface Env {
   ASSETS: Fetcher;
@@ -34,6 +35,8 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const transportRedirect = secureTransportRedirect(request);
+    if (transportRedirect) return transportRedirect;
 
     if (url.pathname.startsWith("/api/portal")) {
       if (env.PORTAL_API_MODE === "proxy") {
@@ -50,10 +53,21 @@ const worker = {
           url.pathname + url.search,
           "https://registros.psico-mateus.workers.dev",
         );
-        return withSecurityHeaders(
-          await env.LEGACY_PORTAL.fetch(new Request(legacyUrl, request)),
-          url.pathname,
-        );
+        try {
+          return withSecurityHeaders(
+            await env.LEGACY_PORTAL.fetch(new Request(legacyUrl, request)),
+            url.pathname,
+          );
+        } catch {
+          console.error(JSON.stringify({ event: "legacy_portal_unavailable" }));
+          return withSecurityHeaders(
+            Response.json(
+              { error: "O acesso protegido está temporariamente indisponível." },
+              { status: 503 },
+            ),
+            url.pathname,
+          );
+        }
       }
       if (env.PORTAL_API_MODE !== "local") {
         return withSecurityHeaders(
@@ -80,20 +94,5 @@ const worker = {
     return withSecurityHeaders(await handler.fetch(request, env, ctx), url.pathname);
   },
 };
-
-function withSecurityHeaders(response: Response, pathname: string): Response {
-  const headers = new Headers(response.headers);
-  headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://psico-mateus.github.io; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'");
-  headers.set("Referrer-Policy", "no-referrer");
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("X-Frame-Options", "DENY");
-  headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
-  headers.set("Cross-Origin-Opener-Policy", "same-origin");
-  if (pathname.startsWith("/api/") || response.headers.get("content-type")?.includes("text/html")) {
-    headers.set("Cache-Control", "no-store, max-age=0");
-  }
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
-}
 
 export default worker;

@@ -519,6 +519,9 @@ function Guest({
           <h1>Acompanhe seu processo. <em>Use este espaço no seu tempo.</em></h1>
           <p className="lead">Aqui você pode anotar situações, pensamentos e emoções, consultar materiais e levar para a sessão o que fizer sentido.</p>
           <p className="portal-audience-note"><strong>Para pacientes atuais.</strong> Esta área é para quem está em acompanhamento com Mateus. Para criar a conta, use o convite enviado por ele.</p>
+          <a className="guest-access-shortcut" href="#acesso">
+            Entrar ou criar conta <span aria-hidden="true">↓</span>
+          </a>
           <div className="principles">
             <article><span>1</span><div><strong>Você escreve com privacidade</strong><p>Cada registro fica só para você até que decida compartilhá-lo.</p></div></article>
             <article><span>2</span><div><strong>Você escolhe o que compartilhar</strong><p>Compartilhe apenas o que fizer sentido e retire o acesso quando quiser.</p></div></article>
@@ -532,7 +535,7 @@ function Guest({
           <a className="guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer"><span>Aberto a qualquer pessoa, sem conta</span><strong>Usar o Guia de Emoções → <span className="sr-status">(abre em nova aba)</span></strong></a>
         </section>
 
-        <section className="auth-card" aria-labelledby="auth-title">
+        <section className="auth-card" id="acesso" tabIndex={-1} aria-labelledby="auth-title">
           <p className="eyebrow">ACESSO PROTEGIDO</p>
           <h2 id="auth-title">{mode === "login" ? "Entre na sua conta" : mode === "register" ? "Crie sua conta" : "Recupere seu acesso"}</h2>
           {mode === "login" && sessionMessage ? (
@@ -1189,6 +1192,8 @@ function PatientDashboard({
     },
     { unseen: 0, viewed: 0, updated: 0, reshared: 0 },
   );
+  const awaitingViewCount =
+    sharedViewCounts.unseen + sharedViewCounts.updated + sharedViewCounts.reshared;
   const visibleEntries = filterAndSortPatientEntries(
     entries,
     entryFilter,
@@ -1267,7 +1272,7 @@ function PatientDashboard({
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <header className="patient-overview-heading">
-              <h2>Um olhar rápido</h2>
+              <h2>Resumo dos registros</h2>
               <button className="patient-overview-refresh" type="button" disabled={loading || refreshing} onClick={() => refreshEntries()}>
                 <span aria-hidden="true">↻</span> {refreshing ? "Atualizando…" : "Atualizar"}
               </button>
@@ -1277,7 +1282,13 @@ function PatientDashboard({
                 <span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : entries.length}</span>
                 <div>
                   <strong>{entries.length === 1 ? "registro no histórico" : "registros no histórico"}</strong>
-                  <small>Só você vê os que continuam privados.</small>
+                  <small>
+                    {privateCount === 0
+                      ? "Nenhum registro está privado."
+                      : privateCount === 1
+                        ? "1 registro continua privado · só você vê."
+                        : `${privateCount} registros continuam privados · só você vê.`}
+                  </small>
                 </div>
               </article>
               <article className="patient-sharing-overview">
@@ -1291,9 +1302,7 @@ function PatientDashboard({
                   ) : (
                     <ul className="patient-sharing-states" aria-label="Visualização dos registros compartilhados">
                       {sharedViewCounts.viewed ? <li className="viewed"><span aria-hidden="true">✓</span>Mateus visualizou {sharedViewCounts.viewed} {sharedViewCounts.viewed === 1 ? "registro" : "registros"}.</li> : null}
-                      {sharedViewCounts.unseen ? <li className="pending"><span aria-hidden="true" />{sharedViewCounts.unseen} {sharedViewCounts.unseen === 1 ? "registro ainda não foi visualizado" : "registros ainda não foram visualizados"}.</li> : null}
-                      {sharedViewCounts.updated ? <li className="pending"><span aria-hidden="true" />{sharedViewCounts.updated} {sharedViewCounts.updated === 1 ? "registro atualizado após visualização" : "registros atualizados após visualização"}.</li> : null}
-                      {sharedViewCounts.reshared ? <li className="pending"><span aria-hidden="true" />{sharedViewCounts.reshared} {sharedViewCounts.reshared === 1 ? "registro foi compartilhado novamente" : "registros foram compartilhados novamente"}.</li> : null}
+                      {awaitingViewCount ? <li className="pending"><span aria-hidden="true" />{awaitingViewCount} {awaitingViewCount === 1 ? "registro aguarda visualização" : "registros aguardam visualização"}.</li> : null}
                     </ul>
                   )}
                 </div>

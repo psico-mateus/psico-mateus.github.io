@@ -75,6 +75,11 @@ requer `PORTAL_TEST_BASE_URL`, `PORTAL_TEST_SETUP_SECRET` e
 caminho do banco é usado somente para simular a expiração de um convite
 sintético; a suíte recusa URLs que não sejam locais.
 
+Ao iniciar o servidor isolado, defina segredos exclusivamente sintéticos no
+processo e use `CLOUDFLARE_INCLUDE_PROCESS_ENV=true`. Isso garante que o
+Miniflare priorize esses valores sobre qualquer `.env.local` de desenvolvimento.
+Não reutilize segredos administrativos nessa suíte.
+
 `pnpm test:smoke-public` faz somente consultas públicas de leitura ao site, ao
 Guia e aos dois endereços do portal. Ele confirma disponibilidade, o endpoint
 público de saúde, ausência de criação de sessão e os cabeçalhos essenciais de

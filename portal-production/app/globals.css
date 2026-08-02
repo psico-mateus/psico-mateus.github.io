@@ -1416,6 +1416,7 @@ input[type="range"]{accent-color:#9a6d27}
   font-size:.88rem;
 }
 .portal-audience-note strong{color:var(--ink)}
+.guest-access-shortcut{display:none}
 .auth-audience-note{
   margin:-.35rem 0 1.15rem;
   color:var(--muted);
@@ -1602,10 +1603,29 @@ input[type="range"]{accent-color:#9a6d27}
     width:100%;
     min-width:0;
   }
+  .guest-access-shortcut{
+    width:fit-content;
+    min-height:48px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.65rem;
+    margin-top:1rem;
+    border-radius:999px;
+    background:var(--ink);
+    padding:.7rem 1rem;
+    color:#fffdfa;
+    font-weight:780;
+    text-decoration:none;
+  }
+  .guest-access-shortcut:hover{background:#3b3b36}
+  .auth-card{scroll-margin-top:9rem}
 }
 
 @media(max-width:560px){
   .site-header{
+    position:relative;
+    top:auto;
     width:100%;
     padding:.9rem 1rem;
   }
@@ -1629,14 +1649,15 @@ input[type="range"]{accent-color:#9a6d27}
     overflow-wrap:normal;
   }
   .auth-card{padding:1.25rem}
+  .auth-card,
+  .patient-entry-form,
+  .education-article,
+  #selected-patient-title,
+  #professional-patient-list-title{scroll-margin-top:1rem}
   .guide-callout{width:100%}
   .disclosure-action{
     width:calc(100% - 2.7rem);
     max-width:calc(100% - 2.7rem);
-  }
-  #selected-patient-title,
-  #professional-patient-list-title{
-    scroll-margin-top:8.5rem;
   }
   .professional-activity-summary{grid-template-columns:1fr}
   .private-only-note{width:100%;text-align:left}
@@ -2110,7 +2131,7 @@ input[type="range"]{accent-color:#9a6d27}
   }
   .education-discovery .secondary-button{width:100%;white-space:normal}
   .education-library,.education-article{margin-top:1.6rem}
-  .education-article{scroll-margin-top:9.2rem}
+  .education-article{scroll-margin-top:1rem}
   .education-library-header h1{font-size:2.7rem}
   .education-tools{padding:1rem}
   .education-category-filters{display:grid}

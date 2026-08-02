@@ -527,7 +527,7 @@ test("education mobile and focus rules preserve a usable 390px layout", async ()
     /target\?\.scrollIntoView\(\{ block: "center", behavior: "auto" \}\)/,
   );
   assert.match(education, /root\.style\.scrollBehavior = "auto"/);
-  assert.match(mobileEducation, /\.education-article\{scroll-margin-top:9\.2rem\}/);
+  assert.match(mobileEducation, /\.education-article\{scroll-margin-top:1rem\}/);
   assert.match(education, /focus\(\{ preventScroll: true \}\)/);
   assert.match(education, /aria-pressed=\{category === option\.value\}/);
   assert.match(education, /aria-live="polite"/);
