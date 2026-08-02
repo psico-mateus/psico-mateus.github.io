@@ -190,6 +190,8 @@ test("modal mantém o foco contido e o devolve ao cartão", async ({ page }) => 
   const dialog = page.getByRole("dialog", { name: "Ansiedade" });
   const closeButton = page.getByRole("button", { name: "Fechar detalhes" });
   await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveClass(/modal-backdrop/);
+  await expect(dialog.locator(":scope > .emotion-modal")).not.toHaveAttribute("role", "dialog");
   await expect(closeButton).toBeFocused();
 
   await page.keyboard.press("Shift+Tab");
@@ -269,6 +271,59 @@ test("ações iniciais usam quatro tons distintos e confortáveis para leitura",
   }
 });
 
+test("detalhes pequenos do Guia mantêm contraste confortável", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Auditoria visual executada uma vez.");
+  await page.goto(guidePath);
+
+  const pairs = await page.evaluate(() => {
+    const effectiveBackground = (element) => {
+      let current = element;
+      while (current) {
+        const color = getComputedStyle(current).backgroundColor;
+        if (color !== "transparent" && !color.endsWith(", 0)")) return color;
+        current = current.parentElement;
+      }
+      return getComputedStyle(document.body).backgroundColor;
+    };
+    const colorPair = (element, backgroundElement = element.parentElement) => ({
+      label: element.textContent.trim(),
+      background: effectiveBackground(backgroundElement),
+      foreground: getComputedStyle(element).color,
+      opacity: Number(getComputedStyle(element).opacity),
+    });
+    const cards = [...document.querySelectorAll(".emotion-card")];
+    const cues = [...document.querySelectorAll(".cue-number")];
+    const lightEyebrows = [
+      document.querySelector(".hero-copy .eyebrow"),
+      document.querySelector(".explore .eyebrow"),
+      document.querySelector(".record-intro .eyebrow"),
+      document.querySelector(".care-main .eyebrow"),
+    ];
+    const authorCard = document.querySelector(".author-card");
+    const footer = document.querySelector("main > footer");
+
+    return [
+      ...cards.flatMap((card) => [
+        colorPair(card.querySelector(".card-number"), card),
+        colorPair(card.querySelector(".card-arrow"), card),
+      ]),
+      ...cues.map((cue) => colorPair(cue, cue)),
+      ...lightEyebrows.map((eyebrow) => colorPair(eyebrow, eyebrow.closest("section"))),
+      colorPair(authorCard.querySelector(":scope > p"), authorCard),
+      colorPair(authorCard.querySelector(":scope > strong"), authorCard),
+      ...[...footer.querySelectorAll("a")].map((link) => colorPair(link, footer)),
+    ];
+  });
+
+  for (const pair of pairs) {
+    expect(pair.opacity, `${pair.label}: texto não deve depender de transparência`).toBe(1);
+    expect(
+      contrastRatio(pair.background, pair.foreground),
+      `${pair.label}: ${pair.foreground} sobre ${pair.background}`,
+    ).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
 test("guia oferece atalhos acessíveis, filtros identificáveis e PDF", async ({ page }, testInfo) => {
   await page.goto(guidePath);
 
@@ -287,8 +342,11 @@ test("guia oferece atalhos acessíveis, filtros identificáveis e PDF", async ({
   await expect(
     page.getByRole("main", { name: "Conteúdo principal do Guia de Emoções" }),
   ).toBeVisible();
-  await expect(page.getByRole("banner")).toHaveCount(1);
-  await expect(page.getByRole("contentinfo")).toHaveCount(1);
+  await expect(page.getByRole("banner")).toHaveCount(0);
+  await expect(page.getByRole("contentinfo")).toHaveCount(0);
+  await expect(page.locator("main > header")).toHaveAttribute("role", "group");
+  await expect(page.locator("main > footer")).toHaveAttribute("role", "group");
+  await expect(page.locator("main .author-card")).toHaveAttribute("role", "presentation");
 
   const filters = page.getByRole("group", { name: "O que destacar nos cartões" });
   const overview = filters.getByRole("button", { name: "Visão geral", exact: true });
@@ -329,7 +387,13 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v23"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v24"');
+  expect(serviceWorker).toContain(
+    '"/assets/css/guide-brand.css?v=20260802-contrast"',
+  );
+  expect(serviceWorker).toContain(
+    '"/assets/js/guide-navigation.js?v=20260802-a11y"',
+  );
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

@@ -3,6 +3,23 @@ import { readFile } from "node:fs/promises";
 
 const widths = [320, 360, 390, 430, 640, 683, 768, 1024, 1366, 1440, 1920];
 
+function contrastRatio(background, foreground) {
+  const luminance = (value) => {
+    const channels = value.match(/\d+(?:\.\d+)?/g).slice(0, 3).map(Number);
+    const linear = channels.map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.03928
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+  };
+
+  const first = luminance(background);
+  const second = luminance(foreground);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 test("site principal e guia não criam rolagem horizontal nos tamanhos críticos", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Matriz executada uma vez com viewports explícitos.");
 
@@ -129,6 +146,29 @@ test("ações principais ficam organizadas e fáceis de tocar", async ({ page },
     elements.map((element) => element.getBoundingClientRect().width),
   );
   expect(Math.max(...mobileBoxes) - Math.min(...mobileBoxes)).toBeLessThanOrEqual(1);
+});
+
+test("numerais e setas auxiliares do site permanecem legíveis", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Auditoria visual executada uma vez.");
+  await page.goto("/");
+
+  const pairs = await page.evaluate(() =>
+    [...document.querySelectorAll(".tcc-map span, .tcc-map b, .appointment-steps li > span")]
+      .filter((element) => element.getClientRects().length > 0)
+      .map((element) => ({
+        label: element.textContent.trim(),
+        background: getComputedStyle(element.closest("section")).backgroundColor,
+        foreground: getComputedStyle(element).color,
+      })),
+  );
+
+  expect(pairs.length).toBeGreaterThan(0);
+  for (const pair of pairs) {
+    expect(
+      contrastRatio(pair.background, pair.foreground),
+      `${pair.label}: ${pair.foreground} sobre ${pair.background}`,
+    ).toBeGreaterThanOrEqual(4.5);
+  }
 });
 
 test("página pública obsoleta encaminha para a Área do paciente sem expor o protótipo", async ({}, testInfo) => {

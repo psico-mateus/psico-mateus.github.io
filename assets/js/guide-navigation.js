@@ -51,14 +51,32 @@
     const main = document.querySelector("main");
     const header = document.querySelector("main > header");
     const footer = document.querySelector("main > footer");
+    const authorCard = document.querySelector("main .author-card");
     const target = document.getElementById("inicio");
     const guidedExploration = document.getElementById("registrar");
 
     if (main) {
       main.setAttribute("aria-label", "Conteúdo principal do Guia de Emoções");
     }
-    if (header) header.setAttribute("role", "banner");
-    if (footer) footer.setAttribute("role", "contentinfo");
+    // O build atual mantém cabeçalho, autoria e rodapé dentro do <main>.
+    // O papel explícito evita criar landmarks aninhados sem retirar conteúdo.
+    if (header) header.setAttribute("role", "group");
+    if (footer) footer.setAttribute("role", "group");
+    if (authorCard) authorCard.setAttribute("role", "presentation");
+
+    document
+      .querySelectorAll(".modal-backdrop > .emotion-modal, .modal-backdrop > .install-modal")
+      .forEach((modal) => {
+        const backdrop = modal.parentElement;
+        if (!backdrop) return;
+        const labelledBy = modal.getAttribute("aria-labelledby");
+        backdrop.setAttribute("role", "dialog");
+        backdrop.setAttribute("aria-modal", "true");
+        if (labelledBy) backdrop.setAttribute("aria-labelledby", labelledBy);
+        modal.removeAttribute("role");
+        modal.removeAttribute("aria-modal");
+        modal.removeAttribute("aria-labelledby");
+      });
     if (target) target.setAttribute("tabindex", "-1");
 
     const guidedExplorationLink = header?.querySelector('nav a[href="#registrar"]');

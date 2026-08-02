@@ -107,6 +107,56 @@ main .install-button {
   color: #513a18;
 }
 
+/* Mantém os detalhes pequenos legíveis sem descaracterizar os cinco tons do guia. */
+main .emotion-card.accent-1 .card-number {
+  color: #7a531a;
+}
+
+main .emotion-card.accent-2 .card-number {
+  color: #4e6677;
+}
+
+main .emotion-card.accent-3 .card-number {
+  color: #83504e;
+}
+
+main .emotion-card.accent-4 .card-number {
+  color: #4f6854;
+}
+
+main .emotion-card.accent-5 .card-number {
+  color: #67566f;
+}
+
+main .emotion-card .card-arrow {
+  color: #6e675e;
+}
+
+main .cue-number.cue-1 {
+  background: #925c59;
+}
+
+main .cue-number.cue-2 {
+  background: #576f80;
+}
+
+main .hero-copy .eyebrow,
+main .explore .eyebrow,
+main .record-intro .eyebrow,
+main .care-main .eyebrow,
+main .author-card > strong,
+main footer a {
+  color: #7a531a;
+}
+
+main .footer-links a:last-child {
+  opacity: 1;
+}
+
+main .author-card > p {
+  color: #68645c;
+}
+
 @media (width <= 680px) {
   .hero-actions > a[href="#explorar"],
   .hero-actions > a[href="#registrar"],
