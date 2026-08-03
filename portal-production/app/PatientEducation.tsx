@@ -291,6 +291,7 @@ export function PatientEducation({
     () => filterEducationArticles(educationArticles, query, category),
     [category, query],
   );
+  const hasActiveFilters = Boolean(query.trim()) || category !== "all";
   const groupedArticles = useMemo(
     () =>
       educationCategories
@@ -379,6 +380,7 @@ export function PatientEducation({
 
         <div
           className="education-category-filters"
+          role="group"
           aria-label="Filtrar leituras por tema"
         >
           {categoryOptions.map((option) => (
@@ -400,6 +402,21 @@ export function PatientEducation({
         {visibleArticles.length === 1 ? "leitura encontrada" : "leituras encontradas"}
       </p>
 
+      {hasActiveFilters && visibleArticles.length > 0 ? (
+        <div className="filter-reset-row education-filter-reset-row">
+          <button
+            className="filter-reset-button"
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCategory("all");
+            }}
+          >
+            Limpar busca e filtros
+          </button>
+        </div>
+      ) : null}
+
       {visibleArticles.length === 0 ? (
         <div className="empty-state education-empty-state">
           <h2>Nenhuma leitura encontrada.</h2>
@@ -412,7 +429,7 @@ export function PatientEducation({
               setCategory("all");
             }}
           >
-            Ver todos os temas
+            Limpar busca e filtros
           </button>
         </div>
       ) : (
@@ -451,6 +468,7 @@ export function PatientEducation({
                       id={`education-read-${article.slug}`}
                       className="secondary-button"
                       type="button"
+                      aria-label={`Ler: ${article.title}`}
                       onClick={() => onArticleChange(article.slug)}
                     >
                       <span>Ler texto</span>

@@ -494,6 +494,9 @@ test("education keeps the Guide URL configurable and external sources safe", asy
   assert.match(education, /education-reference-arrow/);
   assert.match(education, /education-related-arrow/);
   assert.match(education, /Ler texto/);
+  assert.match(education, /role="group"[\s\S]*?aria-label="Filtrar leituras por tema"/u);
+  assert.match(education, /aria-label=\{`Ler: \$\{article\.title\}`\}/u);
+  assert.match(education, /Limpar busca e filtros/);
   assert.doesNotMatch(education, /localStorage|sessionStorage/);
 });
 

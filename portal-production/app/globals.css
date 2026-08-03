@@ -1108,6 +1108,27 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-record-search-row small{
   font-size:.75rem;
 }
+.filter-reset-row{
+  display:flex;
+  justify-content:flex-end;
+  margin:-.45rem 0 .7rem;
+}
+.filter-reset-button{
+  min-height:44px;
+  border:0;
+  background:transparent;
+  padding:.45rem .15rem;
+  color:var(--green-2);
+  font-size:.84rem;
+  font-weight:750;
+  text-decoration:underline;
+  text-decoration-color:rgba(121,90,35,.45);
+  text-underline-offset:.2em;
+}
+.filter-reset-button:hover{
+  color:var(--ink);
+  text-decoration-color:currentColor;
+}
 .patient-record-list{gap:.75rem}
 .patient-record-card{
   padding:0;
@@ -1772,6 +1793,12 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .education-library-header h1:focus,
 .education-article-header h1:focus{outline:none}
+.education-library-header h1:focus-visible,
+.education-article-header h1:focus-visible{
+  border-radius:4px;
+  outline:3px solid rgba(121,90,35,.38);
+  outline-offset:6px;
+}
 .education-library-intro{
   max-width:760px;
   margin-bottom:1rem;
@@ -1836,6 +1863,7 @@ input[type="range"]{accent-color:#9a6d27}
   color:var(--muted);
   font-size:.86rem;
 }
+.education-filter-reset-row{margin-top:-1rem}
 .education-groups{
   display:grid;
   gap:2.2rem;

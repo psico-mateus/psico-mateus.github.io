@@ -677,7 +677,7 @@ function Guest({
                 </label>
                 <label className="check-row">
                   <input type="checkbox" name="privacy_confirmation" required />
-                  <span>Li e aceito o <a href="/privacidade/" target="_blank" rel="noreferrer">aviso de privacidade</a>.</span>
+                  <span>Li e aceito o <a href="/privacidade/" target="_blank" rel="noreferrer">aviso de privacidade <span aria-hidden="true">↗</span><span className="sr-status"> (abre em nova aba)</span></a>.</span>
                 </label>
               </div>
             ) : null}
@@ -1259,6 +1259,8 @@ function PatientDashboard({
     entrySort,
   );
   const hasEntryQuery = Boolean(entryQuery.trim());
+  const hasActiveEntryControls =
+    hasEntryQuery || entryFilter !== "all" || entrySort !== "newest";
   const filterLabels: Array<{
     value: PatientEntrySharingFilter;
     label: string;
@@ -1485,6 +1487,21 @@ function PatientDashboard({
               </select>
             </label>
           </div>
+          {hasActiveEntryControls ? (
+            <div className="filter-reset-row">
+              <button
+                className="filter-reset-button"
+                type="button"
+                onClick={() => {
+                  setEntryQuery("");
+                  setEntryFilter("all");
+                  setEntrySort("newest");
+                }}
+              >
+                Limpar busca e filtros
+              </button>
+            </div>
+          ) : null}
           <div className="sr-status" aria-live="polite">
             {hasEntryQuery
               ? `${visibleEntries.length} ${visibleEntries.length === 1 ? "registro encontrado" : "registros encontrados"} para a busca.`
