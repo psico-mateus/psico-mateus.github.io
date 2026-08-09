@@ -105,6 +105,7 @@ O portal usa Cloudflare D1. As relações principais são:
 - `patient_links`: vínculo entre profissional e paciente;
 - `entries`: registros pertencentes ao paciente;
 - `entry_views`: data em que o profissional concluiu deliberadamente a visualização de cada registro compartilhado;
+- `patient_map_draft_fields`: respostas privadas do “Meu mapa”, salvas por campo com revisão e geração;
 - `invitations`: convites de uso único, válidos por 7 dias;
 - `sessions`: sessões armazenadas somente pelo hash do token;
 - `assisted_recovery_grants`: validade dos códigos temporários emitidos pelo profissional;
@@ -112,6 +113,12 @@ O portal usa Cloudflare D1. As relações principais são:
 - `auth_windows`: limites de tentativas.
 
 O cadastro de paciente exige convite, confirmação de 18 anos ou mais e aceite do aviso de privacidade. Registros nascem privados. O servidor filtra o acesso profissional por vínculo ativo e compartilhamento atual. O acesso profissional exige MFA.
+
+O rascunho do “Meu mapa” pertence exclusivamente ao paciente. O servidor salva
+um campo por vez, exige a revisão esperada para evitar sobrescrita silenciosa
+entre abas e usa uma nova geração ao limpar tudo. Não existe rota, contador,
+auditoria de conteúdo nem consulta profissional para esse rascunho. A exclusão
+da conta remove as linhas por chave estrangeira em cascata.
 
 Pacientes e profissional podem encerrar todas as sessões da própria conta em caso
 de aparelho perdido ou acesso esquecido. A ação exige a senha atual, exige também
@@ -153,6 +160,8 @@ Se um paciente perder a senha e o próprio código de recuperação, ele pode pe
 - Mantenha `Cache-Control: no-store` nas respostas autenticadas.
 - Preserve consultas parametrizadas, autorização no servidor e proteção CSRF.
 - Não execute migrações em produção sem revisão, backup e autorização.
+- Tabelas novas devem nascer em `drizzle/`; o bootstrap de compatibilidade em
+  `db/runtime.ts` não pode antecipar uma migração versionada.
 
 ## Publicação
 

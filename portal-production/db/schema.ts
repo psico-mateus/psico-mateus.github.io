@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -89,6 +91,79 @@ export const entries = sqliteTable(
   (table) => [
     index("entries_patient_created_idx").on(table.patientId, table.createdAt),
     index("entries_shared_idx").on(table.sharedAt, table.revokedAt),
+  ],
+);
+
+/**
+ * Rascunho privado e versionado do "Meu mapa".
+ *
+ * A linha `state/__state__` guarda a geração atual. As demais linhas guardam
+ * um campo por vez; `value = NULL` é um tombstone. O profissional não possui
+ * relação nem rota de leitura para esta tabela.
+ */
+export const patientMapDraftFields = sqliteTable(
+  "patient_map_draft_fields",
+  {
+    patientId: text("patient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    contentVersion: text("content_version").notNull(),
+    fieldType: text("field_type", {
+      enum: ["state", "answer", "position", "synthesis"],
+    }).notNull(),
+    fieldId: text("field_id").notNull(),
+    generation: integer("generation").notNull(),
+    value: text("value"),
+    revision: integer("revision").notNull().default(0),
+    requestId: text("request_id").notNull().default(""),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.patientId,
+        table.contentVersion,
+        table.fieldType,
+        table.fieldId,
+      ],
+      name: "patient_map_draft_fields_pk",
+    }),
+    uniqueIndex("patient_map_draft_request_idx")
+      .on(
+        table.patientId,
+        table.contentVersion,
+        table.generation,
+        table.requestId,
+      )
+      .where(sql`${table.requestId} <> ''`),
+    check(
+      "patient_map_draft_field_type_check",
+      sql`${table.fieldType} IN ('state', 'answer', 'position', 'synthesis')`,
+    ),
+    check(
+      "patient_map_draft_content_version_check",
+      sql`length(${table.contentVersion}) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "patient_map_draft_field_id_check",
+      sql`length(${table.fieldId}) BETWEEN 1 AND 80`,
+    ),
+    check("patient_map_draft_generation_check", sql`${table.generation} >= 1`),
+    check(
+      "patient_map_draft_value_check",
+      sql`${table.value} IS NULL OR length(${table.value}) <= 4096`,
+    ),
+    check("patient_map_draft_revision_check", sql`${table.revision} >= 0`),
+    check(
+      "patient_map_draft_request_id_check",
+      sql`(${table.fieldType} = 'state' AND (${table.requestId} = '' OR length(${table.requestId}) BETWEEN 16 AND 80))
+        OR (${table.fieldType} <> 'state' AND length(${table.requestId}) BETWEEN 16 AND 80)`,
+    ),
+    check(
+      "patient_map_draft_state_shape_check",
+      sql`(${table.fieldType} = 'state' AND ${table.fieldId} = '__state__' AND ${table.value} IS NULL)
+        OR (${table.fieldType} <> 'state' AND ${table.fieldId} <> '__state__')`,
+    ),
   ],
 );
 

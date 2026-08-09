@@ -27,6 +27,12 @@
   outline-offset: 3px;
 }
 
+/* O CSS empacotado remove o outline nativo da busca; restaura o mesmo foco do Guia. */
+main .search-box input:focus-visible {
+  outline: 3px solid #6e4e16;
+  outline-offset: 3px;
+}
+
 .guide-skip-link {
   position: fixed;
   z-index: 220;
@@ -169,6 +175,13 @@ main .author-card > p {
 }
 
 @media (width <= 680px) {
+  /* Evita o zoom automático do Safari ao focar campos de texto no iPhone. */
+  main input:not([type="range"]),
+  main textarea:not([type="range"]),
+  main select:not([type="range"]) {
+    font-size: 16px;
+  }
+
   .hero-actions > a[href="#explorar"],
   .hero-actions > a[href="#registrar"],
   .hero-actions > .guide-portal-link,

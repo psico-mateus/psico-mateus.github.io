@@ -86,7 +86,48 @@ async function assertAccessible(page, label) {
   }
 }
 
+async function assertViewportFits(page, label) {
+  const dimensions = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  if (dimensions.scrollWidth > dimensions.innerWidth) {
+    throw new Error(`${label}: overflow horizontal ${dimensions.scrollWidth}px > ${dimensions.innerWidth}px`);
+  }
+  return dimensions;
+}
+
+async function reviewScreen(page, label, screenshotName) {
+  await assertAccessible(page, label);
+  await assertViewportFits(page, label);
+  const captureStyle = await page.addStyleTag({
+    content:
+      ".site-header{position:relative!important;top:auto!important}" +
+      ".skip-link{display:none!important}",
+  });
+  try {
+    await page.screenshot({ path: resolve(outputDir, screenshotName), fullPage: true });
+  } finally {
+    await captureStyle.evaluate((element) => element.remove());
+  }
+}
+
+function trackRuntimeErrors(page, label) {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console: ${message.text()}`);
+  });
+  return () => {
+    if (errors.length > 0) {
+      throw new Error(`${label}: erros no navegador ${JSON.stringify(errors)}`);
+    }
+  };
+}
+
 async function routePortal(page, sessionRole = "patient") {
+  let mapGeneration = 1;
+  const mapFields = new Map();
   await page.route("**/api/portal/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api\/portal/, "");
@@ -131,6 +172,55 @@ async function routePortal(page, sessionRole = "patient") {
       });
       return;
     }
+    if (path === "/map-draft") {
+      const method = route.request().method();
+      if (method === "GET") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            content_version: "mapa-pessoal-refinado-ouro-v1",
+            generation: mapGeneration,
+            fields: Array.from(mapFields.values()),
+          }),
+        });
+        return;
+      }
+      if (method === "PATCH") {
+        const body = route.request().postDataJSON();
+        const key = `${body.field.type}:${body.field.id}`;
+        const previous = mapFields.get(key);
+        const field = {
+          ...body.field,
+          revision: (previous?.revision ?? 0) + 1,
+          updated_at: now,
+        };
+        mapFields.set(key, field);
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            content_version: "mapa-pessoal-refinado-ouro-v1",
+            generation: mapGeneration,
+            field,
+            idempotent: false,
+          }),
+        });
+        return;
+      }
+      if (method === "DELETE") {
+        mapGeneration += 1;
+        mapFields.clear();
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            content_version: "mapa-pessoal-refinado-ouro-v1",
+            generation: mapGeneration,
+            cleared_at: now,
+            idempotent: false,
+          }),
+        });
+        return;
+      }
+    }
     await route.fulfill({ status: 204, body: "" });
   });
 }
@@ -143,11 +233,11 @@ async function reviewGuest(browserType, label, viewport) {
     serviceWorkers: "block",
   });
   const page = await context.newPage();
+  const assertNoRuntimeErrors = trackRuntimeErrors(page, label);
   await routePortal(page, "guest");
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: /Acompanhe seu processo/ }).waitFor();
-  await assertAccessible(page, `${label}-acesso`);
-  await page.screenshot({ path: resolve(outputDir, `${label}-acesso.png`), fullPage: true });
+  await reviewScreen(page, `${label}-acesso`, `${label}-acesso.png`);
 
   if (viewport.width <= 850) {
     const shortcut = page.getByRole("link", { name: /Entrar ou criar conta/ });
@@ -164,13 +254,8 @@ async function reviewGuest(browserType, label, viewport) {
     }
   }
 
-  const dimensions = await page.evaluate(() => ({
-    innerWidth: window.innerWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  if (dimensions.scrollWidth > dimensions.innerWidth) {
-    throw new Error(`${label}: overflow horizontal ${dimensions.scrollWidth}px > ${dimensions.innerWidth}px`);
-  }
+  const dimensions = await assertViewportFits(page, `${label}-acesso-final`);
+  assertNoRuntimeErrors();
   await browser.close();
   return dimensions;
 }
@@ -183,19 +268,114 @@ async function review(browserType, label, viewport) {
     serviceWorkers: "block",
   });
   const page = await context.newPage();
+  const assertNoRuntimeErrors = trackRuntimeErrors(page, label);
   await routePortal(page);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Olá, Paciente." }).waitFor();
-  await assertAccessible(page, `${label}-inicio`);
-  await page.screenshot({ path: resolve(outputDir, `${label}-inicio.png`), fullPage: true });
+  await reviewScreen(page, `${label}-inicio`, `${label}-inicio.png`);
+
+  await page.getByRole("button", { name: /Registrar algo/ }).click();
+  await page.getByRole("heading", { name: "O que você quer guardar?", exact: true }).waitFor();
+  await page.getByLabel("Título breve").fill("Rascunho preservado");
+  await page.getByLabel("O que aconteceu?").fill("Texto sintético que deve continuar na tela.");
+  await page.getByRole("button", { name: "Recursos", exact: true }).click();
+  await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Meus registros", exact: true }).click();
+  await page.getByRole("heading", { name: "Seu registro continua guardado.", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Continuar escrevendo", exact: true }).click();
+  if (
+    await page.getByLabel("Título breve").inputValue() !== "Rascunho preservado" ||
+    await page.getByLabel("O que aconteceu?").inputValue() !== "Texto sintético que deve continuar na tela."
+  ) {
+    throw new Error(`${label}: o rascunho não foi preservado entre as áreas`);
+  }
+  await page.getByRole("button", { name: "Meus registros", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Descartar", exact: true }).click();
+  await page.getByRole("heading", { name: "Meus registros", exact: true }).waitFor();
+
+  await page.getByRole("button", { name: "Meu mapa", exact: true }).click();
+  await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-meu-mapa`, `${label}-meu-mapa.png`);
+  await page.locator("#patient-map-card-meu-jeito").click();
+  await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  await page.getByLabel("Combina comigo", { exact: true }).check();
+  await page.getByText(/O que realmente recupera você/).waitFor();
+  await reviewScreen(page, `${label}-meu-mapa-item`, `${label}-meu-mapa-item.png`);
+  await page.getByRole("button", { name: "Ver resumo deste mapa", exact: true }).click();
+  await page.getByRole("heading", { name: "Resumo de Meu jeito", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-meu-mapa-resumo`, `${label}-meu-mapa-resumo.png`);
+  await page.getByRole("button", { name: "Escolher outro mapa", exact: true }).click();
+  await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-card-meu-jeito");
+  const returnedMapFocus = await page.evaluate(() => document.activeElement?.id);
+  if (returnedMapFocus !== "patient-map-card-meu-jeito") {
+    throw new Error(`${label}: o foco não voltou ao cartão do mapa (${returnedMapFocus ?? "sem foco"})`);
+  }
+
+  await page.getByRole("button", { name: "Recursos", exact: true }).click();
+  await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-recursos`, `${label}-recursos.png`);
+  await page.getByRole("button", { name: "Ver ferramentas", exact: true }).click();
+  await page.getByRole("heading", { name: "Ferramentas do dia a dia", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-ferramentas`, `${label}-ferramentas.png`);
+  const firstToolButton = page.locator(".patient-tool-card button").first();
+  const firstToolLabel = await firstToolButton.getAttribute("aria-label");
+  await firstToolButton.click();
+  await page.locator(".patient-tool-detail h1").waitFor();
+  await reviewScreen(page, `${label}-ferramenta`, `${label}-ferramenta.png`);
+  await page.getByRole("button", { name: "Voltar às ferramentas", exact: true }).click();
+  if (firstToolLabel) {
+    await page.waitForFunction(
+      (expectedLabel) => document.activeElement?.getAttribute("aria-label") === expectedLabel,
+      firstToolLabel,
+    );
+  }
+  if (firstToolLabel && (await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) !== firstToolLabel) {
+    throw new Error(`${label}: o foco não voltou à ferramenta que foi aberta`);
+  }
+  await page.goBack({ waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
+  if (await page.locator(".patient-tool-detail").count()) {
+    throw new Error(`${label}: o botão Voltar do navegador reabriu a ferramenta fechada`);
+  }
+  await page.getByRole("button", { name: "Ver leituras", exact: true }).click();
+  await page.getByRole("heading", { name: "Leitura complementar", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-leituras`, `${label}-leituras.png`);
+
+  await page.goto(`${baseUrl}#recursos`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Ver leituras", exact: true }).click();
+  const firstArticleButton = page.locator(".education-card button").first();
+  const firstArticleLabel = await firstArticleButton.getAttribute("aria-label");
+  await firstArticleButton.click();
+  const articleTitle = await page.locator(".education-article h1").textContent();
+  const articleHash = await page.evaluate(() => window.location.hash);
+  if (!articleTitle || !articleHash.startsWith("#recursos/leituras/")) {
+    throw new Error(`${label}: o artigo não criou um endereço restaurável`);
+  }
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: articleTitle, exact: true }).waitFor();
+  if (await page.getByRole("button", { name: "Voltar aos recursos", exact: true }).count()) {
+    throw new Error(`${label}: artigo exibiu dois caminhos de retorno ao mesmo tempo`);
+  }
+  await page.goBack({ waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "Leitura complementar", exact: true }).waitFor();
+  if (
+    firstArticleLabel &&
+    (await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) !== firstArticleLabel
+  ) {
+    throw new Error(`${label}: o foco não voltou à leitura após usar Voltar no navegador`);
+  }
+  await page.goBack({ waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
+
   await page.getByRole("button", { name: "Meus registros", exact: true }).click();
   await page.getByRole("heading", { name: "Meus registros" }).waitFor();
-  await assertAccessible(page, `${label}-historico`);
-  await page.screenshot({ path: resolve(outputDir, `${label}-historico.png`), fullPage: true });
+  await reviewScreen(page, `${label}-historico`, `${label}-historico.png`);
   await page.getByRole("button", { name: "Novo registro", exact: true }).click();
   await page.getByRole("heading", { name: "O que você quer guardar?", exact: true }).waitFor();
-  await assertAccessible(page, `${label}-novo-registro`);
-  await page.screenshot({ path: resolve(outputDir, `${label}-novo-registro.png`), fullPage: true });
+  await reviewScreen(page, `${label}-novo-registro`, `${label}-novo-registro.png`);
   await page.getByLabel("Título breve").fill("Registro visual sintético");
   await page.getByLabel("O que aconteceu?").fill("Conteúdo neutro usado somente no teste local.");
   const saveRequest = page.waitForRequest((request) =>
@@ -210,13 +390,8 @@ async function review(browserType, label, viewport) {
     throw new Error(`${label}: o salvamento antecipado não preservou os campos necessários`);
   }
   await page.getByText("Registro salvo de forma privada.", { exact: true }).waitFor();
-  const dimensions = await page.evaluate(() => ({
-    innerWidth: window.innerWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  if (dimensions.scrollWidth > dimensions.innerWidth) {
-    throw new Error(`${label}: overflow horizontal ${dimensions.scrollWidth}px > ${dimensions.innerWidth}px`);
-  }
+  const dimensions = await assertViewportFits(page, `${label}-final`);
+  assertNoRuntimeErrors();
   await browser.close();
   return dimensions;
 }

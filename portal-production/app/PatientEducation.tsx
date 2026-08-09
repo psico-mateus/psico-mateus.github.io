@@ -26,7 +26,10 @@ type PatientEducationProps = {
   guideUrl: string;
   careUrl: string;
   selectedSlug: string | null;
-  onArticleChange: (slug: string | null) => void;
+  onArticleChange: (
+    slug: string | null,
+    mode?: "push" | "replace" | "return",
+  ) => void;
   onCreateRecord: (slug: string) => void;
 };
 
@@ -284,9 +287,13 @@ export function PatientEducation({
   const [query, setQuery] = useState("");
   const [category, setCategory] =
     useState<EducationCategoryFilter>("all");
+  const selectedArticle = findEducationArticle(selectedSlug);
   const libraryTitleRef = useRef<HTMLHeadingElement>(null);
   const restoreArticleSlug = useRef<string | null>(null);
-  const selectedArticle = findEducationArticle(selectedSlug);
+  const previousArticleSlugRef = useRef<string | null>(
+    selectedArticle?.slug ?? null,
+  );
+  const firstLibraryFocusRef = useRef(true);
   const visibleArticles = useMemo(
     () => filterEducationArticles(educationArticles, query, category),
     [category, query],
@@ -306,11 +313,17 @@ export function PatientEducation({
   );
 
   useEffect(() => {
-    if (selectedArticle || !restoreArticleSlug.current) return;
-    const articleSlug = restoreArticleSlug.current;
+    const previousArticleSlug = previousArticleSlugRef.current;
+    previousArticleSlugRef.current = selectedArticle?.slug ?? null;
+    if (selectedArticle) return;
+    const articleSlug = restoreArticleSlug.current ?? previousArticleSlug;
+    if (!articleSlug && !firstLibraryFocusRef.current) return;
+    firstLibraryFocusRef.current = false;
     restoreArticleSlug.current = null;
     window.requestAnimationFrame(() => {
-      const trigger = document.getElementById(`education-read-${articleSlug}`);
+      const trigger = articleSlug
+        ? document.getElementById(`education-read-${articleSlug}`)
+        : null;
       const target =
         trigger instanceof HTMLButtonElement ? trigger : libraryTitleRef.current;
       const root = document.documentElement;
@@ -330,9 +343,9 @@ export function PatientEducation({
         careUrl={careUrl}
         onBack={() => {
           restoreArticleSlug.current = selectedArticle.slug;
-          onArticleChange(null);
+          onArticleChange(null, "return");
         }}
-        onOpenRelated={onArticleChange}
+        onOpenRelated={(slug) => onArticleChange(slug, "replace")}
         onCreateRecord={() => onCreateRecord(selectedArticle.slug)}
       />
     );

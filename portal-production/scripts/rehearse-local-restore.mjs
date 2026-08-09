@@ -8,6 +8,7 @@ const migrationNames = [
   "0000_tranquil_glorian.sql",
   "0001_assisted_recovery.sql",
   "0002_entry_views.sql",
+  "0003_patient_map_drafts.sql",
 ];
 const tableNames = [
   "users",
@@ -15,6 +16,7 @@ const tableNames = [
   "invitations",
   "entries",
   "entry_views",
+  "patient_map_draft_fields",
   "sessions",
   "assisted_recovery_grants",
   "access_logs",
@@ -27,6 +29,7 @@ const expectedCounts = {
   invitations: 1,
   entries: 1,
   entry_views: 1,
+  patient_map_draft_fields: 2,
   sessions: 1,
   assisted_recovery_grants: 1,
   access_logs: 1,
@@ -104,6 +107,23 @@ function insertSyntheticState(database) {
       'entry_synthetic', 'therapist_synthetic',
       '2026-01-02T12:00:00.000Z'
     );
+
+    INSERT INTO patient_map_draft_fields (
+      patient_id, content_version, field_type, field_id, generation,
+      value, revision, request_id, updated_at
+    ) VALUES
+      (
+        'patient_synthetic', 'mapa-pessoal-refinado-ouro-v1',
+        'state', '__state__', 1, NULL, 0, '',
+        '2026-01-02T12:30:00.000Z'
+      ),
+      (
+        'patient_synthetic', 'mapa-pessoal-refinado-ouro-v1',
+        'answer', 'meu-jeito.01.1', 1,
+        '{"response":"curious","note":"Conteúdo sintético."}',
+        1, 'map-answer-synthetic-0001',
+        '2026-01-02T12:31:00.000Z'
+      );
 
     INSERT INTO sessions (
       token_hash, user_id, csrf_token, expires_at, created_at, last_seen_at
@@ -196,6 +216,7 @@ try {
   const changedSnapshot = readSnapshot(sourcePath);
   assert.equal(changedSnapshot.counts.entries, 0);
   assert.equal(changedSnapshot.counts.entry_views, 0);
+  assert.equal(changedSnapshot.counts.patient_map_draft_fields, 2);
   assert.equal(changedSnapshot.counts.sessions, 0);
 
   await copyFile(backupPath, restoredPath);

@@ -12,7 +12,22 @@ import {
 import { AppUpdateManager } from "./AppUpdateManager";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
-import { PatientEducation } from "./PatientEducation";
+import {
+  PatientMapShell,
+} from "./PatientMapShell";
+import {
+  type PatientMapDraftRecoverySnapshot,
+  usePatientMapDraft,
+} from "./patient-map-draft-client";
+import { PatientResources } from "./PatientResources";
+import { findPatientTool } from "../content/patient-tools-catalog";
+import {
+  patientHashForRoute,
+  patientRouteFromHash,
+  type PatientArea,
+  type PatientResourceView,
+  type PatientRoute,
+} from "./patient-navigation";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import {
   filterAndSortPatientEntries,
@@ -32,7 +47,6 @@ import {
 } from "./portal-client";
 
 type Role = "patient" | "therapist";
-type PatientArea = "home" | "records" | "education";
 type User = { id: string; name: string; role: Role };
 type Config = {
   configured: boolean;
@@ -72,6 +86,15 @@ type Entry = {
   viewed_at?: string | null;
 };
 type EntryDraft = Omit<Entry, "id" | "created_at" | "updated_at" | "shared_at" | "revoked_at">;
+type EntryReturn =
+  | { kind: "reading"; id: string }
+  | { kind: "tool"; id: string }
+  | null;
+type PatientNavigationMode = "push" | "replace" | "return";
+type PatientHistoryState = {
+  patientNavigation: true;
+  from: string;
+};
 
 const blankEntry: EntryDraft = {
   title: "",
@@ -736,21 +759,24 @@ function CharacterLimit({
 
 function EntryForm({
   initial,
+  draft,
   guidance,
   guideUrl,
   onSave,
   onCancel,
+  onDraftChange,
   onDirtyChange,
 }: {
   initial?: Entry;
+  draft: EntryDraft;
   guidance?: string;
   guideUrl: string;
   onSave: (entry: EntryDraft) => Promise<void>;
   onCancel: () => void;
+  onDraftChange: (draft: EntryDraft) => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const [originalDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
-  const [draft, setDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const submissionInFlight = useRef(false);
@@ -761,7 +787,9 @@ function EntryForm({
   useEffect(() => {
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
-  function update(name: keyof EntryDraft, value: string | number) { setDraft((current) => ({ ...current, [name]: value })); }
+  function update(name: keyof EntryDraft, value: string | number) {
+    onDraftChange({ ...draft, [name]: value });
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (submissionInFlight.current) return;
@@ -946,6 +974,8 @@ function PatientDashboard({
   setRecovery,
   onSessionLost,
   onDraftStateChange,
+  mapRecovery,
+  onMapRecoveryChange,
 }: {
   user: User;
   csrf: string;
@@ -953,12 +983,29 @@ function PatientDashboard({
   setRecovery: (code: string) => void;
   onSessionLost: () => void;
   onDraftStateChange: (dirty: boolean) => void;
+  mapRecovery: PatientMapDraftRecoverySnapshot | null;
+  onMapRecoveryChange: (snapshot: PatientMapDraftRecoverySnapshot | null) => void;
 }) {
-  const [area, setArea] = useState<PatientArea>("home");
-  const [selectedEducationSlug, setSelectedEducationSlug] = useState<string | null>(null);
-  const [educationReturnSlug, setEducationReturnSlug] = useState<string | null>(null);
+  const [initialPatientRoute] = useState<PatientRoute>(() =>
+    typeof window === "undefined"
+      ? patientRouteFromHash("")
+      : patientRouteFromHash(window.location.hash),
+  );
+  const [area, setArea] = useState<PatientArea>(initialPatientRoute.area);
+  const [resourceView, setResourceView] = useState<PatientResourceView>(
+    initialPatientRoute.resourceView,
+  );
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(
+    initialPatientRoute.toolId,
+  );
+  const [selectedEducationSlug, setSelectedEducationSlug] = useState<string | null>(
+    initialPatientRoute.educationSlug,
+  );
+  const [entryReturn, setEntryReturn] = useState<EntryReturn>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [editing, setEditing] = useState<Entry | null | "new">(null);
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [entryDraft, setEntryDraft] = useState<EntryDraft | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success">("success");
   const [editorDirty, setEditorDirty] = useState(false);
@@ -982,6 +1029,13 @@ function PatientDashboard({
     trigger: HTMLButtonElement;
   } | null>(null);
   const initialScrollResetRef = useRef(false);
+  const patientMap = usePatientMapDraft({
+    patientId: user.id,
+    csrf,
+    recovery: mapRecovery,
+    onRecoveryChange: onMapRecoveryChange,
+    onSessionLost,
+  });
   const load = useCallback(async (showRefreshing = false) => {
     const sequence = entriesRequestSequence.current + 1;
     entriesRequestSequence.current = sequence;
@@ -1010,6 +1064,71 @@ function PatientDashboard({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
+  const applyPatientRoute = useCallback((route: PatientRoute) => {
+    setArea(route.area);
+    setResourceView(route.resourceView);
+    setSelectedToolId(route.toolId);
+    setSelectedEducationSlug(route.educationSlug);
+  }, []);
+
+  useEffect(() => {
+    const canonicalHash = patientHashForRoute(initialPatientRoute);
+    if (window.location.hash !== canonicalHash) {
+      window.history.replaceState(null, "", canonicalHash);
+    }
+    function restoreRouteFromHistory() {
+      const restoredRoute = patientRouteFromHash(window.location.hash);
+      const restoredHash = patientHashForRoute(restoredRoute);
+      if (window.location.hash !== restoredHash) {
+        window.history.replaceState(null, "", restoredHash);
+      }
+      applyPatientRoute(restoredRoute);
+    }
+    window.addEventListener("popstate", restoreRouteFromHistory);
+    window.addEventListener("hashchange", restoreRouteFromHistory);
+    return () => {
+      window.removeEventListener("popstate", restoreRouteFromHistory);
+      window.removeEventListener("hashchange", restoreRouteFromHistory);
+    };
+  }, [applyPatientRoute, initialPatientRoute]);
+
+  function navigatePatient(route: PatientRoute, replace = false) {
+    const nextHash = patientHashForRoute(route);
+    if (window.location.hash !== nextHash) {
+      const currentHash = patientHashForRoute(
+        patientRouteFromHash(window.location.hash),
+      );
+      if (replace) {
+        const currentState = window.history.state as Partial<PatientHistoryState> | null;
+        const replacementState: PatientHistoryState =
+          currentState?.patientNavigation === true && typeof currentState.from === "string"
+            ? { patientNavigation: true, from: currentState.from }
+            : { patientNavigation: true, from: currentHash };
+        window.history.replaceState(replacementState, "", nextHash);
+      } else {
+        const nextState: PatientHistoryState = {
+          patientNavigation: true,
+          from: currentHash,
+        };
+        window.history.pushState(nextState, "", nextHash);
+      }
+    }
+    applyPatientRoute(route);
+  }
+
+  function returnPatient(route: PatientRoute) {
+    const targetHash = patientHashForRoute(route);
+    const currentState = window.history.state as Partial<PatientHistoryState> | null;
+    if (
+      currentState?.patientNavigation === true &&
+      currentState.from === targetHash
+    ) {
+      window.history.back();
+      return;
+    }
+    navigatePatient(route, true);
+  }
+
   useEffect(() => {
     if (loading || initialScrollResetRef.current) return;
     initialScrollResetRef.current = true;
@@ -1017,7 +1136,7 @@ function PatientDashboard({
   }, [loading]);
 
   useEffect(() => {
-    if (area !== "records" || !editing) return;
+    if (area !== "records" || !editing || !editorVisible) return;
     window.requestAnimationFrame(() => {
       const editor = document.getElementById("entry-editor");
       const title = document.getElementById("entry-title");
@@ -1025,10 +1144,33 @@ function PatientDashboard({
       editor?.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
       title?.focus({ preventScroll: true });
     });
-  }, [area, editing]);
+  }, [area, editing, editorVisible]);
 
   useEffect(() => {
-    const hasUnsavedChanges = Boolean(editing && editorDirty);
+    if (area === "records" && editing && editorVisible) return;
+    if (area === "resources" && resourceView !== "index") return;
+    const targetId =
+      area === "home"
+        ? "patient-home-title"
+        : area === "records"
+          ? "records-title"
+          : area === "map"
+            ? "patient-map-title"
+            : resourceView === "tools"
+              ? "patient-tools-title"
+              : resourceView === "readings"
+                ? "education-title"
+                : "patient-resources-title";
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      target?.scrollIntoView({ block: "start", behavior: "auto" });
+      target?.focus({ preventScroll: true });
+    });
+  }, [area, editing, editorVisible, resourceView, selectedEducationSlug, selectedToolId]);
+
+  useEffect(() => {
+    const hasUnsavedChanges =
+      Boolean(editing && editorDirty) || patientMap.hasUnsavedChanges;
     onDraftStateChange(hasUnsavedChanges);
     if (!hasUnsavedChanges) return;
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
@@ -1037,7 +1179,7 @@ function PatientDashboard({
     }
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [editing, editorDirty, onDraftStateChange]);
+  }, [editing, editorDirty, onDraftStateChange, patientMap.hasUnsavedChanges]);
 
   async function save(draft: EntryDraft) {
     const editedEntry = editing && editing !== "new" ? editing : null;
@@ -1055,9 +1197,11 @@ function PatientDashboard({
       savedId = result.id;
     }
     setEditing(null);
+    setEditorVisible(false);
+    setEntryDraft(null);
     setEditorDirty(false);
     setEditorAnnouncement("");
-    setEducationReturnSlug(null);
+    setEntryReturn(null);
     setMessageTone("success");
     setMessage(
       editedEntry
@@ -1146,23 +1290,87 @@ function PatientDashboard({
     }
   }
   function openNewRecord() {
-    setArea("records");
-    setEducationReturnSlug(null);
+    if (editing) {
+      setEditorVisible(true);
+      navigatePatient({
+        area: "records",
+        resourceView: "index",
+        toolId: null,
+        educationSlug: null,
+      });
+      setEditorAnnouncement("Registro não salvo retomado.");
+      return;
+    }
+    setEntryReturn(null);
     editorOriginRef.current = null;
     setEditorDirty(false);
     setEditorAnnouncement("Formulário para um novo registro aberto.");
     setMessage("");
+    setEntryDraft({ ...blankEntry });
     setEditing("new");
+    setEditorVisible(true);
+    navigatePatient({
+      area: "records",
+      resourceView: "index",
+      toolId: null,
+      educationSlug: null,
+    });
   }
   function createRecordFromEducation(slug: string) {
+    if (editing) {
+      setMessageTone("success");
+      setMessage("Você já tem um registro não salvo. Ele foi mantido nesta sessão.");
+      navigatePatient({
+        area: "records",
+        resourceView: "index",
+        toolId: null,
+        educationSlug: null,
+      });
+      return;
+    }
     setSelectedEducationSlug(slug);
-    setEducationReturnSlug(slug);
-    setArea("records");
+    setEntryReturn({ kind: "reading", id: slug });
     editorOriginRef.current = null;
     setEditorDirty(false);
     setEditorAnnouncement("Formulário para um novo registro aberto.");
+    setEntryDraft({ ...blankEntry });
     setEditing("new");
+    setEditorVisible(true);
     setMessage("");
+    navigatePatient({
+      area: "records",
+      resourceView: "index",
+      toolId: null,
+      educationSlug: null,
+    });
+  }
+  function createRecordFromTool(toolId: string) {
+    if (editing) {
+      setMessageTone("success");
+      setMessage("Você já tem um registro não salvo. Ele foi mantido nesta sessão.");
+      navigatePatient({
+        area: "records",
+        resourceView: "index",
+        toolId: null,
+        educationSlug: null,
+      });
+      return;
+    }
+    setSelectedToolId(toolId);
+    setEntryReturn({ kind: "tool", id: toolId });
+    editorOriginRef.current = null;
+    setEditorDirty(false);
+    setEditorAnnouncement("Formulário para um novo registro aberto.");
+    setEntryDraft({ ...blankEntry });
+    setEditing("new");
+    setEditorVisible(true);
+    setMessage("");
+    navigatePatient({
+      area: "records",
+      resourceView: "index",
+      toolId: null,
+      educationSlug: null,
+    });
   }
   function confirmDiscard(): boolean {
     return !editorDirty || window.confirm("Descartar as alterações que ainda não foram salvas?");
@@ -1170,11 +1378,15 @@ function PatientDashboard({
   function cancelEntry() {
     if (!confirmDiscard()) return;
     const origin = editorOriginRef.current;
-    if (!educationReturnSlug) {
-      setEditing(null);
-      setEditorDirty(false);
-      setEditorAnnouncement("");
-      editorOriginRef.current = null;
+    const returnTo = entryReturn;
+    setEditing(null);
+    setEditorVisible(false);
+    setEntryDraft(null);
+    setEditorDirty(false);
+    setEditorAnnouncement("");
+    setEntryReturn(null);
+    editorOriginRef.current = null;
+    if (!returnTo) {
       if (origin) {
         window.requestAnimationFrame(() => {
           window.scrollTo({ top: origin.scrollY, behavior: "auto" });
@@ -1183,53 +1395,122 @@ function PatientDashboard({
       }
       return;
     }
-    setSelectedEducationSlug(educationReturnSlug);
-    setEditing(null);
-    setEditorDirty(false);
-    setEditorAnnouncement("");
-    setEducationReturnSlug(null);
-    editorOriginRef.current = null;
-    setArea("education");
+    navigatePatient({
+      area: "resources",
+      resourceView: returnTo.kind === "reading" ? "readings" : "tools",
+      toolId: returnTo.kind === "tool" ? returnTo.id : null,
+      educationSlug: returnTo.kind === "reading" ? returnTo.id : null,
+    });
   }
   function openEditRecord(entry: Entry, trigger: HTMLButtonElement) {
+    if (editing) {
+      if (editing !== "new" && editing.id === entry.id) {
+        setEditorVisible(true);
+        setEditorAnnouncement(`Edição do registro “${entry.title}” retomada.`);
+        return;
+      }
+      setMessageTone("success");
+      setMessage("Conclua ou descarte o registro não salvo antes de editar outro.");
+      document.getElementById("patient-paused-draft-title")?.focus();
+      return;
+    }
     editorOriginRef.current = {
       entryId: entry.id,
       scrollY: window.scrollY,
       trigger,
     };
-    setEducationReturnSlug(null);
+    setEntryReturn(null);
     setEditorDirty(false);
     setEditorAnnouncement(`Edição do registro “${entry.title}” aberta.`);
     setMessage("");
+    setEntryDraft(entryDraftFrom(entry));
     setEditing(entry);
+    setEditorVisible(true);
   }
-  function changeArea(nextArea: PatientArea) {
-    if (area === nextArea) return;
-    if (editing && !confirmDiscard()) return;
+  function discardPausedDraft() {
+    if (!confirmDiscard()) return;
     setEditing(null);
+    setEditorVisible(false);
+    setEntryDraft(null);
+    setEntryReturn(null);
     setEditorDirty(false);
     setEditorAnnouncement("");
     editorOriginRef.current = null;
-    setEducationReturnSlug(null);
-    setArea(nextArea);
+    setMessageTone("success");
+    setMessage("Registro não salvo descartado.");
     window.requestAnimationFrame(() => {
-      const targetId =
-        nextArea === "home"
-          ? "patient-home-title"
-          : nextArea === "records"
-            ? "records-title"
-            : selectedEducationSlug
-              ? "education-article-title"
-              : "education-title";
-      document.getElementById(targetId)?.focus();
+      document.getElementById("records-title")?.focus();
     });
   }
-  function openEducationLibrary() {
-    setSelectedEducationSlug(null);
-    setArea("education");
-    window.requestAnimationFrame(() =>
-      document.getElementById("education-title")?.focus(),
-    );
+  function openRecordHistory() {
+    setEditorVisible(false);
+    navigatePatient({
+      area: "records",
+      resourceView: "index",
+      toolId: null,
+      educationSlug: null,
+    });
+  }
+  function changeArea(nextArea: PatientArea) {
+    if (area === nextArea && nextArea === "records") {
+      if (editorVisible) setEditorVisible(false);
+      return;
+    }
+    if (area === nextArea && nextArea !== "resources") return;
+    if (nextArea === "records") setEditorVisible(false);
+    navigatePatient({
+      area: nextArea,
+      resourceView: "index",
+      toolId: null,
+      educationSlug: null,
+    });
+  }
+  function openResourceIndex() {
+    navigatePatient({
+      area: "resources",
+      resourceView: "index",
+      toolId: null,
+      educationSlug: null,
+    });
+  }
+  function changeResourceView(
+    nextView: PatientResourceView,
+    mode: PatientNavigationMode = "push",
+  ) {
+    const route: PatientRoute = {
+      area: "resources",
+      resourceView: nextView,
+      toolId: null,
+      educationSlug: null,
+    };
+    if (mode === "return") returnPatient(route);
+    else navigatePatient(route, mode === "replace");
+  }
+  function changeTool(
+    toolId: string | null,
+    mode: PatientNavigationMode = "push",
+  ) {
+    const route: PatientRoute = {
+      area: "resources",
+      resourceView: "tools",
+      toolId,
+      educationSlug: null,
+    };
+    if (mode === "return") returnPatient(route);
+    else navigatePatient(route, mode === "replace");
+  }
+  function changeEducationArticle(
+    slug: string | null,
+    mode: PatientNavigationMode = "push",
+  ) {
+    const route: PatientRoute = {
+      area: "resources",
+      resourceView: "readings",
+      toolId: null,
+      educationSlug: slug,
+    };
+    if (mode === "return") returnPatient(route);
+    else navigatePatient(route, mode === "replace");
   }
   function refreshEntries(retryAfterError = false) {
     if (manualRefreshLock.current) return;
@@ -1270,6 +1551,14 @@ function PatientDashboard({
     { value: "private", label: "Privados", count: privateCount },
     { value: "shared", label: "Com Mateus", count: sharedCount },
   ];
+  const entryReturnTool =
+    entryReturn?.kind === "tool" ? findPatientTool(entryReturn.id) : null;
+  const entryGuidance =
+    entryReturn?.kind === "reading"
+      ? "O que chamou sua atenção neste texto? Registre somente o que fizer sentido para você."
+      : entryReturnTool
+        ? `Se quiser, use esta pergunta como ponto de partida: ${entryReturnTool.recordPrompt}`
+        : undefined;
   return (
     <main className="dashboard patient-dashboard" id="conteudo" tabIndex={-1}>
       <nav className="patient-navigation" aria-label="Navegação da Área do paciente">
@@ -1291,11 +1580,19 @@ function PatientDashboard({
         </button>
         <button
           type="button"
-          className={area === "education" ? "active" : ""}
-          aria-current={area === "education" ? "page" : undefined}
-          onClick={() => changeArea("education")}
+          className={area === "map" ? "active" : ""}
+          aria-current={area === "map" ? "page" : undefined}
+          onClick={() => changeArea("map")}
         >
-          Leitura complementar
+          Meu mapa
+        </button>
+        <button
+          type="button"
+          className={area === "resources" ? "active" : ""}
+          aria-current={area === "resources" ? "page" : undefined}
+          onClick={openResourceIndex}
+        >
+          Recursos
         </button>
       </nav>
 
@@ -1303,7 +1600,7 @@ function PatientDashboard({
         {refreshing ? "Atualizando seus registros." : ""}
       </p>
 
-      {entriesError && area !== "education" ? (
+      {entriesError && (area === "home" || area === "records") ? (
         <div className="panel error-state">
           <Notice
             tone="error"
@@ -1321,12 +1618,41 @@ function PatientDashboard({
             <div className="patient-hero-copy">
               <p className="eyebrow">SUA ÁREA DO PACIENTE</p>
               <h1 id="patient-home-title" tabIndex={-1}>Olá, {user.name}.</h1>
-              <p>Use esta área quando algo merecer ser guardado, quando quiser voltar ao seu histórico ou quando um material puder ajudar a organizar uma dúvida. Nada é compartilhado automaticamente.</p>
+              <p>Escolha o que faz sentido agora. Nada é compartilhado automaticamente.</p>
               <span className="patient-privacy-chip"><span aria-hidden="true" /> Privado por padrão</span>
             </div>
-            <div className="patient-home-actions">
-              <button className="primary-button" onClick={openNewRecord}>Registrar algo</button>
-              <button className="secondary-button" onClick={openEducationLibrary}>Leitura complementar</button>
+          </section>
+
+          <section className="patient-start" aria-labelledby="patient-start-title">
+            <header>
+              <p className="eyebrow">ESCOLHA UM CAMINHO</p>
+              <h2 id="patient-start-title">O que pode ajudar você agora?</h2>
+            </header>
+            <div className="patient-start-actions">
+              <button className="patient-start-card primary" type="button" onClick={openNewRecord}>
+                <span className="patient-start-kicker">{editing ? "RASCUNHO NESTA SESSÃO" : "REGISTRO"}</span>
+                <strong>{editing ? "Continuar registro" : "Registrar algo"}</strong>
+                <small>{editing ? "O que você escreveu continua guardado enquanto esta página estiver aberta." : "Guardar uma situação, emoção ou dúvida."}</small>
+                <span className="patient-start-arrow" aria-hidden="true">→</span>
+              </button>
+              <button className="patient-start-card" type="button" onClick={openRecordHistory}>
+                <span className="patient-start-kicker">HISTÓRICO</span>
+                <strong>Voltar aos meus registros</strong>
+                <small>Consultar o que você escreveu e os compartilhamentos.</small>
+                <span className="patient-start-arrow" aria-hidden="true">→</span>
+              </button>
+              <button className="patient-start-card" type="button" onClick={() => changeArea("map")}>
+                <span className="patient-start-kicker">MEU MAPA</span>
+                <strong>Abrir Meu mapa</strong>
+                <small>Observar gostos, limites e possibilidades e continuar depois.</small>
+                <span className="patient-start-arrow" aria-hidden="true">→</span>
+              </button>
+              <button className="patient-start-card" type="button" onClick={openResourceIndex}>
+                <span className="patient-start-kicker">RECURSOS</span>
+                <strong>Ver recursos</strong>
+                <small>Encontrar uma ferramenta ou ler sobre um tema.</small>
+                <span className="patient-start-arrow" aria-hidden="true">→</span>
+              </button>
             </div>
           </section>
 
@@ -1370,7 +1696,7 @@ function PatientDashboard({
             </div>
             <footer className="patient-overview-footer">
               <span>Nada é compartilhado automaticamente.</span>
-              <button className="patient-sharing-history-link" type="button" onClick={() => changeArea("records")}>Abrir meus registros <span aria-hidden="true">→</span></button>
+              <button className="patient-sharing-history-link" type="button" onClick={openRecordHistory}>Abrir meus registros <span aria-hidden="true">→</span></button>
             </footer>
           </section>
 
@@ -1392,28 +1718,26 @@ function PatientDashboard({
             {editorAnnouncement}
           </p>
           {message ? <Notice tone={messageTone} message={message} /> : null}
-          {editing ? (
+          {editing && editorVisible ? (
             <EntryForm
               key={
                 editing === "new"
-                  ? educationReturnSlug
-                    ? `education-${educationReturnSlug}`
+                  ? entryReturn
+                    ? `${entryReturn.kind}-${entryReturn.id}`
                     : "new"
                   : editing.id
               }
               initial={editing === "new" ? undefined : editing}
+              draft={entryDraft ?? entryDraftFrom(editing === "new" ? undefined : editing)}
               guideUrl={config.guide_url}
-              guidance={
-                educationReturnSlug
-                  ? "O que chamou sua atenção neste texto? Registre somente o que fizer sentido para você."
-                  : undefined
-              }
+              guidance={entryGuidance}
               onSave={save}
               onCancel={cancelEntry}
+              onDraftChange={setEntryDraft}
               onDirtyChange={setEditorDirty}
             />
           ) : null}
-          {!editing ? (
+          {!editorVisible ? (
           <section className="records-section" aria-labelledby="records-title">
         <div className="section-heading patient-records-heading">
           <div>
@@ -1435,9 +1759,28 @@ function PatientDashboard({
             >
               {refreshing ? "Atualizando…" : "Atualizar"}
             </button>
-            {!editing ? <button className="primary-button compact-button" type="button" onClick={openNewRecord}>Novo registro</button> : null}
+            <button className="primary-button compact-button" type="button" onClick={openNewRecord}>
+              {editing ? "Continuar registro" : "Novo registro"}
+            </button>
           </div>
         </div>
+        {editing ? (
+          <aside className="patient-paused-draft" aria-labelledby="patient-paused-draft-title">
+            <div>
+              <p className="eyebrow">RASCUNHO NESTA SESSÃO</p>
+              <h2 id="patient-paused-draft-title" tabIndex={-1}>Seu registro continua guardado.</h2>
+              <p>Você pode consultar o histórico e retomar a escrita quando quiser.</p>
+            </div>
+            <div className="patient-paused-draft-actions">
+              <button className="secondary-button" type="button" onClick={openNewRecord}>
+                Continuar escrevendo
+              </button>
+              <button className="quiet-button" type="button" onClick={discardPausedDraft}>
+                Descartar
+              </button>
+            </div>
+          </aside>
+        ) : null}
         <a className="records-guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer">
           <span>Está difícil nomear o que sentiu?</span>
           <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>
@@ -1597,13 +1940,35 @@ function PatientDashboard({
           </section>
           ) : null}
         </>
+      ) : area === "map" ? (
+        <PatientMapShell
+          draft={patientMap.draft}
+          onDraftChange={patientMap.updateDraft}
+          loadState={patientMap.loadState}
+          loadMessage={patientMap.loadMessage}
+          saveState={patientMap.saveState}
+          saveMessage={patientMap.saveMessage}
+          conflict={patientMap.conflict}
+          clearing={patientMap.clearing}
+          onRetryLoad={patientMap.retryLoad}
+          onRetrySave={patientMap.retryPending}
+          onResolveConflict={patientMap.resolveConflict}
+          onClearDraft={patientMap.clearDraft}
+          onSaveAndExit={patientMap.flushPending}
+          onBackHome={() => changeArea("home")}
+        />
       ) : (
-        <PatientEducation
+        <PatientResources
+          view={resourceView}
           guideUrl={config.guide_url}
           careUrl={config.care_url}
-          selectedSlug={selectedEducationSlug}
-          onArticleChange={setSelectedEducationSlug}
-          onCreateRecord={createRecordFromEducation}
+          selectedEducationSlug={selectedEducationSlug}
+          selectedToolId={selectedToolId}
+          onViewChange={changeResourceView}
+          onArticleChange={changeEducationArticle}
+          onToolChange={changeTool}
+          onCreateRecordFromReading={createRecordFromEducation}
+          onCreateRecordFromTool={createRecordFromTool}
         />
       )}
       {!editing ? <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={onSessionLost} /> : null}
@@ -1862,16 +2227,25 @@ export function PortalApp() {
   const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
   const [sessionMessage, setSessionMessage] = useState("");
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const [patientMapRecovery, setPatientMapRecovery] =
+    useState<PatientMapDraftRecoverySnapshot | null>(null);
   const logoutInFlight = useRef(false);
-  const clear = useCallback((message = "") => {
+  const rememberPatientMapRecovery = useCallback(
+    (snapshot: PatientMapDraftRecoverySnapshot | null) => {
+      setPatientMapRecovery(snapshot);
+    },
+    [],
+  );
+  const clear = useCallback((message = "", preserveMapRecovery = false) => {
     setUser(null);
     setCsrf("");
     setHasUnsavedDraft(false);
+    if (!preserveMapRecovery) setPatientMapRecovery(null);
     setSessionMessage(message);
     scrollPageToTop();
   }, []);
   const sessionEnded = useCallback(() => {
-    clear("Sua sessão terminou. Entre novamente para continuar.");
+    clear("Sua sessão terminou. Entre novamente para continuar.", true);
   }, [clear]);
   const loadInitial = useCallback(async () => {
     setFatal("");
@@ -1917,6 +2291,9 @@ export function PortalApp() {
       document.activeElement.blur();
     }
     scrollPageToTop();
+    setPatientMapRecovery((current) =>
+      current?.patientId === nextUser.id ? current : null,
+    );
     setUser(nextUser);
     setCsrf(token);
     setSessionMessage("");
@@ -1938,7 +2315,7 @@ export function PortalApp() {
     } finally {
       logoutInFlight.current = false;
       setLogoutBusy(false);
-      clear();
+      clear("", false);
     }
   }
   const content = (() => {
@@ -1975,7 +2352,7 @@ export function PortalApp() {
         />
       );
     }
-    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>

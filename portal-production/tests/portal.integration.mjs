@@ -181,6 +181,36 @@ async function storedPrivacyVersion(userId) {
   }
 }
 
+async function patientMapDraftRowCount(patientId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare(
+        "SELECT COUNT(*) AS total FROM patient_map_draft_fields WHERE patient_id = ?",
+      )
+      .get(patientId).total;
+  } finally {
+    database.close();
+  }
+}
+
+async function patientMapAuditCount() {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT COUNT(*) AS total
+         FROM access_logs
+         WHERE action LIKE '%map%' OR resource_type LIKE '%map%'`,
+      )
+      .get().total;
+  } finally {
+    database.close();
+  }
+}
+
 async function setSyntheticRegistrationFailure(target, enabled) {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath);
@@ -471,6 +501,221 @@ const registeredB = await registerPatient({
 expectStatus(registeredB.result, 201, "cadastro do paciente B");
 const patientB = registeredB.patient;
 
+const mapContentVersion = "mapa-pessoal-refinado-ouro-v1";
+const mapItemId = "meu-jeito.01.1";
+const initialMapA = await api("/map-draft", { auth: patientA });
+expectStatus(initialMapA, 200, "Meu mapa vazio do paciente");
+assert.deepEqual(initialMapA.payload, {
+  content_version: mapContentVersion,
+  generation: 1,
+  fields: [],
+});
+expectStatus(
+  await api("/map-draft", { auth: therapist }),
+  403,
+  "profissional tentando consultar rascunho do Meu mapa",
+);
+expectStatus(
+  await api("/map-draft"),
+  401,
+  "consulta do Meu mapa sem sessão",
+);
+
+const mapPatchWithoutCsrf = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-no-csrf-0001",
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "curious", note: "Somente um teste sintético." },
+    },
+  },
+  auth: patientA,
+  includeCsrf: false,
+});
+expectStatus(mapPatchWithoutCsrf, 403, "salvamento do Meu mapa sem CSRF");
+
+const invalidMapField = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-invalid-field-01",
+    field: {
+      type: "answer",
+      id: "item.que-nao-existe",
+      value: { response: "curious", note: "" },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(invalidMapField, 400, "campo fora do catálogo do Meu mapa");
+
+const unexpectedMapProperty = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-extra-property-1",
+    field: { type: "answer", id: mapItemId, value: null },
+    patient_id: patientB.user.id,
+  },
+  auth: patientA,
+});
+expectStatus(unexpectedMapProperty, 400, "propriedade inesperada no Meu mapa");
+
+const mapAnswerRequestId = "request-map-answer-a-0001";
+const firstMapAnswer = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: mapAnswerRequestId,
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: {
+        response: "curious",
+        note: "Observação inteiramente sintética e privada.",
+      },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(firstMapAnswer, 200, "primeiro campo do Meu mapa");
+assert.equal(firstMapAnswer.payload.field.revision, 1);
+assert.equal(firstMapAnswer.payload.idempotent, false);
+
+const idempotentMapRetry = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: mapAnswerRequestId,
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: {
+        response: "curious",
+        note: "Observação inteiramente sintética e privada.",
+      },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(idempotentMapRetry, 200, "repetição idempotente do Meu mapa");
+assert.equal(idempotentMapRetry.payload.field.revision, 1);
+assert.equal(idempotentMapRetry.payload.idempotent, true);
+
+const reusedMapRequest = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 1,
+    request_id: mapAnswerRequestId,
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "not_fit", note: "Outro valor sintético." },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(reusedMapRequest, 409, "request_id reutilizado com outro conteúdo");
+assert.equal(reusedMapRequest.payload.code, "map_draft_request_reused");
+
+const mapPosition = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-position-a-0001",
+    field: {
+      type: "position",
+      id: "meu-jeito",
+      value: { sectionIndex: 0, itemIndex: 1 },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(mapPosition, 200, "posição válida do Meu mapa");
+
+const longSyntheticSynthesis = '"'.repeat(1_000);
+const mapSynthesis = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-synthesis-a-001",
+    field: {
+      type: "synthesis",
+      id: "already-fits",
+      value: longSyntheticSynthesis,
+    },
+  },
+  auth: patientA,
+});
+expectStatus(mapSynthesis, 200, "síntese de 1000 caracteres escapados");
+
+const oversizedMapSynthesis = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-synthesis-too-long",
+    field: {
+      type: "synthesis",
+      id: "want-more",
+      value: "x".repeat(1_001),
+    },
+  },
+  auth: patientA,
+});
+expectStatus(oversizedMapSynthesis, 400, "síntese além do limite");
+
+const patientBMapAnswer = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-answer-b-0001",
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "fits", note: "Outro paciente sintético." },
+    },
+  },
+  auth: patientB,
+});
+expectStatus(patientBMapAnswer, 200, "campo isolado do paciente B");
+const patientBMap = await api("/map-draft", { auth: patientB });
+assert.equal(patientBMap.payload.fields.length, 1);
+assert.equal(patientBMap.payload.fields[0].value.response, "fits");
+const persistedMapA = await api("/map-draft", { auth: patientA });
+assert.equal(persistedMapA.payload.fields.length, 3);
+assert.equal(
+  persistedMapA.payload.fields.find((field) => field.type === "answer").value.response,
+  "curious",
+);
+assert.equal(
+  persistedMapA.payload.fields.find((field) => field.type === "synthesis").value,
+  longSyntheticSynthesis,
+);
+assert.equal(await patientMapAuditCount(), 0, "Meu mapa não deve gerar auditoria de conteúdo");
+
 const revoked = await api(`/invitations/${invitationToRevoke.id}`, {
   method: "DELETE",
   auth: therapist,
@@ -584,6 +829,184 @@ const patientASecondLogin = await api("/login", {
   auth: patientASecondSession,
 });
 expectStatus(patientASecondLogin, 200, "segunda sessão do paciente");
+
+const mapAfterRelogin = await api("/map-draft", { auth: patientA });
+expectStatus(mapAfterRelogin, 200, "Meu mapa preservado depois de novo login");
+assert.equal(mapAfterRelogin.payload.fields.length, 3);
+
+const firstTabMapUpdate = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 1,
+    request_id: "request-map-first-tab-0002",
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "contextual", note: "Alteração da primeira aba." },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(firstTabMapUpdate, 200, "alteração do Meu mapa na primeira aba");
+assert.equal(firstTabMapUpdate.payload.field.revision, 2);
+
+const staleSecondTabMapUpdate = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 1,
+    request_id: "request-map-stale-tab-0001",
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "tolerate", note: "Alteração concorrente sintética." },
+    },
+  },
+  auth: patientASecondSession,
+});
+expectStatus(staleSecondTabMapUpdate, 409, "conflito entre duas abas do Meu mapa");
+assert.equal(staleSecondTabMapUpdate.payload.code, "map_draft_field_conflict");
+assert.equal(staleSecondTabMapUpdate.payload.field.revision, 2);
+assert.equal(staleSecondTabMapUpdate.payload.field.value.response, "contextual");
+
+const resolvedSecondTabMapUpdate = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 2,
+    request_id: "request-map-resolved-tab-001",
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "tolerate", note: "Conflito resolvido de forma sintética." },
+    },
+  },
+  auth: patientASecondSession,
+});
+expectStatus(resolvedSecondTabMapUpdate, 200, "conflito do Meu mapa resolvido");
+assert.equal(resolvedSecondTabMapUpdate.payload.field.revision, 3);
+
+const mapTombstone = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 3,
+    request_id: "request-map-tombstone-a-001",
+    field: { type: "answer", id: mapItemId, value: null },
+  },
+  auth: patientA,
+});
+expectStatus(mapTombstone, 200, "tombstone de campo do Meu mapa");
+assert.equal(mapTombstone.payload.field.value, null);
+assert.equal(mapTombstone.payload.field.revision, 4);
+const mapWithTombstone = await api("/map-draft", { auth: patientA });
+assert.equal(
+  mapWithTombstone.payload.fields.find((field) => field.type === "answer").value,
+  null,
+);
+
+const mapClearWithoutCsrf = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    request_id: "request-map-clear-no-csrf-1",
+  },
+  auth: patientA,
+  includeCsrf: false,
+});
+expectStatus(mapClearWithoutCsrf, 403, "limpeza do Meu mapa sem CSRF");
+
+const mapClearWithExtraProperty = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    request_id: "request-map-clear-extra-0001",
+    patient_id: patientB.user.id,
+  },
+  auth: patientA,
+});
+expectStatus(mapClearWithExtraProperty, 400, "limpeza do Meu mapa com dado inesperado");
+
+const mapClearRequestId = "request-map-clear-a-0001";
+const clearedMap = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    request_id: mapClearRequestId,
+  },
+  auth: patientA,
+});
+expectStatus(clearedMap, 200, "limpeza integral do Meu mapa");
+assert.equal(clearedMap.payload.generation, 2);
+assert.equal(clearedMap.payload.idempotent, false);
+const idempotentMapClear = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    request_id: mapClearRequestId,
+  },
+  auth: patientA,
+});
+expectStatus(idempotentMapClear, 200, "repetição idempotente da limpeza do Meu mapa");
+assert.equal(idempotentMapClear.payload.generation, 2);
+assert.equal(idempotentMapClear.payload.idempotent, true);
+assert.deepEqual((await api("/map-draft", { auth: patientA })).payload.fields, []);
+
+const staleGenerationMapPatch = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 4,
+    request_id: "request-map-stale-generation",
+    field: { type: "answer", id: mapItemId, value: null },
+  },
+  auth: patientASecondSession,
+});
+expectStatus(staleGenerationMapPatch, 409, "aba antiga depois de limpar o Meu mapa");
+assert.equal(staleGenerationMapPatch.payload.code, "map_draft_generation_conflict");
+assert.equal(staleGenerationMapPatch.payload.generation, 2);
+
+const mapAfterGenerationReset = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 2,
+    base_revision: 0,
+    request_id: "request-map-new-generation-01",
+    field: {
+      type: "answer",
+      id: mapItemId,
+      value: { response: "unknown", note: "Resposta da nova geração." },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(mapAfterGenerationReset, 200, "campo recriado depois da limpeza");
+assert.equal(mapAfterGenerationReset.payload.field.revision, 1);
+assert.equal((await api("/map-draft", { auth: patientA })).payload.fields.length, 1);
+
+const therapistMapPatch = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    base_revision: 0,
+    request_id: "request-map-professional-0001",
+    field: { type: "answer", id: mapItemId, value: null },
+  },
+  auth: therapist,
+});
+expectStatus(therapistMapPatch, 403, "profissional tentando alterar o Meu mapa");
 
 const revokeSessionsWithoutCsrf = await api("/account/sessions", {
   method: "DELETE",
@@ -1241,12 +1664,21 @@ const reusedAssistedRecovery = await api("/recover", {
 });
 expectStatus(reusedAssistedRecovery, 400, "reutilização da recuperação assistida");
 
+assert.ok(
+  (await patientMapDraftRowCount(patientB.user.id)) > 0,
+  "o paciente B deve ter rascunho sintético antes de excluir a conta",
+);
 const deleteAccountB = await api("/account", {
   method: "DELETE",
   body: { current_password: synthetic.patientPasswordB },
   auth: patientB,
 });
 expectStatus(deleteAccountB, 204, "exclusão da conta do paciente B");
+assert.equal(
+  await patientMapDraftRowCount(patientB.user.id),
+  0,
+  "a exclusão da conta deve remover o Meu mapa em cascata",
+);
 const afterAccountDeletion = await api("/professional/patients", { auth: therapist });
 expectStatus(afterAccountDeletion, 200, "lista após exclusão de conta");
 assert.equal(afterAccountDeletion.payload.patients.length, 1);
@@ -1313,7 +1745,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 125,
+    checks: 150,
     data: "synthetic-only",
     production_requests: 0,
   }),

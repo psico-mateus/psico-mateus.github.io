@@ -16,13 +16,14 @@ export default function PrivacyPage() {
       <h1 style={{ fontSize: "clamp(2.7rem,7vw,5rem)" }}>
         Seus registros, suas escolhas.
       </h1>
-      <p className="lead">Versão de 29 de julho de 2026.</p>
+      <p className="lead">Versão de 8 de agosto de 2026.</p>
       <section className="panel stack">
         <h2>O que este espaço guarda</h2>
         <p>
           Ao criar uma conta, são guardados um identificador técnico do seu
-          e-mail, seu nome de preferência, credenciais protegidas e os registros
-          que você escrever. O e-mail não é armazenado em texto legível.
+          e-mail, seu nome de preferência, credenciais protegidas, os registros
+          que você escrever e o conteúdo que decidir guardar no “Meu mapa”. O
+          e-mail não é armazenado em texto legível.
         </p>
         <h2>Para que os dados são usados</h2>
         <p>
@@ -46,6 +47,15 @@ export default function PrivacyPage() {
           o portal guarda a data dessa confirmação. Essa informação também aparece
           para você no próprio registro e não significa resposta ou acompanhamento
           em tempo real.
+        </p>
+        <h2>Meu mapa</h2>
+        <p>
+          As respostas, observações, síntese e posição de leitura do “Meu mapa”
+          são salvas de forma privada na sua conta para você continuar depois.
+          Mateus não vê o conteúdo, a quantidade de respostas nem quais partes
+          você abriu. Nada do mapa é compartilhado automaticamente ou transformado
+          em prontuário. Você pode limpar todo o mapa pelo próprio recurso; excluir
+          a conta também remove esse conteúdo.
         </p>
         <h2>Conteúdos de apoio e buscas</h2>
         <p>

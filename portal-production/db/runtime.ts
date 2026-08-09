@@ -8,6 +8,10 @@ export interface PortalEnv {
   GUIDE_URL?: string;
 }
 
+// Compatibilidade com bancos antigos que já dependem deste bootstrap. Tabelas
+// novas não entram aqui: elas devem existir somente depois da migração
+// versionada correspondente. Isso impede que o Worker antecipe uma migração
+// ainda não revisada ou aplicada.
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

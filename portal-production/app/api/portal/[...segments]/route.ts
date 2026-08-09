@@ -36,6 +36,11 @@ import {
   validatePassword,
   type UserRow,
 } from "@/lib/portal";
+import {
+  patchPatientMapDraft,
+  readPatientMapDraft,
+  resetPatientMapDraft,
+} from "@/lib/patient-map-draft";
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
@@ -87,6 +92,7 @@ function technicalRoute(path: string): string {
     "/recover",
     "/logout",
     "/entries",
+    "/map-draft",
     "/export",
     "/invitations",
     "/account",
@@ -782,6 +788,10 @@ async function handleGet(request: Request, path: string): Promise<Response> {
     const session = await requireSession(request);
     return json({ entries: await listEntries(session) });
   }
+  if (path === "/map-draft") {
+    const session = await requireSession(request, "patient");
+    return json(await readPatientMapDraft(DB, session.userId));
+  }
   if (path === "/professional/patients") {
     const session = await requireSession(request, "therapist");
     const [patients, activity] = await Promise.all([
@@ -1069,6 +1079,12 @@ async function handlePost(request: Request, path: string): Promise<Response> {
 async function handlePatch(request: Request, path: string): Promise<Response> {
   const { DB, APP_SECRET } = getPortalEnv();
   const input = await readJson(request);
+  if (path === "/map-draft") {
+    const session = await requireSession(request, "patient");
+    requireCsrf(request, session);
+    const result = await patchPatientMapDraft(DB, session.userId, input);
+    return result.ok ? json(result.payload) : json(result.payload, 409);
+  }
   if (path === "/account/password") {
     const session = await requireSession(request);
     requireCsrf(request, session);
@@ -1234,6 +1250,14 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
   const { DB, APP_SECRET } = getPortalEnv();
   const session = await requireSession(request);
   requireCsrf(request, session);
+  if (path === "/map-draft") {
+    if (session.role !== "patient") {
+      throw new PortalError(403, "Esta ação não está disponível para este perfil.");
+    }
+    const input = await readJson(request);
+    const result = await resetPatientMapDraft(DB, session.userId, input);
+    return result.ok ? json(result.payload) : json(result.payload, 409);
+  }
   if (path === "/account/sessions") {
     const input = await readJson(request);
     const user = (await DB.prepare("SELECT * FROM users WHERE id = ?")

@@ -337,7 +337,10 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Será salvo como privado/);
   assert.match(app, /Continuará compartilhado com Mateus/);
   assert.match(app, /Salvar registro privado/);
-  assert.match(app, /\{!editing \? \(\s*<section className="records-section"/);
+  assert.match(app, /\{!editorVisible \? \(\s*<section className="records-section"/);
+  assert.match(app, /Seu registro continua guardado/u);
+  assert.match(app, /Continuar escrevendo/u);
+  assert.match(app, /Descartar/u);
   assert.match(app, /\{!editing \? <AccountPanel role="patient"/);
   assert.match(app, /Você escreve com privacidade/);
   assert.match(app, /Compartilhado com Mateus/);
@@ -982,8 +985,8 @@ test("privacy notice explains account closure and data-rights requests", async (
 
   assert.match(app, /Código atual do autenticador/);
   assert.match(app, /aguarde o número exibido mudar/);
-  assert.match(portal, /PRIVACY_VERSION = "2026-07-29"/);
-  assert.match(privacy, /Versão de 29 de julho de 2026/);
+  assert.match(portal, /PRIVACY_VERSION = "2026-08-08"/);
+  assert.match(privacy, /Versão de 8 de agosto de 2026/);
   assert.match(privacy, /não\s+apaga automaticamente a conta nem os registros/u);
   assert.match(privacy, /Mateus deixa de acessar também os registros/);
   assert.match(privacy, /Como exercer seus direitos/);
@@ -1113,7 +1116,7 @@ test("mobile layout keeps the portal within the viewport", async () => {
   assert.match(finalMobileRules, /#selected-patient-title[\s\S]*?scroll-margin-top:1rem/);
   assert.match(
     styles,
-    /@media\(max-width:400px\)\{[\s\S]*?\.patient-navigation\{[\s\S]*?grid-template-columns:\.72fr \.92fr 1\.36fr/,
+    /@media\(max-width:400px\)\{[\s\S]*?\.patient-navigation\{[\s\S]*?grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
   );
   assert.match(
     styles,
@@ -1589,4 +1592,57 @@ test("registration errors do not confirm an existing account and request bodies 
   assert.match(portal, /if \(tooLarge\) throw new PortalError\(413/);
   assert.match(security, /Não publique detalhes/);
   assert.doesNotMatch(security, /senha real|token real|código real/iu);
+});
+
+test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", async () => {
+  const [route, backend, runtime, migration, restore] = await Promise.all([
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../lib/patient-map-draft.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../drizzle/0003_patient_map_drafts.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../scripts/rehearse-local-restore.mjs", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(route, /"\/map-draft"/u);
+  assert.match(
+    route,
+    /path === "\/map-draft"[\s\S]*?requireSession\(request, "patient"\)/u,
+  );
+  assert.match(route, /patchPatientMapDraft\(DB, session\.userId, input\)/u);
+  assert.match(route, /resetPatientMapDraft\(DB, session\.userId, input\)/u);
+  assert.match(route, /requireCsrf\(request, session\)/u);
+  assert.doesNotMatch(route, /patient_map_draft_fields/u);
+
+  assert.match(backend, /map_draft_generation_conflict/u);
+  assert.match(backend, /map_draft_field_conflict/u);
+  assert.match(backend, /map_draft_request_reused/u);
+  assert.match(backend, /base_revision/u);
+  assert.match(backend, /new TextEncoder\(\)\.encode[\s\S]*?4_096/u);
+  assert.match(backend, /assertExactKeys[\s\S]*?content_version/u);
+  assert.match(backend, /field\.type[\s\S]*?field\.id/u);
+  assert.match(backend, /patientId/u);
+  assert.doesNotMatch(
+    backend,
+    /\baudit\b|access_logs|patient_links|therapist|console\./u,
+  );
+
+  assert.match(migration, /ON DELETE cascade/u);
+  assert.match(migration, /patient_map_draft_request_idx/u);
+  assert.match(migration, /WHERE .*request_id.*<> ''/u);
+  assert.match(migration, /length\(.*value.*\) <= 4096/u);
+  assert.match(migration, /generation.*>= 1/u);
+  assert.match(migration, /field_id.*BETWEEN 1 AND 80/u);
+  assert.doesNotMatch(runtime, /patient_map_draft_fields/u);
+  assert.match(runtime, /Tabelas[\s\S]*?novas não entram aqui/u);
+  assert.match(restore, /0003_patient_map_drafts\.sql/u);
+  assert.match(restore, /patient_map_draft_fields/u);
 });

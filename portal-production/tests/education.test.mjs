@@ -417,8 +417,9 @@ test("education search is pure and does not request the network", () => {
 });
 
 test("education remains patient-only and isolated from API, database and storage", async () => {
-  const [app, education, professional, route, schema] = await Promise.all([
+  const [app, resources, education, professional, route, schema] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientResources.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/PatientEducation.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/ProfessionalDashboard.tsx", import.meta.url), "utf8"),
     readFile(
@@ -435,7 +436,8 @@ test("education remains patient-only and isolated from API, database and storage
 
   assert.doesNotMatch(guest, /<PatientEducation/);
   assert.match(guest, /Leitura complementar/);
-  assert.match(patient, /<PatientEducation/);
+  assert.match(patient, /<PatientResources/);
+  assert.match(resources, /<PatientEducation/);
   assert.match(app, /user\.role === "patient" \? <PatientDashboard/);
   assert.doesNotMatch(professional, /PatientEducation|Leitura complementar/);
   assert.doesNotMatch(education, /fetch\(|portalRequest|localStorage|sessionStorage|document\.cookie/);
@@ -444,8 +446,9 @@ test("education remains patient-only and isolated from API, database and storage
 });
 
 test("education CTA opens the existing blank and private record flow", async () => {
-  const [app, education] = await Promise.all([
+  const [app, resources, education] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientResources.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/PatientEducation.tsx", import.meta.url), "utf8"),
   ]);
   const integration =
@@ -462,21 +465,24 @@ test("education CTA opens the existing blank and private record flow", async () 
   );
   assert.match(app, /initial=\{editing === "new" \? undefined : editing\}/);
   assert.match(app, /Você escreve com privacidade/);
-  assert.match(app, /setArea\("education"\)/);
+  assert.match(app, /setEntryReturn\(\{ kind: "reading", id: slug \}\)/);
+  assert.match(app, /resourceView: returnTo\.kind === "reading" \? "readings" : "tools"/);
+  assert.match(resources, /onCreateRecord=\{onCreateRecordFromReading\}/);
 });
 
 test("education uses Leitura complementar consistently", async () => {
-  const [app, education] = await Promise.all([
+  const [app, resources, education] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientResources.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/PatientEducation.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(app, />\s*Leitura complementar\s*</);
+  assert.match(resources, />\s*Leitura complementar\s*</);
   assert.match(app, /área “Leitura complementar”/);
   assert.match(education, />\s*Leitura complementar\s*</);
   assert.match(education, /Voltar à Leitura complementar/);
   assert.doesNotMatch(
-    `${app}\n${education}`,
+    `${app}\n${resources}\n${education}`,
     /Entender melhor|Leituras de apoio|Temas para a terapia/,
   );
 });

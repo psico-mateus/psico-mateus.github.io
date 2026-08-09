@@ -1,10 +1,16 @@
 export class PortalRequestError extends Error {
   status: number;
+  payload: Record<string, unknown>;
 
-  constructor(status: number, message: string) {
+  constructor(
+    status: number,
+    message: string,
+    payload: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = "PortalRequestError";
     this.status = status;
+    this.payload = payload;
   }
 }
 
@@ -63,10 +69,16 @@ export async function portalRequest<T>(
       );
     }
     if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
       throw new PortalRequestError(
         response.status,
-        payload.error || "Não foi possível concluir a ação.",
+        typeof payload.error === "string"
+          ? payload.error
+          : "Não foi possível concluir a ação.",
+        payload,
       );
     }
     if (response.status === 204) return undefined as T;

@@ -368,6 +368,35 @@ test("guia oferece atalhos acessíveis, filtros identificáveis e PDF", async ({
   expect(filterSize?.height).toBeGreaterThanOrEqual(44);
 });
 
+test("busca mantém foco visível e campos móveis não provocam autozoom", async ({ page }, testInfo) => {
+  await page.goto(guidePath);
+
+  const search = page.getByRole("searchbox", { name: "Buscar no guia" });
+  await search.focus();
+  const focus = await search.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      visible: element.matches(":focus-visible"),
+      outlineStyle: style.outlineStyle,
+      outlineWidth: Number.parseFloat(style.outlineWidth),
+    };
+  });
+  expect(focus.visible).toBe(true);
+  expect(focus.outlineStyle).not.toBe("none");
+  expect(focus.outlineWidth).toBeGreaterThanOrEqual(3);
+
+  if (testInfo.project.name !== "desktop-chromium") {
+    const fieldSizes = await page.evaluate(() => ({
+      search: Number.parseFloat(getComputedStyle(document.querySelector("#emotion-search")).fontSize),
+      textarea: Number.parseFloat(
+        getComputedStyle(document.querySelector("#registrar textarea")).fontSize,
+      ),
+    }));
+    expect(fieldSizes.search).toBeGreaterThanOrEqual(16);
+    expect(fieldSizes.textarea).toBeGreaterThanOrEqual(16);
+  }
+});
+
 test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", async () => {
   const [bundle, css, brandCss, serviceWorker, guideHtml] = await Promise.all([
     readFile("assets/EmotionGuideApp-BiKEL11_.js", "utf8"),
@@ -387,9 +416,9 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v25"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v26"');
   expect(serviceWorker).toContain(
-    '"/assets/css/guide-brand.css?v=20260802-a11y2"',
+    '"/assets/css/guide-brand.css?v=20260808-a11y3"',
   );
   expect(serviceWorker).toContain(
     '"/assets/js/guide-navigation.js?v=20260802-a11y2"',
