@@ -10,7 +10,29 @@ export type PatientSummary = {
   shared_count: number;
   private_count: number;
   unread_count: number;
+  shared_map_count: number;
+  unread_map_count: number;
   latest_shared_at: string | null;
+  latest_map_shared_at: string | null;
+};
+
+export type SharedPatientMapAnswer = {
+  item_id: string;
+  item_title: string;
+  section_title: string;
+  response_key: string | null;
+  response_label: string | null;
+  note: string;
+};
+
+export type SharedPatientMap = {
+  map_id: string;
+  map_title: string;
+  map_description: string;
+  answers: SharedPatientMapAnswer[];
+  shared_at: string;
+  viewed_at: string | null;
+  is_unread: number;
 };
 
 export type SharedEntry = {
@@ -90,12 +112,19 @@ export function filterAndSortPatients(
         if (nameComparison !== 0) return nameComparison;
       } else {
         if (sort === "unread") {
-          const unreadComparison = second.unread_count - first.unread_count;
+          const unreadComparison =
+            second.unread_count + (second.unread_map_count ?? 0) -
+            (first.unread_count + (first.unread_map_count ?? 0));
           if (unreadComparison !== 0) return unreadComparison;
         }
+        const firstLatest = [first.latest_shared_at, first.latest_map_shared_at ?? null]
+          .filter(Boolean)
+          .reduce((latest, value) => Math.max(latest, new Date(value!).getTime()), 0);
+        const secondLatest = [second.latest_shared_at, second.latest_map_shared_at ?? null]
+          .filter(Boolean)
+          .reduce((latest, value) => Math.max(latest, new Date(value!).getTime()), 0);
         const dateComparison =
-          (second.latest_shared_at ? new Date(second.latest_shared_at).getTime() : 0) -
-          (first.latest_shared_at ? new Date(first.latest_shared_at).getTime() : 0);
+          secondLatest - firstLatest;
         if (dateComparison !== 0) return dateComparison;
       }
       return first.patient_id.localeCompare(second.patient_id);

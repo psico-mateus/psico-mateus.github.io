@@ -106,6 +106,7 @@ O portal usa Cloudflare D1. As relações principais são:
 - `entries`: registros pertencentes ao paciente;
 - `entry_views`: data em que o profissional concluiu deliberadamente a visualização de cada registro compartilhado;
 - `patient_map_draft_fields`: respostas privadas do “Meu mapa”, salvas por campo com revisão e geração;
+- `patient_map_shares`: cópias das partes do mapa que o paciente escolheu compartilhar;
 - `invitations`: convites de uso único, válidos por 7 dias;
 - `sessions`: sessões armazenadas somente pelo hash do token;
 - `assisted_recovery_grants`: validade dos códigos temporários emitidos pelo profissional;
@@ -116,9 +117,13 @@ O cadastro de paciente exige convite, confirmação de 18 anos ou mais e aceite 
 
 O rascunho do “Meu mapa” pertence exclusivamente ao paciente. O servidor salva
 um campo por vez, exige a revisão esperada para evitar sobrescrita silenciosa
-entre abas e usa uma nova geração ao limpar tudo. Não existe rota, contador,
-auditoria de conteúdo nem consulta profissional para esse rascunho. A exclusão
-da conta remove as linhas por chave estrangeira em cascata.
+entre abas e usa uma nova geração ao limpar tudo. O profissional nunca consulta
+esse rascunho. Quando o paciente compartilha uma parte, o servidor cria uma cópia
+somente das respostas e observações daquela parte; a síntese e as demais partes
+continuam privadas. Recompartilhar atualiza a cópia e a marca como não vista.
+Retirar o compartilhamento, limpar o mapa, encerrar o vínculo ou excluir a conta
+apaga as cópias correspondentes. O acesso profissional é somente leitura e depende
+de vínculo ativo.
 
 Pacientes e profissional podem encerrar todas as sessões da própria conta em caso
 de aparelho perdido ou acesso esquecido. A ação exige a senha atual, exige também
@@ -129,7 +134,11 @@ automaticamente a conta ou os registros. O aviso de privacidade orienta como
 pedir cópia, correção de identificação ou exclusão quando o acesso já estiver
 desativado.
 
-O painel profissional marca um registro como visto depois que Mateus abre o conteúdo e conclui a leitura. Uma edição ou um novo compartilhamento posterior faz o registro voltar à lista de pendências. Esse estado organiza a leitura e não permite editar, responder ou transformar o texto do paciente em prontuário. O paciente vê a data da visualização apenas nos próprios registros compartilhados; registros privados não exibem estado profissional.
+O painel profissional marca um registro ou uma parte compartilhada do mapa como
+vista somente depois que Mateus conclui a leitura. Um novo compartilhamento volta
+à lista de pendências. Esse estado organiza a leitura e não permite editar,
+responder ou transformar o conteúdo em prontuário. O paciente vê a data da
+visualização somente no conteúdo que continua compartilhado.
 
 A área “Leitura complementar” reúne conteúdo estático de psicoeducação para pacientes
 autenticados. Busca, filtros e páginas abertas existem somente no estado em

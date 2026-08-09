@@ -28,8 +28,8 @@ export default function PrivacyPage() {
         <h2>Para que os dados são usados</h2>
         <p>
           Os dados servem para manter seu acesso, organizar seu histórico e
-          permitir que você compartilhe registros específicos com Mateus Ribeiro
-          Marcos. Eles não são usados para publicidade, venda de dados, diagnóstico
+          permitir que você compartilhe registros ou partes específicas do “Meu
+          mapa” com Mateus Ribeiro Marcos. Eles não são usados para publicidade, venda de dados, diagnóstico
           automático ou treinamento de inteligência artificial. As quantidades de
           registros privados e compartilhados ajudam a entender se o recurso está
           sendo utilizado e se continua fazendo sentido para você, sem mostrar o
@@ -52,10 +52,15 @@ export default function PrivacyPage() {
         <p>
           As respostas, observações, síntese e posição de leitura do “Meu mapa”
           são salvas de forma privada na sua conta para você continuar depois.
-          Mateus não vê o conteúdo, a quantidade de respostas nem quais partes
-          você abriu. Nada do mapa é compartilhado automaticamente ou transformado
-          em prontuário. Você pode limpar todo o mapa pelo próprio recurso; excluir
-          a conta também remove esse conteúdo.
+          Nada do mapa é compartilhado automaticamente. Você pode escolher uma
+          parte específica e compartilhar uma cópia das respostas e observações
+          daquela parte com Mateus. A síntese geral e as demais partes continuam
+          privadas. Alterações posteriores só aparecem quando você compartilha a
+          parte novamente. Você pode retirar o compartilhamento a qualquer momento;
+          isso apaga a cópia compartilhada e interrompe o acesso profissional.
+          Mateus apenas lê e pode confirmar a visualização, sem editar, interpretar
+          automaticamente ou transformar o conteúdo em prontuário. Você pode limpar
+          todo o mapa pelo próprio recurso; excluir a conta também remove esse conteúdo.
         </p>
         <h2>Conteúdos de apoio e buscas</h2>
         <p>
@@ -75,7 +80,8 @@ export default function PrivacyPage() {
         <p>
           Na área “Conta e privacidade”, você pode baixar uma cópia dos registros,
           alterar sua senha, gerar novo código de recuperação, encerrar a conta em
-          todos os dispositivos e excluir permanentemente sua conta e seus registros.
+          todos os dispositivos, controlar os compartilhamentos e excluir
+          permanentemente sua conta, seus registros e seu mapa.
           Se você perder a senha e o código de recuperação, pode pedir a Mateus uma
           recuperação assistida. O novo código temporário substitui o anterior e
           encerra as sessões abertas da conta.
@@ -85,7 +91,8 @@ export default function PrivacyPage() {
           O acesso à Área do paciente pode ser desativado quando o acompanhamento
           termina. Isso encerra as sessões abertas e impede novas entradas, mas não
           apaga automaticamente a conta nem os registros. Com o vínculo encerrado,
-          Mateus deixa de acessar também os registros que estavam compartilhados.
+          Mateus deixa de acessar também os registros que estavam compartilhados,
+          e as cópias compartilhadas do “Meu mapa” são apagadas.
           Para pedir uma cópia ou a exclusão dos dados depois da desativação, use os
           meios de contato indicados abaixo.
         </p>

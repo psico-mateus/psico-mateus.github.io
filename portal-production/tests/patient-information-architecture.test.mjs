@@ -59,19 +59,23 @@ test("resources keep practical tools, readings and the public Guide distinct", (
   assert.match(resources, /onCreateRecord=\{onCreateRecordFromTool\}/u);
 });
 
-test("map is private and persistent while tools remain ephemeral and untracked", () => {
+test("map is private by default with explicit sharing while tools remain ephemeral", () => {
   for (const phrase of ["Meu jeito", "Interesses", "Vínculos", "Limites", "Futuro"]) {
     assert.match(mapCatalog, new RegExp(phrase, "u"));
   }
   assert.match(map, /Isto não é um teste e não existe resultado certo/u);
   assert.match(map, /Qual resposta se aproxima mais de você agora/u);
-  assert.match(map, /salvas de forma privada na sua conta e não aparecem para Mateus/u);
-  assert.match(map, /Nada desta área é compartilhado com Mateus/u);
+  assert.match(map, /Nada desta área será compartilhado automaticamente/u);
+  assert.match(map, /Compartilhar uma parte com Mateus/u);
+  assert.match(map, /A síntese geral e as outras partes continuarão privadas/u);
+  assert.match(map, /Atualizar cópia/u);
+  assert.match(map, />\s*Retirar\s*</u);
+  assert.match(map, /Isso não é acompanhamento em tempo real/u);
   assert.match(map, /Não é\s+nota, resultado ou interpretação/u);
   assert.match(tools, /Abrir ou usar uma ferramenta não cria histórico nem informa Mateus/u);
   assert.match(tools, /Filtrar ferramentas por situação/u);
 
-  const untrackedContentShells = `${resources}\n${map}\n${mapCatalog}\n${tools}`;
+  const untrackedContentShells = `${resources}\n${mapCatalog}\n${tools}`;
   for (const forbidden of [
     "portalRequest(",
     "fetch(",

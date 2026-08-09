@@ -39,7 +39,7 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
 - 5 mapas, 25 seções, 150 itens e 6 respostas editoriais preservados.
 - Interface com respostas, observações opcionais, navegação entre itens, contagens descritivas e síntese livre.
 - Não existe pontuação, diagnóstico, interpretação automática ou obrigação de concluir.
-- O conteúdo nunca é mostrado a Mateus nem usado como prontuário.
+- O conteúdo é privado por padrão e nunca é usado como prontuário.
 
 ## Lote 4 — persistência privada do Meu mapa
 
@@ -55,8 +55,19 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
   silêncio.
 - `Salvar e voltar ao início` aguarda a fila; limpar o mapa incrementa a geração
   para impedir que uma aba antiga recrie conteúdo apagado.
-- Não há endpoint profissional, contagem, compartilhamento, analytics ou log de
-  conteúdo do Meu mapa.
+- Não há analytics nem log de conteúdo do rascunho do Meu mapa.
+
+## Lote 5 — compartilhamento opcional do Meu mapa
+
+- Implementado localmente, ainda não publicado.
+- O paciente compartilha separadamente uma ou mais das cinco partes do mapa.
+- O servidor cria uma cópia somente das respostas e observações da parte
+  escolhida; síntese, posições e demais partes permanecem privadas.
+- O paciente pode atualizar ou retirar a cópia. Retirar apaga imediatamente a
+  cópia compartilhada.
+- Limpar o mapa, encerrar o vínculo ou excluir a conta também apaga as cópias.
+- O profissional lê somente com vínculo ativo, não edita e confirma a
+  visualização deliberadamente; a confirmação aparece ao paciente.
 
 ## Navegação, endereços e foco
 
@@ -87,8 +98,8 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
 
 ## Banco, API e autenticação
 
-- Migration local nova para os campos privados do Meu mapa; nenhuma migration
-  foi aplicada em produção.
+- A migration 0003 dos campos privados já está em produção. A migration 0004
+  de compartilhamento existe somente localmente e não foi aplicada remotamente.
 - Endpoints locais `GET`, `PATCH` e `DELETE /api/portal/map-draft`.
 - Leitura e escrita derivam o paciente exclusivamente da sessão. Mutação exige
   CSRF; profissional não tem rota de acesso.
@@ -99,8 +110,10 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
 ## Testes confirmados
 
 - `pnpm lint`: aprovado.
-- `pnpm test`: build aprovado e 76/76 testes estruturais e unitários aprovados.
-- Ensaio local de restauração: 10 tabelas verificadas, somente dados sintéticos e zero requisições a produção.
+- `pnpm test`: build aprovado e 86/86 testes estruturais e unitários aprovados.
+- Integração autenticada local: aprovada com contas e conteúdo apenas sintéticos,
+  cobrindo compartilhamento, revogação, leitura, isolamento e cascata.
+- Ensaio local de restauração: 12 tabelas verificadas, somente dados sintéticos e zero requisições a produção.
 - Revisão visual: aprovada em 7 configurações.
 - Navegadores e larguras: WebKit em 320, 390 e 640 px; Chromium desktop; fluxos autenticados e de visitante incluídos.
 - Acessibilidade automática: Axe WCAG A/AA sem violações nas telas verificadas.
@@ -128,15 +141,14 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
 
 - Os Lotes 0 a 4 estão implementados localmente; a validação integral do Lote 4
   ainda precisa terminar antes de qualquer publicação.
-- Ferramentas não guardam uso. Meu mapa guarda somente o rascunho privado da
-  conta, sem analytics, favoritos, compartilhamento ou visão profissional.
-- O aviso de privacidade local descreve o Meu mapa, mas a versão oficial de
-  privacidade continua `2026-07-29`; atualização e eventual ciência dos usuários
-  são um bloqueio de publicação a decidir, sem mudança silenciosa de login.
+- Ferramentas não guardam uso. O rascunho integral do Meu mapa continua privado;
+  somente cópias escolhidas podem ser compartilhadas.
+- O aviso de privacidade local descreve o fluxo e conserva a versão vigente de
+  8 de agosto de 2026.
 - Uma checagem física final em iPhone/Safari continua recomendada antes de futura publicação.
 - Qualquer persistência, migration, endpoint ou acesso profissional ao Meu mapa exige lote separado e nova revisão de autorização.
 
 ## Ações remotas não realizadas
 
-- Não houve commit, push, merge, PR ou deploy.
-- Não houve escrita remota em D1, alteração de secrets, mudança de autenticação ou criação de conta real.
+- O Lote 5 ainda não teve commit, push, deploy ou migration remota.
+- Não houve escrita remota em D1, alteração de secrets, mudança de autenticação ou criação de conta real nesta etapa.

@@ -104,10 +104,12 @@ não dependa de enviar o mapa inteiro.
 - Uma perda inesperada de sessão mantém somente em memória as alterações ainda
   pendentes, ligadas ao mesmo ID de paciente. Entrar com outra conta elimina
   esse buffer sem exibi-lo ou enviá-lo.
-- Nada é compartilhado automaticamente e Mateus não recebe respostas,
-  observações, posição, contagens ou síntese.
-- Não há visão profissional, marcação de leitura, comentário, chat,
-  interpretação automática ou uso do Meu mapa como prontuário.
+- Nada é compartilhado automaticamente. O paciente escolhe uma parte e envia
+  somente uma cópia das respostas e observações dessa parte.
+- Posição, síntese e partes não escolhidas permanecem privadas. Não existem
+  comentário, chat, interpretação automática ou uso como prontuário.
+- A visão profissional é somente leitura e permite confirmar a visualização;
+  retirar o compartilhamento apaga a cópia e interrompe o acesso.
 - `Ainda não sei` é uma resposta deliberada; ausência de resposta continua
   representada separadamente.
 - A interface atual resume um mapa por vez. Ainda não existe uma síntese visual
@@ -129,10 +131,8 @@ não dependa de enviar o mapa inteiro.
    foco, leitor de tela, modo reduzido e interrupção de rede.
 4. **Avaliar exportação em lote próprio:** o mapa não deve ser incluído ou omitido
    de uma cópia de dados sem decisão explícita e documentação consistente.
-5. **Avaliar compartilhamento em lote separado:** se for aprovado, deve ser
-   opcional, granular, revogável e somente leitura. Contagens ou conteúdo privado
-   não devem ficar visíveis ao profissional sem finalidade e consentimento
-   definidos.
+5. **Compartilhamento concluído localmente:** revisar a experiência final com
+   paciente e profissional sem dados reais.
 6. **Publicar por último:** somente depois de testes completos, revisão visual,
    migration remota deliberada e autorização explícita. Este documento não
    autoriza API, D1, deploy, push ou publicação.

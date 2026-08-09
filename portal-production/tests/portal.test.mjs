@@ -1646,3 +1646,52 @@ test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", 
   assert.match(restore, /0003_patient_map_drafts\.sql/u);
   assert.match(restore, /patient_map_draft_fields/u);
 });
+
+test("Meu mapa sharing is explicit, revocable and read-only for the professional", async () => {
+  const [route, sharing, migration, patientUi, professionalUi, restore] =
+    await Promise.all([
+      readFile(
+        new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../lib/patient-map-sharing.ts", import.meta.url), "utf8"),
+      readFile(
+        new URL("../drizzle/0004_patient_map_sharing.sql", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../app/PatientMapShell.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/ProfessionalDashboard.tsx", import.meta.url), "utf8"),
+      readFile(
+        new URL("../scripts/rehearse-local-restore.mjs", import.meta.url),
+        "utf8",
+      ),
+    ]);
+
+  assert.match(route, /\/map-sharing\/:mapId/u);
+  assert.match(route, /requireSession\(request, "patient"\)/u);
+  assert.match(route, /requireSession\(request, "therapist"\)/u);
+  assert.match(route, /requireCsrf\(request, session\)/u);
+  assert.match(route, /sharePatientMap\(DB, session\.userId/u);
+  assert.match(route, /revokePatientMapShare\(DB, session\.userId/u);
+  assert.match(route, /markPatientMapShareViewed/u);
+
+  assert.match(sharing, /readPatientMapDraft/u);
+  assert.match(sharing, /parts|map\.sections/u);
+  assert.match(sharing, /DELETE FROM patient_map_shares/u);
+  assert.match(sharing, /patient_links\.status = 'active'/u);
+  assert.match(sharing, /viewed_at = NULL/u);
+  assert.doesNotMatch(sharing, /console\.|access_logs/u);
+
+  assert.match(migration, /ON DELETE cascade/u);
+  assert.match(migration, /patient_map_shares_therapist_idx/u);
+  assert.match(migration, /length\(.*snapshot.*\) BETWEEN 2 AND 65536/u);
+  assert.match(restore, /0004_patient_map_sharing\.sql/u);
+  assert.match(restore, /patient_map_shares/u);
+
+  assert.match(patientUi, /Compartilhar uma parte com Mateus/u);
+  assert.match(patientUi, /Atualizar cópia/u);
+  assert.match(patientUi, />\s*Retirar\s*</u);
+  assert.match(patientUi, /síntese geral e as outras partes continuarão privadas/iu);
+  assert.match(professionalUi, /Somente leitura/u);
+  assert.match(professionalUi, /Concluir visualização/u);
+});

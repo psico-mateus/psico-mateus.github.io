@@ -70,8 +70,10 @@ test("unexpected session loss keeps only an in-memory, patient-bound recovery bu
   assert.match(app, /clear\("", false\)/u);
 });
 
-test("privacy copy states the map is saved but invisible to the professional", () => {
+test("privacy copy states the map is private by default and sharing is controlled", () => {
   assert.match(privacy, /respostas, observações, síntese e posição de leitura/u);
-  assert.match(privacy, /Mateus não vê o conteúdo, a quantidade de respostas nem quais partes/u);
   assert.match(privacy, /Nada do mapa é compartilhado automaticamente/u);
+  assert.match(privacy, /parte específica/u);
+  assert.match(privacy, /A síntese geral e as demais partes continuam/u);
+  assert.match(privacy, /apaga a cópia compartilhada/u);
 });

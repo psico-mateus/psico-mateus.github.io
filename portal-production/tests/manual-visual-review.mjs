@@ -128,6 +128,7 @@ function trackRuntimeErrors(page, label) {
 async function routePortal(page, sessionRole = "patient") {
   let mapGeneration = 1;
   const mapFields = new Map();
+  const mapShares = new Map();
   await page.route("**/api/portal/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api\/portal/, "");
@@ -140,7 +141,7 @@ async function routePortal(page, sessionRole = "patient") {
           public_site_url: "https://psico-mateus.github.io/",
           guide_url: "https://psico-mateus.github.io/guia-emocoes/",
           care_url: "https://psico-mateus.github.io/cuidados/",
-          privacy_version: "2026-07-29",
+          privacy_version: "2026-08-08",
         }),
       });
       return;
@@ -220,6 +221,36 @@ async function routePortal(page, sessionRole = "patient") {
         });
         return;
       }
+    }
+    if (path === "/map-sharing" && route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ shares: Array.from(mapShares.values()) }),
+      });
+      return;
+    }
+    const mapSharing = path.match(/^\/map-sharing\/([a-z0-9-]+)$/u);
+    if (mapSharing && route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON();
+      if (body.shared) {
+        const share = {
+          map_id: mapSharing[1],
+          shared_at: now,
+          viewed_at: null,
+        };
+        mapShares.set(mapSharing[1], share);
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true, share }),
+        });
+      } else {
+        mapShares.delete(mapSharing[1]);
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      }
+      return;
     }
     await route.fulfill({ status: 204, body: "" });
   });
@@ -312,6 +343,10 @@ async function review(browserType, label, viewport) {
   if (returnedMapFocus !== "patient-map-card-meu-jeito") {
     throw new Error(`${label}: o foco não voltou ao cartão do mapa (${returnedMapFocus ?? "sem foco"})`);
   }
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Compartilhar esta parte", exact: true }).first().click();
+  await page.getByRole("button", { name: "Atualizar cópia", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-meu-mapa-compartilhado`, `${label}-meu-mapa-compartilhado.png`);
 
   await page.getByRole("button", { name: "Recursos", exact: true }).click();
   await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();

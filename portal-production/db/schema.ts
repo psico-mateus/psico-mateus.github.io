@@ -167,6 +167,51 @@ export const patientMapDraftFields = sqliteTable(
   ],
 );
 
+/**
+ * Retrato voluntariamente compartilhado de uma parte do "Meu mapa".
+ *
+ * O rascunho continua privado. Ao compartilhar, o servidor cria uma cópia
+ * somente da parte escolhida; retirar o compartilhamento apaga essa cópia.
+ */
+export const patientMapShares = sqliteTable(
+  "patient_map_shares",
+  {
+    patientId: text("patient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    therapistId: text("therapist_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mapId: text("map_id").notNull(),
+    contentVersion: text("content_version").notNull(),
+    snapshot: text("snapshot").notNull(),
+    sharedAt: text("shared_at").notNull(),
+    viewedAt: text("viewed_at"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.patientId, table.mapId],
+      name: "patient_map_shares_pk",
+    }),
+    index("patient_map_shares_therapist_idx").on(
+      table.therapistId,
+      table.sharedAt,
+    ),
+    check(
+      "patient_map_shares_map_id_check",
+      sql`length(${table.mapId}) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "patient_map_shares_content_version_check",
+      sql`length(${table.contentVersion}) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "patient_map_shares_snapshot_check",
+      sql`length(${table.snapshot}) BETWEEN 2 AND 65536`,
+    ),
+  ],
+);
+
 export const entryViews = sqliteTable(
   "entry_views",
   {

@@ -29,6 +29,13 @@
       "when": 1786233680803,
       "tag": "0003_patient_map_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786235916569,
+      "tag": "0004_patient_map_sharing",
+      "breakpoints": true
     }
   ]
 }

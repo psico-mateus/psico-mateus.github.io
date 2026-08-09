@@ -41,6 +41,13 @@ import {
   readPatientMapDraft,
   resetPatientMapDraft,
 } from "@/lib/patient-map-draft";
+import {
+  listPatientMapShares,
+  listSharedPatientMaps,
+  markPatientMapShareViewed,
+  revokePatientMapShare,
+  sharePatientMap,
+} from "@/lib/patient-map-sharing";
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
@@ -93,6 +100,7 @@ function technicalRoute(path: string): string {
     "/logout",
     "/entries",
     "/map-draft",
+    "/map-sharing",
     "/export",
     "/invitations",
     "/account",
@@ -111,6 +119,15 @@ function technicalRoute(path: string): string {
       /^\/professional\/entries\/[A-Za-z0-9_-]+\/viewed$/u,
       "/professional/entries/:entryId/viewed",
     ],
+    [
+      /^\/professional\/patients\/[A-Za-z0-9_-]+\/map-shares$/u,
+      "/professional/patients/:patientId/map-shares",
+    ],
+    [
+      /^\/professional\/patients\/[A-Za-z0-9_-]+\/map-shares\/[a-z0-9-]+\/viewed$/u,
+      "/professional/patients/:patientId/map-shares/:mapId/viewed",
+    ],
+    [/^\/map-sharing\/[a-z0-9-]+$/u, "/map-sharing/:mapId"],
     [
       /^\/professional\/patients\/[A-Za-z0-9_-]+\/entries$/u,
       "/professional/patients/:patientId/entries",
@@ -627,7 +644,26 @@ async function listSharedPatients(
                   THEN entries.shared_at
                 ELSE NULL
               END
-            ) AS latest_shared_at
+            ) AS latest_shared_at,
+            (
+              SELECT COUNT(*) FROM patient_map_shares
+              WHERE patient_map_shares.patient_id = users.id
+                AND patient_map_shares.therapist_id = patient_links.therapist_id
+            ) AS shared_map_count,
+            (
+              SELECT COUNT(*) FROM patient_map_shares
+              WHERE patient_map_shares.patient_id = users.id
+                AND patient_map_shares.therapist_id = patient_links.therapist_id
+                AND (
+                  patient_map_shares.viewed_at IS NULL
+                  OR patient_map_shares.viewed_at < patient_map_shares.shared_at
+                )
+            ) AS unread_map_count,
+            (
+              SELECT MAX(patient_map_shares.shared_at) FROM patient_map_shares
+              WHERE patient_map_shares.patient_id = users.id
+                AND patient_map_shares.therapist_id = patient_links.therapist_id
+            ) AS latest_map_shared_at
      FROM patient_links
      JOIN users ON users.id = patient_links.patient_id
      LEFT JOIN entries ON entries.patient_id = users.id
@@ -638,8 +674,13 @@ async function listSharedPatients(
        AND users.status = 'active'
        AND users.role = 'patient'
      GROUP BY users.id, users.display_name
-     HAVING COUNT(entries.id) > 0
-     ORDER BY unread_count DESC, latest_shared_at DESC`,
+     HAVING COUNT(entries.id) > 0 OR EXISTS (
+       SELECT 1 FROM patient_map_shares
+       WHERE patient_map_shares.patient_id = users.id
+         AND patient_map_shares.therapist_id = patient_links.therapist_id
+     )
+     ORDER BY (unread_count + unread_map_count) DESC,
+              COALESCE(latest_map_shared_at, latest_shared_at) DESC`,
   )
     .bind(session.userId, session.userId)
     .all();
@@ -792,6 +833,10 @@ async function handleGet(request: Request, path: string): Promise<Response> {
     const session = await requireSession(request, "patient");
     return json(await readPatientMapDraft(DB, session.userId));
   }
+  if (path === "/map-sharing") {
+    const session = await requireSession(request, "patient");
+    return json({ shares: await listPatientMapShares(DB, session.userId) });
+  }
   if (path === "/professional/patients") {
     const session = await requireSession(request, "therapist");
     const [patients, activity] = await Promise.all([
@@ -812,6 +857,24 @@ async function handleGet(request: Request, path: string): Promise<Response> {
     return json({
       entries: await listSharedEntriesForPatient(session, professionalEntries[1]),
     });
+  }
+  const professionalMapShares = path.match(
+    /^\/professional\/patients\/([A-Za-z0-9_-]+)\/map-shares$/u,
+  );
+  if (professionalMapShares) {
+    const session = await requireSession(request, "therapist");
+    const shares = await listSharedPatientMaps(
+      DB,
+      session.userId,
+      professionalMapShares[1],
+    );
+    await audit(
+      session.userId,
+      "view_shared_patient_maps",
+      "patient_map_list",
+      professionalMapShares[1],
+    );
+    return json({ shares });
   }
   if (path === "/invitations") {
     const session = await requireSession(request, "therapist");
@@ -892,6 +955,26 @@ async function handlePost(request: Request, path: string): Promise<Response> {
       .bind(entry.id, session.userId, viewedAt)
       .run();
     await audit(session.userId, "mark_entry_viewed", "entry", entry.id);
+    return json({ viewed_at: viewedAt });
+  }
+  const viewedMapShare = path.match(
+    /^\/professional\/patients\/([A-Za-z0-9_-]+)\/map-shares\/([a-z0-9-]+)\/viewed$/u,
+  );
+  if (viewedMapShare) {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    const viewedAt = await markPatientMapShareViewed(
+      DB,
+      session.userId,
+      viewedMapShare[1],
+      viewedMapShare[2],
+    );
+    await audit(
+      session.userId,
+      "mark_patient_map_viewed",
+      "patient_map",
+      `${viewedMapShare[1]}:${viewedMapShare[2]}`,
+    );
     return json({ viewed_at: viewedAt });
   }
   const assistedRecovery = path.match(
@@ -1085,6 +1168,27 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
     const result = await patchPatientMapDraft(DB, session.userId, input);
     return result.ok ? json(result.payload) : json(result.payload, 409);
   }
+  const mapSharing = path.match(/^\/map-sharing\/([a-z0-9-]+)$/u);
+  if (mapSharing) {
+    const session = await requireSession(request, "patient");
+    requireCsrf(request, session);
+    if (typeof input.shared !== "boolean") {
+      throw new PortalError(400, "Informe o estado do compartilhamento.");
+    }
+    if (input.shared) {
+      const share = await sharePatientMap(DB, session.userId, mapSharing[1]);
+      await audit(session.userId, "share_patient_map", "patient_map", mapSharing[1]);
+      return json({ ok: true, share });
+    }
+    await revokePatientMapShare(DB, session.userId, mapSharing[1]);
+    await audit(
+      session.userId,
+      "revoke_patient_map_sharing",
+      "patient_map",
+      mapSharing[1],
+    );
+    return json({ ok: true });
+  }
   if (path === "/account/password") {
     const session = await requireSession(request);
     requireCsrf(request, session);
@@ -1172,6 +1276,13 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
       DB.prepare(
         "UPDATE assisted_recovery_grants SET expires_at = ? WHERE user_id = ?",
       ).bind(timestamp, patient.id),
+      ...(input.active
+        ? []
+        : [
+            DB.prepare(
+              "DELETE FROM patient_map_shares WHERE patient_id = ? AND therapist_id = ?",
+            ).bind(patient.id, session.userId),
+          ]),
     ]);
     await audit(
       session.userId,
@@ -1256,6 +1367,12 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
     }
     const input = await readJson(request);
     const result = await resetPatientMapDraft(DB, session.userId, input);
+    if (result.ok) {
+      await DB.prepare("DELETE FROM patient_map_shares WHERE patient_id = ?")
+        .bind(session.userId)
+        .run();
+      await audit(session.userId, "clear_patient_map", "patient_map");
+    }
     return result.ok ? json(result.payload) : json(result.payload, 409);
   }
   if (path === "/account/sessions") {

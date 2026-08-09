@@ -13,6 +13,7 @@ import type {
   PatientMapDraftLoadState,
   PatientMapDraftSaveState,
 } from "./patient-map-draft-client";
+import { formatViewTimestamp, portalRequest } from "./portal-client";
 
 export type PatientMapSessionAnswer = {
   response: PatientMapResponseKey | null;
@@ -41,6 +42,7 @@ export function hasPatientMapSessionDraft(draft: PatientMapSessionDraft): boolea
 type PatientMapView = "overview" | "item" | "summary";
 
 type PatientMapShellProps = {
+  csrf: string;
   onBackHome: () => void;
   draft: PatientMapSessionDraft;
   onDraftChange: (draft: PatientMapSessionDraft) => void;
@@ -55,6 +57,12 @@ type PatientMapShellProps = {
   onResolveConflict: (choice: "local" | "remote") => void;
   onClearDraft: () => Promise<boolean>;
   onSaveAndExit: () => Promise<boolean>;
+};
+
+type PatientMapShareStatus = {
+  map_id: string;
+  shared_at: string;
+  viewed_at: string | null;
 };
 
 function PatientMapPersistenceStatus({
@@ -81,7 +89,7 @@ function PatientMapPersistenceStatus({
       <div>
         <strong>{message}</strong>
         {state === "saving" ? <small>Você pode continuar enquanto isso.</small> : null}
-        {state === "saved" ? <small>Este conteúdo é privado e não aparece para Mateus.</small> : null}
+        {state === "saved" ? <small>Privado por padrão; só aparece para Mateus quando você escolhe compartilhar uma parte.</small> : null}
         {needsAttention ? (
           <span className="sr-status" role="alert" aria-live="assertive">
             {message}
@@ -133,6 +141,7 @@ function responseCountForMap(
 }
 
 export function PatientMapShell({
+  csrf,
   onBackHome,
   draft,
   onDraftChange,
@@ -153,6 +162,10 @@ export function PatientMapShell({
   const [sectionIndex, setSectionIndex] = useState(0);
   const [itemIndex, setItemIndex] = useState(0);
   const [announcement, setAnnouncement] = useState("");
+  const [shares, setShares] = useState<Record<string, PatientMapShareStatus>>({});
+  const [sharesLoading, setSharesLoading] = useState(true);
+  const [sharingMapId, setSharingMapId] = useState<string | null>(null);
+  const [sharingMessage, setSharingMessage] = useState("");
   const [noteOpenByItem, setNoteOpenByItem] = useState<Record<string, boolean>>({});
   const mapTriggerIdRef = useRef<string | null>(null);
   const restoreOverviewTriggerRef = useRef(false);
@@ -168,6 +181,78 @@ export function PatientMapShell({
     (total, map) => total + exploredCountForMap(map, draft),
     0,
   );
+
+  useEffect(() => {
+    let active = true;
+    void portalRequest<{ shares: PatientMapShareStatus[] }>("/map-sharing")
+      .then((result) => {
+        if (!active) return;
+        setShares(
+          Object.fromEntries(result.shares.map((share) => [share.map_id, share])),
+        );
+        setSharingMessage("");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setSharingMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível consultar os compartilhamentos agora.",
+        );
+      })
+      .finally(() => {
+        if (active) setSharesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function changeMapSharing(map: PatientMapDefinition, shared: boolean) {
+    if (sharingMapId) return;
+    if (shared && exploredCountForMap(map, draft) === 0) {
+      setSharingMessage("Explore ao menos um item desta parte antes de compartilhar.");
+      return;
+    }
+    const confirmed = window.confirm(
+      shared
+        ? `Compartilhar “${map.navigationTitle}” com Mateus? Serão enviadas somente as respostas e observações desta parte. A síntese geral e as outras partes continuarão privadas.`
+        : `Retirar o compartilhamento de “${map.navigationTitle}”? Mateus deixará de acessar essa cópia imediatamente.`,
+    );
+    if (!confirmed) return;
+    setSharingMapId(map.id);
+    setSharingMessage("");
+    try {
+      if (shared && !(await onSaveAndExit())) {
+        setSharingMessage("Espere o salvamento terminar antes de compartilhar.");
+        return;
+      }
+      const result = await portalRequest<{ share?: PatientMapShareStatus }>(
+        `/map-sharing/${encodeURIComponent(map.id)}`,
+        { method: "PATCH", body: JSON.stringify({ shared }) },
+        csrf,
+      );
+      setShares((current) => {
+        const next = { ...current };
+        if (shared && result.share) next[map.id] = result.share;
+        else delete next[map.id];
+        return next;
+      });
+      const message = shared
+        ? `“${map.navigationTitle}” foi compartilhado com Mateus.`
+        : `O compartilhamento de “${map.navigationTitle}” foi retirado.`;
+      setSharingMessage(message);
+      setAnnouncement(message);
+    } catch (error) {
+      setSharingMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar o compartilhamento.",
+      );
+    } finally {
+      setSharingMapId(null);
+    }
+  }
 
   useEffect(() => {
     const targetId =
@@ -395,7 +480,7 @@ export function PatientMapShell({
               parte que tenha relação com o seu momento.
             </p>
           </div>
-          <span className="patient-preview-label">Privado na sua conta</span>
+          <span className="patient-preview-label">Privado por padrão</span>
         </section>
 
         {totalExplored > 0 ? (
@@ -412,6 +497,7 @@ export function PatientMapShell({
                 if (!window.confirm("Apagar permanentemente todas as respostas e observações do Meu mapa?")) return;
                 const cleared = await onClearDraft();
                 if (cleared) {
+                  setShares({});
                   setAnnouncement("Todas as respostas e observações do Meu mapa foram apagadas.");
                   window.requestAnimationFrame(() => {
                     document.getElementById("patient-map-title")?.focus();
@@ -458,6 +544,94 @@ export function PatientMapShell({
           })}
         </nav>
 
+        <section className="patient-map-sharing" aria-labelledby="patient-map-sharing-title">
+          <div className="patient-map-sharing-heading">
+            <div>
+              <p className="eyebrow">VOCÊ DECIDE</p>
+              <h2 id="patient-map-sharing-title">Compartilhar uma parte com Mateus</h2>
+              <p>
+                Escolha apenas o que deseja levar para a psicoterapia. As outras
+                partes e a síntese geral continuam privadas.
+              </p>
+            </div>
+            <span>{Object.keys(shares).length} de {PATIENT_MAP_CATALOG.maps.length} compartilhadas</span>
+          </div>
+          <p className="sr-status" role="status" aria-live="polite">
+            {sharingMessage}
+          </p>
+          {sharesLoading ? (
+            <p className="patient-map-sharing-loading" role="status">
+              Consultando compartilhamentos…
+            </p>
+          ) : (
+            <ul>
+              {PATIENT_MAP_CATALOG.maps.map((map) => {
+                const share = shares[map.id];
+                const viewed = Boolean(
+                  share?.viewed_at && share.viewed_at >= share.shared_at,
+                );
+                const explored = exploredCountForMap(map, draft);
+                return (
+                  <li key={map.id}>
+                    <div>
+                      <strong>{map.navigationTitle}</strong>
+                      <span>
+                        {share
+                          ? viewed
+                            ? `Visualizado por Mateus em ${formatViewTimestamp(share.viewed_at!)}`
+                            : "Compartilhado · ainda não visualizado"
+                          : explored > 0
+                            ? `${explored} ${explored === 1 ? "item explorado" : "itens explorados"} · privado`
+                            : "Ainda sem itens explorados"}
+                      </span>
+                    </div>
+                    <div className="patient-map-sharing-actions">
+                      {share ? (
+                        <>
+                          <button
+                            className="share-button"
+                            type="button"
+                            disabled={Boolean(sharingMapId) || explored === 0}
+                            onClick={() => void changeMapSharing(map, true)}
+                          >
+                            {sharingMapId === map.id
+                              ? "Atualizando…"
+                              : "Atualizar cópia"}
+                          </button>
+                          <button
+                            className="quiet-button"
+                            type="button"
+                            disabled={Boolean(sharingMapId)}
+                            onClick={() => void changeMapSharing(map, false)}
+                          >
+                            Retirar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="share-button"
+                          type="button"
+                          disabled={Boolean(sharingMapId) || explored === 0}
+                          onClick={() => void changeMapSharing(map, true)}
+                        >
+                          {sharingMapId === map.id
+                            ? "Compartilhando…"
+                            : "Compartilhar esta parte"}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="patient-map-sharing-note">
+            Compartilhar cria uma cópia da parte escolhida. Alterações feitas
+            depois só aparecem para Mateus quando você compartilhar novamente.
+            Isso não é acompanhamento em tempo real.
+          </p>
+        </section>
+
         <details className="patient-map-synthesis">
           <summary>
             <span>
@@ -482,7 +656,7 @@ export function PatientMapShell({
                 </label>
               );
             })}
-            <p>Esta síntese é geral, fica privada na sua conta e não aparece para Mateus.</p>
+            <p>Esta síntese é geral, fica privada na sua conta e não entra no compartilhamento das partes.</p>
           </div>
         </details>
 
@@ -491,7 +665,7 @@ export function PatientMapShell({
             <h2 id="patient-map-local-note-title">Privado por padrão</h2>
             <p>
               Suas respostas e observações ficam salvas na sua conta para você continuar
-              depois. Nada desta área é compartilhado com Mateus.
+              depois. Somente as partes que você escolher compartilhar aparecem para Mateus.
             </p>
           </div>
           <button

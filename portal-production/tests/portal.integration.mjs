@@ -195,6 +195,18 @@ async function patientMapDraftRowCount(patientId) {
   }
 }
 
+async function patientMapShareRowCount(patientId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare("SELECT COUNT(*) AS total FROM patient_map_shares WHERE patient_id = ?")
+      .get(patientId).total;
+  } finally {
+    database.close();
+  }
+}
+
 async function patientMapAuditCount() {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -465,7 +477,7 @@ const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
 assert.equal(
   await storedPrivacyVersion(patientA.user.id),
-  "2026-07-29",
+  "2026-08-08",
   "novo cadastro deve registrar a versão atual do aviso de privacidade",
 );
 
@@ -1008,6 +1020,146 @@ const therapistMapPatch = await api("/map-draft", {
 });
 expectStatus(therapistMapPatch, 403, "profissional tentando alterar o Meu mapa");
 
+expectStatus(
+  await api("/map-sharing", { auth: therapist }),
+  403,
+  "profissional tentando consultar estado privado de compartilhamento",
+);
+const mapShareWithoutCsrf = await api("/map-sharing/meu-jeito", {
+  method: "PATCH",
+  body: { shared: true },
+  auth: patientA,
+  includeCsrf: false,
+});
+expectStatus(mapShareWithoutCsrf, 403, "compartilhamento do mapa sem CSRF");
+expectStatus(
+  await api("/map-sharing/mapa-inexistente", {
+    method: "PATCH",
+    body: { shared: true },
+    auth: patientA,
+  }),
+  404,
+  "compartilhamento de parte inexistente",
+);
+const shareMapA = await api("/map-sharing/meu-jeito", {
+  method: "PATCH",
+  body: { shared: true },
+  auth: patientA,
+});
+expectStatus(shareMapA, 200, "compartilhamento explícito do mapa A");
+assert.equal(shareMapA.payload.share.map_id, "meu-jeito");
+const shareMapB = await api("/map-sharing/meu-jeito", {
+  method: "PATCH",
+  body: { shared: true },
+  auth: patientB,
+});
+expectStatus(shareMapB, 200, "compartilhamento explícito do mapa B");
+
+const patientShareState = await api("/map-sharing", { auth: patientA });
+expectStatus(patientShareState, 200, "paciente consulta compartilhamentos do mapa");
+assert.equal(patientShareState.payload.shares.length, 1);
+assert.equal(patientShareState.payload.shares[0].viewed_at, null);
+const patientCannotReadProfessionalMap = await api(
+  `/professional/patients/${patientB.user.id}/map-shares`,
+  { auth: patientA },
+);
+expectStatus(patientCannotReadProfessionalMap, 403, "paciente acessando mapa de outro paciente");
+
+const professionalMapA = await api(
+  `/professional/patients/${patientA.user.id}/map-shares`,
+  { auth: therapist },
+);
+expectStatus(professionalMapA, 200, "profissional consulta mapa compartilhado");
+assert.equal(professionalMapA.payload.shares.length, 1);
+assert.equal(professionalMapA.payload.shares[0].map_id, "meu-jeito");
+assert.equal(professionalMapA.payload.shares[0].answers.length, 1);
+assert.equal(professionalMapA.payload.shares[0].answers[0].response_label, "Ainda não sei");
+assert.equal(professionalMapA.payload.shares[0].is_unread, 1);
+assert.doesNotMatch(JSON.stringify(professionalMapA.payload), /already-fits|síntese/iu);
+
+const mapViewedWithoutCsrf = await api(
+  `/professional/patients/${patientA.user.id}/map-shares/meu-jeito/viewed`,
+  { method: "POST", body: {}, auth: therapist, includeCsrf: false },
+);
+expectStatus(mapViewedWithoutCsrf, 403, "visualização do mapa sem CSRF");
+const markMapViewed = await api(
+  `/professional/patients/${patientA.user.id}/map-shares/meu-jeito/viewed`,
+  { method: "POST", body: {}, auth: therapist },
+);
+expectStatus(markMapViewed, 200, "mapa marcado como visualizado");
+assert.equal(
+  (await api("/map-sharing", { auth: patientA })).payload.shares[0].viewed_at,
+  markMapViewed.payload.viewed_at,
+);
+
+const revokeMapShare = await api("/map-sharing/meu-jeito", {
+  method: "PATCH",
+  body: { shared: false },
+  auth: patientA,
+});
+expectStatus(revokeMapShare, 200, "retirada do compartilhamento do mapa");
+assert.equal(await patientMapShareRowCount(patientA.user.id), 0);
+assert.deepEqual(
+  (
+    await api(`/professional/patients/${patientA.user.id}/map-shares`, {
+      auth: therapist,
+    })
+  ).payload.shares,
+  [],
+);
+expectStatus(
+  await api("/map-sharing/meu-jeito", {
+    method: "PATCH",
+    body: { shared: true },
+    auth: patientA,
+  }),
+  200,
+  "novo compartilhamento do mapa para testar encerramento de acesso",
+);
+const clearMapWithShare = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 2,
+    request_id: "request-map-clear-shared-0001",
+  },
+  auth: patientA,
+});
+expectStatus(clearMapWithShare, 200, "limpeza de mapa com cópia compartilhada");
+assert.equal(
+  await patientMapShareRowCount(patientA.user.id),
+  0,
+  "limpar o mapa deve apagar também suas cópias compartilhadas",
+);
+expectStatus(
+  await api("/map-draft", {
+    method: "PATCH",
+    body: {
+      content_version: mapContentVersion,
+      generation: 3,
+      base_revision: 0,
+      request_id: "request-map-after-shared-clear",
+      field: {
+        type: "answer",
+        id: mapItemId,
+        value: { response: "fits", note: "Nova resposta sintética." },
+      },
+    },
+    auth: patientA,
+  }),
+  200,
+  "novo campo após limpar mapa compartilhado",
+);
+expectStatus(
+  await api("/map-sharing/meu-jeito", {
+    method: "PATCH",
+    body: { shared: true },
+    auth: patientA,
+  }),
+  200,
+  "compartilhamento recriado para testar encerramento de acesso",
+);
+
 const revokeSessionsWithoutCsrf = await api("/account/sessions", {
   method: "DELETE",
   body: { current_password: synthetic.patientPasswordA },
@@ -1090,6 +1242,8 @@ assert.equal(new Set(summaries.payload.patients.map((item) => item.patient_id)).
 assert.ok(summaries.payload.patients.every((item) => item.patient_name === synthetic.sharedName));
 assert.ok(summaries.payload.patients.every((item) => item.shared_count === 1));
 assert.ok(summaries.payload.patients.every((item) => item.unread_count === 1));
+assert.ok(summaries.payload.patients.every((item) => item.shared_map_count === 1));
+assert.ok(summaries.payload.patients.every((item) => item.unread_map_count === 1));
 assert.deepEqual(summaries.payload.activity, {
   total_count: 3,
   shared_count: 2,
@@ -1306,6 +1460,11 @@ const professionalAfterPatientRevocation = await api(
   { auth: therapist },
 );
 assert.deepEqual(professionalAfterPatientRevocation.payload.entries, []);
+assert.equal(
+  await patientMapShareRowCount(patientA.user.id),
+  0,
+  "encerrar o acesso deve apagar as cópias compartilhadas do mapa",
+);
 
 const restorePatientA = await api(
   `/professional/patients/${patientA.user.id}/access`,
@@ -1668,6 +1827,11 @@ assert.ok(
   (await patientMapDraftRowCount(patientB.user.id)) > 0,
   "o paciente B deve ter rascunho sintético antes de excluir a conta",
 );
+assert.equal(
+  await patientMapShareRowCount(patientB.user.id),
+  1,
+  "o paciente B deve ter uma cópia compartilhada antes de excluir a conta",
+);
 const deleteAccountB = await api("/account", {
   method: "DELETE",
   body: { current_password: synthetic.patientPasswordB },
@@ -1678,6 +1842,11 @@ assert.equal(
   await patientMapDraftRowCount(patientB.user.id),
   0,
   "a exclusão da conta deve remover o Meu mapa em cascata",
+);
+assert.equal(
+  await patientMapShareRowCount(patientB.user.id),
+  0,
+  "a exclusão da conta deve remover compartilhamentos do mapa em cascata",
 );
 const afterAccountDeletion = await api("/professional/patients", { auth: therapist });
 expectStatus(afterAccountDeletion, 200, "lista após exclusão de conta");

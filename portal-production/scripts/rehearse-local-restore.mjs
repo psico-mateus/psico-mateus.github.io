@@ -9,6 +9,7 @@ const migrationNames = [
   "0001_assisted_recovery.sql",
   "0002_entry_views.sql",
   "0003_patient_map_drafts.sql",
+  "0004_patient_map_sharing.sql",
 ];
 const tableNames = [
   "users",
@@ -17,6 +18,7 @@ const tableNames = [
   "entries",
   "entry_views",
   "patient_map_draft_fields",
+  "patient_map_shares",
   "sessions",
   "assisted_recovery_grants",
   "access_logs",
@@ -30,6 +32,7 @@ const expectedCounts = {
   entries: 1,
   entry_views: 1,
   patient_map_draft_fields: 2,
+  patient_map_shares: 1,
   sessions: 1,
   assisted_recovery_grants: 1,
   access_logs: 1,
@@ -125,6 +128,16 @@ function insertSyntheticState(database) {
         '2026-01-02T12:31:00.000Z'
       );
 
+    INSERT INTO patient_map_shares (
+      patient_id, therapist_id, map_id, content_version, snapshot,
+      shared_at, viewed_at
+    ) VALUES (
+      'patient_synthetic', 'therapist_synthetic', 'meu-jeito',
+      'mapa-pessoal-refinado-ouro-v1',
+      '{"content_version":"mapa-pessoal-refinado-ouro-v1","map_id":"meu-jeito","map_title":"Meu jeito","map_description":"Conteúdo sintético.","answers":[]}',
+      '2026-01-02T12:32:00.000Z', NULL
+    );
+
     INSERT INTO sessions (
       token_hash, user_id, csrf_token, expires_at, created_at, last_seen_at
     ) VALUES (
@@ -217,6 +230,7 @@ try {
   assert.equal(changedSnapshot.counts.entries, 0);
   assert.equal(changedSnapshot.counts.entry_views, 0);
   assert.equal(changedSnapshot.counts.patient_map_draft_fields, 2);
+  assert.equal(changedSnapshot.counts.patient_map_shares, 1);
   assert.equal(changedSnapshot.counts.sessions, 0);
 
   await copyFile(backupPath, restoredPath);

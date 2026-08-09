@@ -1942,6 +1942,7 @@ function PatientDashboard({
         </>
       ) : area === "map" ? (
         <PatientMapShell
+          csrf={csrf}
           draft={patientMap.draft}
           onDraftChange={patientMap.updateDraft}
           loadState={patientMap.loadState}

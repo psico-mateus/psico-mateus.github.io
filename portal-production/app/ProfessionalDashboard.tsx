@@ -22,9 +22,9 @@ import {
   type PatientSummary,
   type ProfessionalArea,
   type SharedEntry,
+  type SharedPatientMap,
   sharedCountLabel,
   splitInvitations,
-  unreadCountLabel,
 } from "./professional-dashboard-data";
 import { copyText } from "./copy-text";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
@@ -67,6 +67,11 @@ function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone
       {message}
     </p>
   );
+}
+
+function unreadContentCountLabel(count: number): string {
+  if (count === 0) return "Tudo visto";
+  return `${count} ${count === 1 ? "conteúdo ainda não visto" : "conteúdos ainda não vistos"}`;
 }
 
 function RecoveryAuthorizationDialog({
@@ -283,10 +288,10 @@ function ProfessionalNavigation({
   }> = [
     {
       id: "records",
-      label: "Registros compartilhados",
+      label: "Conteúdos compartilhados",
       count: unreadEntryCount,
       countLabel: (count) =>
-        `${count} ${count === 1 ? "registro não visto" : "registros não vistos"}`,
+        `${count} ${count === 1 ? "conteúdo não visto" : "conteúdos não vistos"}`,
     },
     {
       id: "accesses",
@@ -444,6 +449,79 @@ function RecordDisclosure({
   );
 }
 
+function MapShareDisclosure({
+  share,
+  viewing,
+  onViewed,
+}: {
+  share: SharedPatientMap;
+  viewing: boolean;
+  onViewed: (mapId: string) => void;
+}) {
+  const unread = Boolean(share.is_unread);
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className={`professional-map-disclosure${unread ? " is-unread" : ""}`}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <span className="record-summary-main">
+          <span className={`record-view-state ${unread ? "unread" : "viewed"}`}>
+            {viewing ? "Salvando visualização…" : unread ? "Não visto" : "Visto"}
+          </span>
+          <span className="record-summary-title">Meu mapa · {share.map_title}</span>
+          <span className="record-meta">
+            Compartilhado {formatDate(share.shared_at)} · {share.answers.length}{" "}
+            {share.answers.length === 1 ? "item" : "itens"}
+          </span>
+        </span>
+        <span className="disclosure-action" aria-hidden="true">
+          <span className="when-closed">Ver conteúdo</span>
+          <span className="when-open">Fechar</span>
+        </span>
+      </summary>
+      <div className="professional-map-content">
+        <p className="professional-map-description">{share.map_description}</p>
+        <div className="professional-map-answer-list">
+          {share.answers.map((answer) => (
+            <article key={answer.item_id}>
+              <span>{answer.section_title.toLocaleLowerCase("pt-BR")}</span>
+              <h4>{answer.item_title}</h4>
+              {answer.response_label ? <strong>{answer.response_label}</strong> : null}
+              {answer.note ? (
+                <p><b>Observação do paciente:</b> {answer.note}</p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+        <p className="read-only">
+          Somente leitura · esta é a cópia que o paciente decidiu compartilhar.
+        </p>
+        {unread ? (
+          <div className="view-confirmation">
+            <p>
+              Confirme somente depois de concluir a leitura. O paciente verá a
+              confirmação, sem que isso signifique resposta em tempo real.
+            </p>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={viewing}
+              onClick={() => onViewed(share.map_id)}
+            >
+              {viewing ? "Salvando visualização…" : "Concluir visualização"}
+            </button>
+          </div>
+        ) : (
+          <p className="view-confirmed">Visualização já confirmada para o paciente.</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function PatientList({
   patients,
   activity,
@@ -481,13 +559,13 @@ function PatientList({
     >
       <div className="section-heading professional-section-heading">
         <div>
-          <p className="eyebrow">ATIVIDADE DOS REGISTROS</p>
+          <p className="eyebrow">CONTEÚDOS AUTORIZADOS</p>
           <h2 id="professional-patient-list-title" tabIndex={-1}>
-            Pacientes com registros
+            Pacientes com conteúdo compartilhado
           </h2>
           <p className="section-description">
-            Por paciente, você vê quantos registros foram compartilhados e quantos
-            continuam privados. Dos privados, nenhum conteúdo ou data é exibido.
+            Por paciente, você vê os registros e as partes do mapa compartilhados.
+            Dos registros privados, nenhum conteúdo ou data é exibido.
           </p>
         </div>
         <button
@@ -584,6 +662,10 @@ function PatientList({
                 <h3>{displayedPatientName(patient.patient_name)}</h3>
                 <p className="patient-summary-count">
                   {sharedCountLabel(patient.shared_count)} ·{" "}
+                  {patient.shared_map_count ?? 0}{" "}
+                  {(patient.shared_map_count ?? 0) === 1
+                    ? "parte do mapa compartilhada"
+                    : "partes do mapa compartilhadas"}{" · "}
                   {patient.private_count}{" "}
                   {patient.private_count === 1
                     ? "registro privado"
@@ -594,7 +676,9 @@ function PatientList({
                     patient.unread_count > 0 ? " has-unread" : ""
                   }`}
                 >
-                  {unreadCountLabel(patient.unread_count)}
+                  {unreadContentCountLabel(
+                    patient.unread_count + (patient.unread_map_count ?? 0),
+                  )}
                 </p>
                 <p className="record-meta">
                   {patient.latest_shared_at
@@ -602,13 +686,15 @@ function PatientList({
                     : "Nenhum conteúdo compartilhado"}
                 </p>
               </div>
-              {patient.shared_count > 0 ? (
+              {patient.shared_count + (patient.shared_map_count ?? 0) > 0 ? (
                 <button
                   className="secondary-button"
                   type="button"
                   onClick={() => onOpen(patient)}
                 >
-                  {patient.unread_count > 0 ? "Ver pendentes" : "Abrir registros"}
+                  {patient.unread_count + (patient.unread_map_count ?? 0) > 0
+                    ? "Ver pendentes"
+                    : "Abrir compartilhamentos"}
                 </button>
               ) : (
                 <span className="private-only-note">Sem conteúdo disponível</span>
@@ -624,26 +710,33 @@ function PatientList({
 function PatientRecordsView({
   patient,
   entries,
+  mapShares,
   loading,
   refreshing,
   error,
   viewingIds,
+  viewingMapIds,
   onBack,
   onRefresh,
   onViewed,
+  onMapViewed,
 }: {
   patient: PatientSummary;
   entries: SharedEntry[];
+  mapShares: SharedPatientMap[];
   loading: boolean;
   refreshing: boolean;
   error: string;
   viewingIds: Set<string>;
+  viewingMapIds: Set<string>;
   onBack: () => void;
   onRefresh: () => void;
   onViewed: (entryId: string) => void;
+  onMapViewed: (mapId: string) => void;
 }) {
   const [viewFilter, setViewFilter] = useState<EntryViewFilter>("all");
   const unreadCount = entries.filter((entry) => Boolean(entry.is_unread)).length;
+  const unreadMapCount = mapShares.filter((share) => Boolean(share.is_unread)).length;
   const viewedCount = entries.length - unreadCount;
   const visibleEntries = entries.filter((entry) => {
     if (viewFilter === "unread") return Boolean(entry.is_unread);
@@ -658,14 +751,14 @@ function PatientRecordsView({
       </button>
       <div className="section-heading professional-section-heading patient-detail-heading">
         <div>
-          <p className="eyebrow">REGISTROS COMPARTILHADOS</p>
+          <p className="eyebrow">CONTEÚDOS COMPARTILHADOS</p>
           <h2 id="selected-patient-title" tabIndex={-1}>
             {displayedPatientName(patient.patient_name)}
           </h2>
           <p className="section-description">
             {loading
-              ? "Consultando os registros autorizados…"
-              : `${sharedCountLabel(entries.length)} · ${unreadCountLabel(unreadCount)}`}
+              ? "Consultando os conteúdos autorizados…"
+              : `${sharedCountLabel(entries.length)} · ${mapShares.length} ${mapShares.length === 1 ? "parte do mapa" : "partes do mapa"} · ${unreadContentCountLabel(unreadCount + unreadMapCount)}`}
           </p>
         </div>
         <button
@@ -679,7 +772,7 @@ function PatientRecordsView({
       </div>
 
       <div className="sr-status" aria-live="polite">
-        {refreshing ? "Atualizando os registros compartilhados." : ""}
+        {refreshing ? "Atualizando os conteúdos compartilhados." : ""}
       </div>
 
       {!loading && !error && entries.length > 0 ? (
@@ -712,7 +805,7 @@ function PatientRecordsView({
       {loading ? (
         <div className="panel loading-panel" role="status">
           <div className="loader" />
-          <p>Carregando os registros desta pessoa…</p>
+          <p>Carregando os conteúdos desta pessoa…</p>
         </div>
       ) : error ? (
         <div className="panel error-state">
@@ -721,15 +814,45 @@ function PatientRecordsView({
             Tentar novamente
           </button>
         </div>
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && mapShares.length === 0 ? (
         <div className="empty-state">
-          <h3>Este paciente não possui mais registros compartilhados.</h3>
-          <p>O compartilhamento pode ter sido retirado ou o registro excluído.</p>
+          <h3>Este paciente não possui mais conteúdos compartilhados.</h3>
+          <p>O compartilhamento pode ter sido retirado ou o conteúdo excluído.</p>
           <button className="secondary-button" type="button" onClick={onBack}>
             Voltar aos pacientes
           </button>
         </div>
-      ) : visibleEntries.length === 0 ? (
+      ) : (
+        <>
+          {mapShares.length > 0 ? (
+            <section className="professional-map-shares" aria-labelledby="professional-map-shares-title">
+              <div className="subsection-heading">
+                <div>
+                  <h3 id="professional-map-shares-title">Partes do Meu mapa</h3>
+                  <p>{unreadMapCount === 0 ? "Todas visualizadas" : `${unreadMapCount} ${unreadMapCount === 1 ? "ainda não visualizada" : "ainda não visualizadas"}`}</p>
+                </div>
+                <span className="count">{mapShares.length}</span>
+              </div>
+              <div className="professional-map-list">
+                {mapShares.map((share) => (
+                  <MapShareDisclosure
+                    key={share.map_id}
+                    share={share}
+                    viewing={viewingMapIds.has(share.map_id)}
+                    onViewed={onMapViewed}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {entries.length > 0 ? (
+            <section className="professional-entry-shares" aria-labelledby="professional-entry-shares-title">
+              <div className="subsection-heading">
+                <h3 id="professional-entry-shares-title">Registros entre sessões</h3>
+                <span className="count">{entries.length}</span>
+              </div>
+              {visibleEntries.length === 0 ? (
         <div className="empty-state compact-empty">
           <h3>
             {viewFilter === "unread"
@@ -745,17 +868,21 @@ function PatientRecordsView({
             Mostrar todos
           </button>
         </div>
-      ) : (
-        <div className="professional-record-list">
-          {visibleEntries.map((entry) => (
-            <RecordDisclosure
-              key={entry.id}
-              entry={entry}
-              viewing={viewingIds.has(entry.id)}
-              onViewed={onViewed}
-            />
-          ))}
-        </div>
+              ) : (
+                <div className="professional-record-list">
+                  {visibleEntries.map((entry) => (
+                    <RecordDisclosure
+                      key={entry.id}
+                      entry={entry}
+                      viewing={viewingIds.has(entry.id)}
+                      onViewed={onViewed}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -1170,10 +1297,12 @@ export function ProfessionalDashboard({
   const [sort, setSort] = useState<PatientSort>("unread");
   const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
   const [entries, setEntries] = useState<SharedEntry[]>([]);
+  const [mapShares, setMapShares] = useState<SharedPatientMap[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesRefreshing, setEntriesRefreshing] = useState(false);
   const [entriesError, setEntriesError] = useState("");
   const [viewingEntryIds, setViewingEntryIds] = useState<Set<string>>(new Set());
+  const [viewingMapIds, setViewingMapIds] = useState<Set<string>>(new Set());
   const [patientAccesses, setPatientAccesses] = useState<PatientAccess[]>([]);
   const [patientAccessesLoaded, setPatientAccessesLoaded] = useState(false);
   const [patientAccessesLoading, setPatientAccessesLoading] = useState(false);
@@ -1200,6 +1329,7 @@ export function ProfessionalDashboard({
   const patientRequest = useRef<AbortController | null>(null);
   const patientRequestSequence = useRef(0);
   const viewingEntryLocks = useRef<Set<string>>(new Set());
+  const viewingMapLocks = useRef<Set<string>>(new Set());
   const patientAccessRequestLock = useRef(false);
   const patientAccessUpdateLocks = useRef<Set<string>>(new Set());
   const recoveryRequestLock = useRef(false);
@@ -1226,7 +1356,9 @@ export function ProfessionalDashboard({
     setPatients([]);
     setActivity({ total_count: 0, shared_count: 0, private_count: 0 });
     setEntries([]);
+    setMapShares([]);
     setViewingEntryIds(new Set());
+    setViewingMapIds(new Set());
     setPatientAccesses([]);
     setInvitations([]);
     setLatestCode("");
@@ -1292,16 +1424,24 @@ export function ProfessionalDashboard({
       if (refresh) setEntriesRefreshing(true);
       else {
         setEntries([]);
+        setMapShares([]);
         setEntriesLoading(true);
       }
       setEntriesError("");
       try {
-        const result = await portalRequest<{ entries: SharedEntry[] }>(
-          `/professional/patients/${encodeURIComponent(patient.patient_id)}/entries`,
-          { signal: controller.signal },
-        );
+        const [entryResult, mapResult] = await Promise.all([
+          portalRequest<{ entries: SharedEntry[] }>(
+            `/professional/patients/${encodeURIComponent(patient.patient_id)}/entries`,
+            { signal: controller.signal },
+          ),
+          portalRequest<{ shares: SharedPatientMap[] }>(
+            `/professional/patients/${encodeURIComponent(patient.patient_id)}/map-shares`,
+            { signal: controller.signal },
+          ),
+        ]);
         if (sequence !== patientRequestSequence.current) return;
-        setEntries(result.entries);
+        setEntries(entryResult.entries);
+        setMapShares(mapResult.shares);
       } catch (error) {
         if (controller.signal.aborted || sequence !== patientRequestSequence.current) {
           return;
@@ -1399,6 +1539,7 @@ export function ProfessionalDashboard({
     patientRequestSequence.current += 1;
     setSelectedPatient(null);
     setEntries([]);
+    setMapShares([]);
     setEntriesError("");
     window.requestAnimationFrame(() =>
       document.getElementById("professional-patient-list-title")?.focus(),
@@ -1464,6 +1605,59 @@ export function ProfessionalDashboard({
       setViewingEntryIds((current) => {
         const next = new Set(current);
         next.delete(entryId);
+        return next;
+      });
+    }
+  }
+
+  async function markMapViewed(mapId: string) {
+    if (!selectedPatient || viewingMapLocks.current.has(mapId)) return;
+    const share = mapShares.find((item) => item.map_id === mapId);
+    if (!share || !share.is_unread) return;
+    viewingMapLocks.current.add(mapId);
+    setViewingMapIds((current) => new Set(current).add(mapId));
+    setNotice(null);
+    try {
+      const result = await portalRequest<{ viewed_at: string }>(
+        `/professional/patients/${encodeURIComponent(selectedPatient.patient_id)}/map-shares/${encodeURIComponent(mapId)}/viewed`,
+        { method: "POST", body: JSON.stringify({}) },
+        csrf,
+      );
+      setMapShares((current) =>
+        current.map((item) =>
+          item.map_id === mapId
+            ? { ...item, is_unread: 0, viewed_at: result.viewed_at }
+            : item,
+        ),
+      );
+      const updatePatient = (patient: PatientSummary) =>
+        patient.patient_id === selectedPatient.patient_id
+          ? {
+              ...patient,
+              unread_map_count: Math.max(0, patient.unread_map_count - 1),
+            }
+          : patient;
+      setPatients((current) => current.map(updatePatient));
+      setSelectedPatient((current) => (current ? updatePatient(current) : current));
+      setNotice({
+        tone: "success",
+        message: "Visualização do mapa confirmada para o paciente.",
+      });
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setNotice({
+          tone: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível confirmar a visualização do mapa.",
+        });
+      }
+    } finally {
+      viewingMapLocks.current.delete(mapId);
+      setViewingMapIds((current) => {
+        const next = new Set(current);
+        next.delete(mapId);
         return next;
       });
     }
@@ -1713,7 +1907,8 @@ export function ProfessionalDashboard({
   }
 
   const unreadEntryCount = patients.reduce(
-    (total, patient) => total + patient.unread_count,
+    (total, patient) =>
+      total + patient.unread_count + (patient.unread_map_count ?? 0),
     0,
   );
   const activePatientCount = patientAccessesLoaded
@@ -1729,7 +1924,7 @@ export function ProfessionalDashboard({
         <div>
           <p className="eyebrow">ACESSO PROFISSIONAL</p>
           <h1>Olá, {user.name}.</h1>
-          <p>Aqui aparecem somente os registros que cada paciente decidiu compartilhar.</p>
+          <p>Aqui aparecem somente os registros e as partes do mapa que cada paciente decidiu compartilhar.</p>
         </div>
         <div className="professional-privacy-controls">
           <span className="secure-chip">MFA ativo</span>
@@ -1766,13 +1961,16 @@ export function ProfessionalDashboard({
             key={selectedPatient.patient_id}
             patient={selectedPatient}
             entries={entries}
+            mapShares={mapShares}
             loading={entriesLoading}
             refreshing={entriesRefreshing}
             error={entriesError}
             viewingIds={viewingEntryIds}
+            viewingMapIds={viewingMapIds}
             onBack={backToPatients}
             onRefresh={() => void refreshSelectedPatient()}
             onViewed={(entryId) => void markEntryViewed(entryId)}
+            onMapViewed={(mapId) => void markMapViewed(mapId)}
           />
         ) : (
           <PatientList
