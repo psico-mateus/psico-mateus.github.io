@@ -1728,10 +1728,11 @@ test("Meu mapa sharing is explicit, revocable and read-only for the professional
   assert.match(restore, /0004_patient_map_sharing\.sql/u);
   assert.match(restore, /patient_map_shares/u);
 
-  assert.match(patientUi, /Compartilhar uma parte com Mateus/u);
-  assert.match(patientUi, /Atualizar cópia/u);
-  assert.match(patientUi, />\s*Retirar\s*</u);
-  assert.match(patientUi, /síntese geral e as outras partes continuarão privadas/iu);
+  assert.match(patientUi, /O que Mateus pode ver/u);
+  assert.match(patientUi, /Enviar novamente/u);
+  assert.match(patientUi, />\s*Parar de compartilhar\s*</u);
+  assert.match(patientUi, /Todo o\s+restante do mapa continua privado/iu);
+  assert.match(patientUi, /Esta síntese fica privada e não entra no compartilhamento dos temas/iu);
   assert.match(professionalUi, /Somente leitura/u);
   assert.match(professionalUi, /Concluir visualização/u);
 });

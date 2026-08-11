@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         <h2>Para que os dados são usados</h2>
         <p>
           Os dados servem para manter seu acesso, organizar seu histórico e
-          permitir que você compartilhe registros ou partes específicas do “Meu
+          permitir que você compartilhe registros ou temas específicos do “Meu
           mapa” com Mateus Ribeiro Marcos. Eles não são usados para publicidade, venda de dados, diagnóstico
           automático ou treinamento de inteligência artificial. As quantidades de
           registros privados e compartilhados ajudam a entender se o recurso está
@@ -53,10 +53,10 @@ export default function PrivacyPage() {
           As respostas, observações, síntese e posição de leitura do “Meu mapa”
           são salvas de forma privada na sua conta para você continuar depois.
           Nada do mapa é compartilhado automaticamente. Você pode escolher uma
-          parte específica e compartilhar uma cópia das respostas e observações
-          daquela parte com Mateus. A síntese geral e as demais partes continuam
-          privadas. Alterações posteriores só aparecem quando você compartilha a
-          parte novamente. Você pode retirar o compartilhamento a qualquer momento;
+          tema específico e compartilhar uma cópia das respostas e observações
+          daquele tema com Mateus. A síntese geral continua privada, assim como os
+          demais temas. Alterações posteriores só aparecem quando você compartilha a
+          versão atual do tema novamente. Você pode parar de compartilhar a qualquer momento;
           isso apaga a cópia compartilhada e interrompe o acesso profissional.
           Mateus apenas lê e pode confirmar a visualização, sem editar, interpretar
           automaticamente ou transformar o conteúdo em prontuário. Você pode limpar

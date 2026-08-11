@@ -344,6 +344,8 @@ async function review(browserType, label, viewport) {
 
   await page.getByRole("button", { name: "Meu mapa", exact: true }).click();
   await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
+  await page.locator("#patient-map-view-sharing").click();
+  await page.getByRole("heading", { name: "O que Mateus pode ver", exact: true }).waitFor();
   await page.getByRole("alert").getByText("Não foi possível confirmar o que está compartilhado.", { exact: true }).waitFor();
   if (await page.locator('[id^="patient-map-share-action-"]').count()) {
     throw new Error(`${label}: ações de compartilhamento ficaram disponíveis sem confirmar o estado`);
@@ -355,12 +357,17 @@ async function review(browserType, label, viewport) {
   );
   portalRoute.enableMapSharingReads();
   await page.getByRole("button", { name: "Tentar consultar novamente", exact: true }).click();
-  await page.getByText(/Quando você responder ou escrever uma observação em uma parte/).waitFor();
+  await page.getByText("Ainda não há tema pronto para compartilhar.", { exact: true }).waitFor();
   if (await page.locator('[id^="patient-map-share-action-"]').count()) {
-    throw new Error(`${label}: o mapa vazio repetiu ações de exploração na seção de compartilhamento`);
+    throw new Error(`${label}: o mapa vazio exibiu ações de compartilhamento sem tema elegível`);
   }
+  await page.locator("#patient-map-view-overview").click();
+  await page.getByRole("heading", { name: "Por onde você quer começar?", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa`, `${label}-meu-mapa.png`);
   await page.locator("#patient-map-card-meu-jeito").click();
+  await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-meu-mapa-tema`, `${label}-meu-mapa-tema.png`);
+  await page.getByRole("button", { name: "Começar por energia e descanso", exact: true }).click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
   await page.getByLabel("Combina comigo", { exact: true }).check();
   await page.getByText(/O que realmente recupera você/).waitFor();
@@ -373,21 +380,53 @@ async function review(browserType, label, viewport) {
   await page.getByRole("button", { name: "Manter resposta", exact: true }).click();
   await page.waitForFunction(() => document.activeElement?.id === "patient-map-clear-answer");
   await reviewScreen(page, `${label}-meu-mapa-item`, `${label}-meu-mapa-item.png`);
-  await page.getByRole("button", { name: "Ver resumo deste mapa", exact: true }).click();
-  await page.getByRole("heading", { name: "Resumo de Meu jeito", exact: true }).waitFor();
+  const itemOptions = page.locator(".patient-map-item-options");
+  await itemOptions.getByText("Outras opções neste tema", { exact: true }).waitFor();
+  await itemOptions.locator(":scope > summary").click();
+  await itemOptions.getByRole("button", { name: "Ver o que marquei neste tema", exact: true }).click();
+  await page.getByRole("heading", { name: "O que marquei em Meu jeito", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa-resumo`, `${label}-meu-mapa-resumo.png`);
-  await page.getByRole("button", { name: "Escolher outro mapa", exact: true }).click();
+  await page.getByRole("button", { name: "Voltar ao tema", exact: true }).click();
+  await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
   await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
   await page.waitForFunction(() => document.activeElement?.id === "patient-map-card-meu-jeito");
   const returnedMapFocus = await page.evaluate(() => document.activeElement?.id);
   if (returnedMapFocus !== "patient-map-card-meu-jeito") {
     throw new Error(`${label}: o foco não voltou ao cartão do mapa (${returnedMapFocus ?? "sem foco"})`);
   }
+  await page.locator("#patient-map-view-synthesis").click();
+  await page.getByRole("heading", { name: "Juntar o que percebi", exact: true }).waitFor();
+  await page.getByText("Pergunta 1 de 6 · opcional", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Próxima pergunta", exact: true }).click();
+  await page.waitForFunction(
+    () => document.activeElement?.id === "patient-map-synthesis-question-title",
+  );
+  await page.getByText("O que quero ter mais presente", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
+  await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
+  await page.locator("#patient-map-view-sharing").click();
+  await page.getByRole("heading", { name: "O que Mateus pode ver", exact: true }).waitFor();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Compartilhar esta parte: Meu jeito, com Mateus", exact: true }).click();
-  await page.getByRole("button", { name: "Atualizar cópia de Meu jeito compartilhada com Mateus", exact: true }).waitFor();
+  const firstShareRequest = page.waitForRequest((request) =>
+    request.method() === "PATCH" && new URL(request.url()).pathname === "/api/portal/map-sharing/meu-jeito"
+  );
+  await page.getByRole("button", { name: "Compartilhar Meu jeito com Mateus", exact: true }).click();
+  await firstShareRequest;
+  const resendButton = page.getByRole("button", { name: "Enviar novamente Meu jeito", exact: true });
+  await resendButton.waitFor();
+  page.once("dialog", (dialog) => dialog.accept());
+  const resendRequest = page.waitForRequest((request) =>
+    request.method() === "PATCH" && new URL(request.url()).pathname === "/api/portal/map-sharing/meu-jeito"
+  );
+  await resendButton.click();
+  await resendRequest;
+  await page.getByText("A versão atual de “Meu jeito” foi enviada para Mateus.", { exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa-compartilhado`, `${label}-meu-mapa-compartilhado.png`);
+  await page.locator("#patient-map-view-overview").click();
   await page.locator("#patient-map-card-meu-jeito").click();
+  await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Continuar de onde parei", exact: true }).click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
   await page.getByRole("button", { name: "Apagar resposta deste item", exact: true }).click();
   await page.getByRole("button", { name: "Apagar agora", exact: true }).click();
@@ -398,17 +437,22 @@ async function review(browserType, label, viewport) {
   if (clearedTitleTop < 0 || clearedTitleTop >= (await page.evaluate(() => window.innerHeight))) {
     throw new Error(`${label}: o foco após apagar ficou fora da área visível`);
   }
-  await page.getByRole("button", { name: "Voltar ao Meu mapa", exact: true }).click();
+  await page.getByText("Salvo na sua conta", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Voltar a Meu jeito", exact: true }).click();
+  await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
   await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
-  if (await page.getByText("“Meu jeito” foi compartilhado com Mateus.", { exact: true }).count()) {
+  if (await page.getByText("A versão atual de “Meu jeito” foi enviada para Mateus.", { exact: true }).count()) {
     throw new Error(`${label}: um aviso antigo de compartilhamento reapareceu depois da edição`);
   }
+  await page.locator("#patient-map-view-sharing").click();
+  await page.getByRole("heading", { name: "O que Mateus pode ver", exact: true }).waitFor();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Retirar o compartilhamento de Meu jeito", exact: true }).click();
+  await page.getByRole("button", { name: "Parar de compartilhar Meu jeito", exact: true }).click();
   await page.waitForFunction(
     () => document.activeElement?.id === "patient-map-sharing-feedback",
   );
-  await page.getByText(/Quando você responder ou escrever uma observação em uma parte/).waitFor();
+  await page.getByText("Ainda não há tema pronto para compartilhar.", { exact: true }).waitFor();
 
   await page.getByRole("button", { name: "Recursos", exact: true }).click();
   await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();

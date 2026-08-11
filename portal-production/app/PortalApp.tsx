@@ -298,7 +298,7 @@ function Header({
         {user && onLogout ? (
           <button
             type="button"
-            className="link-button"
+            className="link-button logout-link"
             onClick={onLogout}
             disabled={logoutBusy}
           >

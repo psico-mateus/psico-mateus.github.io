@@ -53,7 +53,8 @@ test("patient sees saving, offline, failure and conflict choices", () => {
     "Não foi possível salvar agora",
     "Manter o que está nesta tela",
     "Usar a versão já salva",
-    "Salvar e voltar ao início",
+    "Voltar ao início",
+    "Suas mudanças são salvas automaticamente",
   ]) {
     assert.match(`${client}\n${shell}`, new RegExp(phrase, "u"));
   }
@@ -73,7 +74,7 @@ test("unexpected session loss keeps only an in-memory, patient-bound recovery bu
 test("privacy copy states the map is private by default and sharing is controlled", () => {
   assert.match(privacy, /respostas, observações, síntese e posição de leitura/u);
   assert.match(privacy, /Nada do mapa é compartilhado automaticamente/u);
-  assert.match(privacy, /parte específica/u);
-  assert.match(privacy, /A síntese geral e as demais partes continuam/u);
+  assert.match(privacy, /tema específico/u);
+  assert.match(privacy, /A síntese geral continua privada/u);
   assert.match(privacy, /apaga a cópia compartilhada/u);
 });

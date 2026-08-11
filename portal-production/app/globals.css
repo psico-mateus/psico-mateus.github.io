@@ -711,6 +711,7 @@ input[type="range"]{accent-color:#9a6d27}
   font-weight:800;
 }
 .patient-overview-refresh:hover{text-decoration:underline;text-underline-offset:3px}
+.patient-overview-refresh:disabled{opacity:1;color:#6b5a43}
 .patient-overview-refresh span{display:inline-block;margin-right:.25rem;font-size:1rem}
 .patient-overview-metrics{
   display:grid;
@@ -2469,9 +2470,18 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(max-width:360px){
+  .site-header{position:relative}
+  .brand{padding-right:3.35rem}
   .top-links{gap:.3rem .25rem;font-size:.78rem}
   .top-links a{padding-right:0;padding-left:0;white-space:nowrap}
   .top-links .install-app-button{padding-right:.55rem;padding-left:.55rem}
+  .top-links .logout-link{
+    position:absolute;
+    top:.95rem;
+    right:.85rem;
+    min-width:44px;
+    justify-content:center;
+  }
 }
 
 /* Nova organização da Área do paciente. Estes shells não persistem dados. */
@@ -2605,6 +2615,9 @@ input[type="range"]{accent-color:#9a6d27}
   color:#3f4e42;
 }
 .patient-map-save-status.saving{border-color:rgba(121,90,35,.18);background:#f6f0e7;color:#5d4a2b}
+.patient-map-save-status.saved{min-height:34px;grid-template-columns:auto minmax(0,1fr);margin-bottom:.55rem;border-color:transparent;background:transparent;padding:.25rem .15rem;color:#4f6653}
+.patient-map-save-status.saved .patient-map-save-dot{width:.5rem;height:.5rem;box-shadow:none}
+.patient-map-save-status.saved strong{font-size:.78rem}
 .patient-map-save-status.offline,.patient-map-save-status.error{border-color:rgba(150,95,53,.24);background:#f7ece3;color:#65452f}
 .patient-map-save-status.conflict{border-color:rgba(121,90,35,.28);background:#f6ecdc;color:#5b421f}
 .patient-map-save-dot{
@@ -2746,6 +2759,191 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-map-area-copy small{color:var(--muted);font-size:.84rem;line-height:1.5}
 .patient-map-area-copy>span{margin-top:.2rem;color:#6b542e;font-size:.78rem;font-weight:800}
 .patient-map-area-arrow{color:var(--green-2);font-size:1.1rem}
+.patient-map-view-switcher{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:.45rem;
+  margin:0 0 1rem;
+  border:1px solid rgba(36,36,35,.1);
+  border-radius:17px;
+  background:#eee7dc;
+  padding:.4rem;
+}
+.patient-map-view-switcher button{
+  min-width:0;
+  min-height:56px;
+  display:grid;
+  place-content:center;
+  gap:.12rem;
+  border:1px solid transparent;
+  border-radius:12px;
+  background:transparent;
+  padding:.55rem .7rem;
+  color:#5d554c;
+  text-align:center;
+}
+.patient-map-view-switcher button strong{font-size:.86rem}
+.patient-map-view-switcher button span{color:var(--muted);font-size:.75rem;line-height:1.3}
+.patient-map-view-switcher button.active{
+  border-color:rgba(121,90,35,.18);
+  background:#fffdfa;
+  color:var(--ink);
+  box-shadow:0 4px 12px rgba(61,45,28,.06);
+}
+.patient-map-how-to{
+  display:grid;
+  grid-template-columns:minmax(180px,.65fr) minmax(0,1.7fr);
+  align-items:start;
+  gap:1.2rem;
+  border:1px solid rgba(121,90,35,.2);
+  border-radius:20px;
+  background:#fbf5ed;
+  padding:1.25rem 1.35rem;
+}
+.patient-map-how-to h2{margin:0;font-size:clamp(1.5rem,3vw,1.9rem)}
+.patient-map-how-to ol{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;margin:0;padding:0;list-style:none}
+.patient-map-how-to li{min-width:0;display:grid;grid-template-columns:2rem minmax(0,1fr);gap:.08rem .55rem;align-content:start}
+.patient-map-how-to li>span{width:2rem;height:2rem;grid-row:1/3;display:grid;place-items:center;border-radius:50%;background:#ead9bd;color:#63491f;font-size:.78rem;font-weight:850}
+.patient-map-how-to li strong{font-size:.84rem;line-height:1.35}
+.patient-map-how-to li small{color:var(--muted);font-size:.82rem;line-height:1.45}
+.patient-map-how-to-compact{margin-bottom:1rem;border:1px solid rgba(121,90,35,.16);border-radius:14px;background:#f8f2e9;padding:0 .95rem}
+.patient-map-how-to-compact summary{min-height:48px;display:flex;align-items:center;color:#695431;font-size:.84rem;font-weight:800;cursor:pointer}
+.patient-map-how-to-compact ol{display:grid;gap:.3rem;margin:0 0 .85rem;padding-left:1.2rem;color:var(--muted);font-size:.84rem}
+.patient-map-theme-picker{margin-top:1.25rem}
+.patient-map-theme-picker-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem}
+.patient-map-theme-picker-heading h2{margin:0 0 .25rem;font-size:clamp(1.55rem,3vw,2rem)}
+.patient-map-theme-picker-heading p{margin:0;color:var(--muted);font-size:.9rem}
+.patient-map-theme-picker-heading>span{border-radius:999px;background:#ece3d7;padding:.38rem .65rem;color:#655437;font-size:.78rem;font-weight:800;white-space:nowrap}
+.patient-map-area-marker{width:.72rem;height:.72rem;justify-self:center;border-radius:50%;background:var(--gold);box-shadow:0 0 0 6px rgba(185,144,69,.12)}
+.patient-map-settings{
+  margin-top:1rem;
+  border:1px solid rgba(36,36,35,.12);
+  border-radius:15px;
+  background:#f7f3ed;
+}
+.patient-map-settings>summary{min-height:54px;display:flex;align-items:center;padding:.75rem 1rem;cursor:pointer}
+.patient-map-settings>summary>span{display:grid;gap:.08rem}
+.patient-map-settings>summary strong{font-size:.84rem}
+.patient-map-settings>summary small{color:var(--muted);font-size:.76rem}
+.patient-map-settings>div{display:flex;align-items:center;justify-content:space-between;gap:1rem;border-top:1px solid rgba(36,36,35,.09);padding:.9rem 1rem}
+.patient-map-settings p{max-width:650px;margin:0;color:var(--muted);font-size:.8rem;line-height:1.55}
+.patient-map-settings button{min-height:44px;white-space:nowrap}
+.patient-map-exit{display:flex;align-items:center;justify-content:flex-end;gap:1rem;margin-top:1rem}
+.patient-map-exit p{margin:0;color:var(--muted);font-size:.8rem}
+.patient-map-sharing-view{margin-top:0;padding:clamp(1rem,3vw,1.35rem)}
+.patient-map-sharing-view>ul{margin-top:1rem}
+.patient-map-sharing-empty{display:grid;justify-items:start;gap:.45rem}
+.patient-map-sharing-empty strong{color:#3d4b40;font-size:.9rem}
+.patient-map-sharing-empty p{margin:0}
+.patient-map-sharing-empty button{margin-top:.25rem}
+.patient-map-sharing-help{margin-top:.85rem;border-top:1px solid rgba(65,91,69,.13)}
+.patient-map-sharing-help summary{min-height:48px;display:flex;align-items:center;color:#3f5142;font-size:.82rem;font-weight:800;cursor:pointer}
+.patient-map-sharing-help p{margin:0 0 .25rem;color:#566057;font-size:.82rem;line-height:1.6}
+.patient-map-top-level-back{min-height:44px;margin-top:.85rem}
+.patient-map-synthesis-screen{
+  border:1px solid rgba(121,90,35,.2);
+  border-radius:20px;
+  background:#faf4ec;
+  padding:clamp(1.1rem,3vw,1.45rem);
+}
+.patient-map-synthesis-screen>header{display:flex;align-items:start;justify-content:space-between;gap:1rem}
+.patient-map-synthesis-screen>header h2{margin:0 0 .35rem;font-size:clamp(1.65rem,4vw,2.2rem)}
+.patient-map-synthesis-screen>header p:not(.eyebrow){max-width:690px;margin:0;color:var(--muted);font-size:.86rem;line-height:1.6}
+.patient-map-synthesis-screen>header>span{flex:none;border-radius:999px;background:#efe2d1;padding:.38rem .65rem;color:#65491f;font-size:.76rem;font-weight:800;white-space:nowrap}
+.patient-map-synthesis-question{margin-top:1rem;border:1px solid rgba(36,36,35,.12);border-radius:17px;background:#fffdfa;padding:1.1rem}
+.patient-map-synthesis-question>p{margin:0 0 .7rem;color:#745d37;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.patient-map-synthesis-question label{display:grid;gap:.55rem}
+.patient-map-synthesis-question label>span{font-family:var(--serif);font-size:clamp(1.35rem,3vw,1.75rem);line-height:1.35}
+.patient-map-synthesis-question textarea{min-height:150px;resize:vertical;background:#fff}
+.patient-map-synthesis-question small{justify-self:end;color:var(--muted);font-size:.75rem}
+.patient-map-synthesis-navigation{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.8rem;margin-top:.8rem}
+.patient-map-synthesis-navigation>span{color:var(--muted);font-size:.8rem;text-align:center}
+.patient-map-theme{max-width:980px;margin-inline:auto}
+.patient-map-theme>.back-button{margin-bottom:1rem}
+.patient-map-theme-header{margin-bottom:.85rem}
+.patient-map-current-sharing{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  margin:.8rem 0;
+  border:1px solid rgba(65,91,69,.18);
+  border-radius:14px;
+  background:#edf1eb;
+  padding:.8rem .9rem;
+}
+.patient-map-current-sharing.is-private{border-color:rgba(121,90,35,.18);background:#f7f1e8}
+.patient-map-current-sharing.is-unknown{border-color:rgba(113,82,51,.2);background:#f2ede6}
+.patient-map-current-sharing>div{display:grid;gap:.1rem}
+.patient-map-current-sharing strong{font-size:.84rem}
+.patient-map-current-sharing span{color:var(--muted);font-size:.84rem;line-height:1.45}
+.patient-map-current-sharing button{min-height:44px;white-space:nowrap}
+.patient-map-item-sharing-state{
+  display:flex;
+  align-items:flex-start;
+  gap:.55rem;
+  margin:.7rem 0;
+  border:1px solid rgba(65,91,69,.16);
+  border-radius:14px;
+  background:#edf1eb;
+  padding:.7rem .8rem;
+}
+.patient-map-item-sharing-state.is-private{border-color:rgba(121,90,35,.16);background:#f7f1e8}
+.patient-map-item-sharing-state.is-unknown{border-color:rgba(113,82,51,.18);background:#f2ede6}
+.patient-map-item-sharing-state>span{width:.48rem;height:.48rem;flex:none;margin-top:.35rem;border-radius:999px;background:#5f8068}
+.patient-map-item-sharing-state.is-private>span{background:#aa7e31}
+.patient-map-item-sharing-state.is-unknown>span{background:#7d7469}
+.patient-map-item-sharing-state>div{display:grid;gap:.1rem}
+.patient-map-item-sharing-state strong{font-size:.82rem;line-height:1.4}
+.patient-map-item-sharing-state div>span{color:var(--muted);font-size:.82rem;line-height:1.45}
+.patient-map-theme-start{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:1.2rem;
+  border:1px solid rgba(121,90,35,.2);
+  border-radius:19px;
+  background:#fbf5ed;
+  padding:1.15rem 1.25rem;
+}
+.patient-map-theme-start h2{margin:0 0 .3rem;font-size:clamp(1.45rem,3vw,1.85rem)}
+.patient-map-theme-start p:not(.eyebrow){max-width:650px;margin:0;color:var(--muted);font-size:.88rem;line-height:1.55}
+.patient-map-theme-start button{white-space:nowrap}
+.patient-map-subjects{margin-top:1rem;border:1px solid rgba(36,36,35,.12);border-radius:18px;background:var(--card);padding:1.1rem}
+.patient-map-subjects-heading{display:flex;align-items:end;justify-content:space-between;gap:1rem}
+.patient-map-subjects-heading h2{margin:0;font-size:1.4rem}
+.patient-map-subjects-heading p{margin:0;color:var(--muted);font-size:.86rem}
+.patient-map-subjects ul{display:grid;gap:.35rem;margin:.8rem 0 0;padding:0;list-style:none}
+.patient-map-subjects li{border-top:1px solid rgba(36,36,35,.08);padding:.25rem 0}
+.patient-map-subjects li:first-child{border-top:0}
+.patient-map-subjects li button{width:100%;min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:1rem;border:0;border-radius:12px;background:transparent;padding:.55rem .65rem;color:var(--ink);text-align:left}
+.patient-map-subjects li button:hover{background:#f7f2ea}
+.patient-map-subjects li button>span:first-child{display:grid;gap:.08rem}
+.patient-map-subjects li strong{font-size:.88rem}
+.patient-map-subjects li small{color:var(--muted);font-size:.8rem}
+.patient-map-subjects li button>span:last-child{color:var(--green-2);font-size:1rem}
+.patient-map-theme-summary-link{min-height:44px;margin-top:.75rem}
+.patient-map-item-context{margin:0 0 .65rem}
+.patient-map-breadcrumb{margin:0 0 .35rem;color:#725a34;font-size:.78rem;font-weight:800}
+.patient-map-breadcrumb span{margin-inline:.25rem;color:#9a8564}
+.patient-map-item-context>p:last-child{margin:0;color:#554c41;font-family:var(--serif);font-size:1rem;line-height:1.45}
+.patient-map-item-options{margin-top:.8rem;border:1px solid rgba(36,36,35,.12);border-radius:15px;background:#f7f3ed;overflow:hidden}
+.patient-map-item-options>summary{min-height:58px;display:flex;align-items:center;padding:.75rem .9rem;cursor:pointer}
+.patient-map-item-options>summary>span{display:grid;gap:.08rem}
+.patient-map-item-options>summary strong{font-size:.84rem}
+.patient-map-item-options>summary small{color:var(--muted);font-size:.8rem}
+.patient-map-item-options>div{border-top:1px solid rgba(36,36,35,.09);padding:.8rem .9rem .9rem}
+.patient-map-item-options .patient-map-demonstration{margin:0}
+.patient-map-item-subjects{margin-top:.85rem}
+.patient-map-item-subjects h2{margin:0 0 .5rem;font-family:var(--sans);font-size:.86rem;font-weight:850;letter-spacing:0}
+.patient-map-item-summary-link{width:100%;margin-top:.75rem}
+.patient-map-summary-overview{display:flex;align-items:center;gap:.85rem}
+.patient-map-summary-overview>span{width:2.4rem;height:2.4rem;display:grid;place-items:center;border-radius:50%;background:#e3eadf;color:#315c4b;font-size:1rem;font-weight:850}
+.patient-map-summary-overview h2{margin:0 0 .18rem;font-size:1.35rem}
+.patient-map-summary-overview p{margin:0;color:var(--muted);font-size:.82rem}
+.patient-map-response-counts>ul{display:grid;gap:.35rem;margin:0;border-top:1px solid rgba(65,91,69,.12);padding:.75rem .9rem;list-style:none}
+.patient-map-response-counts li{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:#4e564f;font-size:.82rem}
+.patient-map-response-counts li strong{font-variant-numeric:tabular-nums}
 .patient-map-sharing{
   margin-top:1rem;
   border:1px solid rgba(65,91,69,.22);
@@ -3255,6 +3453,19 @@ input[type="range"]{accent-color:#9a6d27}
 @media(max-width:760px){
   .patient-start-actions,.patient-resource-paths,.patient-map-areas,.patient-tools-list{grid-template-columns:1fr}
   .patient-map-area-card:last-child{grid-column:auto}
+  .patient-map-how-to{grid-template-columns:1fr}
+  .patient-map-how-to ol{grid-template-columns:1fr;gap:.8rem}
+  .patient-map-theme-picker-heading,.patient-map-synthesis-screen>header,
+  .patient-map-subjects-heading{align-items:flex-start;flex-direction:column}
+  .patient-map-settings>div,.patient-map-current-sharing{align-items:flex-start;flex-direction:column}
+  .patient-map-settings button,.patient-map-current-sharing button{width:100%;white-space:normal}
+  .patient-map-theme-start{grid-template-columns:1fr}
+  .patient-map-theme-start button{width:100%;white-space:normal}
+  .patient-map-synthesis-navigation{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .patient-map-synthesis-navigation>span{grid-column:1/-1;grid-row:1}
+  .patient-map-synthesis-navigation button:first-child{grid-column:1;grid-row:2}
+  .patient-map-synthesis-navigation button:last-child{grid-column:2;grid-row:2}
+  .patient-map-synthesis-navigation button{width:100%;min-width:0}
   .patient-guide-resource,.patient-preview-note,.patient-tool-record-cta,.patient-map-local-note,.patient-map-workspace-header{grid-template-columns:1fr}
   .patient-guide-resource .secondary-button,.patient-preview-note .secondary-button,.patient-tool-record-cta .primary-button,.patient-map-local-note .secondary-button{width:100%;white-space:normal}
   .patient-map-workspace-header>span{width:max-content}
@@ -3287,6 +3498,19 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-start-card{min-height:128px;padding:1rem}
   .patient-module{margin-top:1.6rem}
   .patient-module-header h1{font-size:clamp(2.45rem,13vw,3.25rem)}
+  .patient-map-view-switcher{gap:.3rem;padding:.3rem}
+  .patient-map-view-switcher button{min-height:58px;padding:.5rem .25rem}
+  .patient-map-view-switcher button strong{font-size:.82rem}
+  .patient-map-view-switcher button span{font-size:.74rem}
+  .patient-map-how-to,.patient-map-synthesis-screen,.patient-map-subjects{padding:1rem}
+  .patient-map-area-card{grid-template-columns:1rem minmax(0,1fr) auto;padding:1rem}
+  .patient-map-area-copy strong{font-size:1.22rem}
+  .patient-map-area-copy small{font-size:.8rem}
+  .patient-map-theme-picker-heading>span,.patient-map-synthesis-screen>header>span{white-space:normal}
+  .patient-map-exit{align-items:stretch;flex-direction:column;text-align:center}
+  .patient-map-exit button{width:100%}
+  .patient-map-item-context>p:last-child{font-size:.95rem}
+  .patient-map-current-sharing{font-size:.84rem}
   .patient-map-introduction{grid-template-columns:1fr;padding:1.15rem}
   .patient-map-introduction .patient-preview-label{grid-row:1}
   .patient-map-session-summary{align-items:flex-start;flex-direction:column}
@@ -3345,7 +3569,8 @@ input[type="range"]{accent-color:#9a6d27}
 
 @media(forced-colors:active){
   :where(a,button,input,textarea,select,summary):focus-visible{outline:3px solid Highlight}
-  .patient-navigation button.active,.patient-start-card.primary,
+  .patient-navigation button.active,.patient-map-view-switcher button.active,
+  .patient-start-card.primary,
   .patient-map-response-options label.selected,.patient-tools-filters button.active,
   .professional-navigation button.active,.entry-view-toolbar button.active{
     border:2px solid Highlight;

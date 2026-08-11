@@ -63,30 +63,36 @@ test("map is private by default with explicit sharing while tools remain ephemer
   for (const phrase of ["Meu jeito", "Interesses", "Vínculos", "Limites", "Futuro"]) {
     assert.match(mapCatalog, new RegExp(phrase, "u"));
   }
-  assert.match(map, /Isto não é um teste e não existe resultado certo/u);
-  assert.match(map, /Qual resposta se aproxima mais de você agora/u);
-  assert.match(map, /Nada desta área será compartilhado automaticamente/u);
-  assert.match(map, /Compartilhar uma parte com Mateus/u);
-  assert.match(map, /A síntese geral e as outras partes continuarão privadas/u);
-  assert.match(map, /Atualizar cópia/u);
+  assert.match(map, /type PatientMapView =[\s\S]*?"theme"[\s\S]*?"sharing"[\s\S]*?"synthesis"/u);
+  assert.match(map, /Uma coisa de cada vez/u);
+  assert.match(map, /Por onde você quer começar\?/u);
+  assert.match(map, /Qual opção chega mais perto do que você pensa hoje\?/u);
+  assert.match(map, /Tudo fica só com você, a menos que escolha compartilhar um tema/u);
+  assert.match(map, /O que Mateus pode ver/u);
+  assert.match(map, /Todo o\s+restante do mapa continua privado/u);
+  assert.match(map, /Enviar novamente/u);
+  assert.match(map, /Parar de compartilhar/u);
   assert.match(map, /const shareableMaps = PATIENT_MAP_CATALOG\.maps\.filter/u);
-  assert.match(map, /Quando você responder ou escrever uma observação em uma parte/u);
+  assert.match(map, /Depois de marcar ou escrever algo em um tema/u);
   assert.match(map, /Não foi possível confirmar o que está compartilhado/u);
   assert.match(map, /Tentar consultar novamente/u);
   assert.match(map, /sharesLoading \? \([\s\S]*?: sharesLoadError \? \(/u);
-  assert.match(map, /`Compartilhar esta parte: \$\{map\.navigationTitle\}, com Mateus`/u);
-  assert.match(map, /`Compartilhando… esta parte: \$\{map\.navigationTitle\}, com Mateus`/u);
-  assert.match(map, /`Atualizar cópia de \$\{map\.navigationTitle\} compartilhada com Mateus`/u);
-  assert.match(map, /`Atualizando… cópia de \$\{map\.navigationTitle\} compartilhada com Mateus`/u);
-  assert.match(map, /aria-label=\{`Retirar o compartilhamento de \$\{map\.navigationTitle\}`\}/u);
+  assert.match(map, /`Compartilhar \$\{map\.navigationTitle\} com Mateus`/u);
+  assert.match(map, /`Compartilhando \$\{map\.navigationTitle\}…`/u);
+  assert.match(map, /`Enviar novamente \$\{map\.navigationTitle\}`/u);
+  assert.match(map, /`Enviando novamente \$\{map\.navigationTitle\}…`/u);
+  assert.match(map, /aria-label=\{`Parar de compartilhar \$\{map\.navigationTitle\}`\}/u);
   assert.match(map, /patient-map-share-action-\$\{map\.id\}/u);
   assert.match(map, /patient-map-clear-confirmation/u);
   assert.match(map, /A exclusão será salva automaticamente/u);
+  assert.match(map, /A versão já enviada para Mateus não muda/u);
+  assert.match(map, /encerra os\s+compartilhamentos com Mateus/u);
   assert.match(map, /patient-map-sharing-feedback/u);
   assert.match(map, /Manter resposta/u);
-  assert.match(map, />\s*Retirar\s*</u);
-  assert.match(map, /Isso não é acompanhamento em tempo real/u);
-  assert.match(map, /Não é\s+nota, resultado ou interpretação/u);
+  assert.match(map, />\s*Parar de compartilhar\s*</u);
+  assert.match(map, /Isso não é\s+acompanhamento em tempo real/u);
+  assert.match(map, /Não é\s+nota,\s+resultado ou interpretação/u);
+  assert.doesNotMatch(map, /Atualizar cópia|Salvar e voltar ao início|\d+ de 30 com resposta/u);
   assert.match(tools, /Abrir ou usar uma ferramenta não cria histórico nem informa Mateus/u);
   assert.match(tools, /Filtrar ferramentas por situação/u);
 
@@ -103,7 +109,7 @@ test("map is private by default with explicit sharing while tools remain ephemer
 });
 
 test("the workbook synthesis is one clearly global patient-map section", () => {
-  const synthesisLabel = "Minha síntese do mapa pessoal";
+  const synthesisLabel = "Juntar o que percebi";
   const synthesisIndex = map.indexOf(synthesisLabel);
   const perMapSummaryIndex = map.indexOf('if (view === "summary")');
   assert.ok(synthesisIndex > -1, "a síntese geral deve estar visível no Meu mapa");
@@ -112,7 +118,10 @@ test("the workbook synthesis is one clearly global patient-map section", () => {
     "a síntese geral não deve parecer pertencer ao resumo de um único mapa",
   );
   assert.equal(map.split(synthesisLabel).length - 1, 1);
-  assert.match(map, /Esta síntese é geral/u);
+  assert.match(map, /Esta síntese fica privada e não entra no compartilhamento dos temas/u);
+  assert.match(map, /Pergunta \{synthesisIndex \+ 1\} de/u);
+  assert.match(map, /patient-map-synthesis-question-title/u);
+  assert.match(map, /changeSynthesisQuestion/u);
 });
 
 test("moving through the map alone does not create a false unsaved-content warning", () => {
