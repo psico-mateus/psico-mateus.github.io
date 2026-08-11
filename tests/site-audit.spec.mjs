@@ -169,6 +169,12 @@ test("rótulos e ações secundárias públicas permanecem acessíveis", async (
   expect(siteSecondaryHeights.length).toBeGreaterThan(0);
   for (const height of siteSecondaryHeights) expect(height).toBeGreaterThanOrEqual(44);
 
+  const siteTouchTargets = await page
+    .locator('.brand, .nav-appointment, .appointment-action a[href^="mailto:"]')
+    .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
+  expect(siteTouchTargets.length).toBe(3);
+  for (const height of siteTouchTargets) expect(height).toBeGreaterThanOrEqual(44);
+
   await page.goto("/guia-emocoes/");
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
   await expect(page.locator('.record-progress[aria-label]')).toHaveAttribute("role", "group");
@@ -177,6 +183,11 @@ test("rótulos e ações secundárias públicas permanecem acessíveis", async (
     .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
   expect(guideSecondaryHeights.length).toBeGreaterThan(0);
   for (const height of guideSecondaryHeights) expect(height).toBeGreaterThanOrEqual(44);
+  expect(
+    await page.locator("main > header .brand").evaluate(
+      (element) => element.getBoundingClientRect().height,
+    ),
+  ).toBeGreaterThanOrEqual(44);
 });
 
 test("numerais e setas auxiliares do site permanecem legíveis", async ({ page }, testInfo) => {

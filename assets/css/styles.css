@@ -205,7 +205,7 @@ h3 {
 }
 
 .button-small {
-  min-height: 42px;
+  min-height: 44px;
   padding-inline: 1rem;
   font-size: 0.78rem;
 }
@@ -1693,7 +1693,7 @@ h2 {
 }
 
 .button-small {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0.65rem 0.9rem;
   border-radius: 6px;
   font-size: 0.72rem;
@@ -1718,6 +1718,7 @@ h2 {
 
 .brand {
   gap: 0.65rem;
+  min-height: 44px;
 }
 
 .brand-mark {
@@ -2194,6 +2195,9 @@ h2 {
 }
 
 .appointment-action p a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
   color: var(--text-main);
 }
 

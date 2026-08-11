@@ -238,6 +238,61 @@ test("guia apresenta a Área do paciente sem esconder o site profissional", asyn
   expect(size?.height).toBeGreaterThanOrEqual(44);
 });
 
+test("atalhos móveis deixam todas as seções visíveis e a rolagem livre", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Matriz móvel executada uma vez.");
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(guidePath);
+
+    const navigation = page.getByRole("navigation", { name: "Atalhos do Guia" });
+    await expect(navigation, `${width}px`).toBeVisible();
+    const links = navigation.getByRole("link");
+    await expect(links).toHaveCount(4);
+
+    const sizes = await links.evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return { height: box.height, width: box.width };
+      }),
+    );
+    for (const size of sizes) {
+      expect(size.height, `${width}px: alvo de toque`).toBeGreaterThanOrEqual(44);
+      expect(size.width, `${width}px: link não colapsa`).toBeGreaterThan(0);
+    }
+
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth, `${width}px: sem rolagem horizontal`).toBeLessThanOrEqual(
+      dimensions.clientWidth + 1,
+    );
+
+    for (const flow of [
+      { label: "Explorar", target: "#explorar" },
+      { label: "Exploração guiada", target: "#registrar" },
+      { label: "Comparar", target: "#comparar" },
+      { label: "Cuidados", target: "#cuidados" },
+    ]) {
+      await navigation.getByRole("link", { name: flow.label, exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`${flow.target}$`));
+      await expect(page.locator(flow.target)).toBeVisible();
+      expectUnlocked(await pageScrollState(page));
+      const targetTop = await page.locator(flow.target).evaluate(
+        (element) => element.getBoundingClientRect().top,
+      );
+      expect(targetTop, `${width}px: ${flow.label} não fica atrás dos atalhos`).toBeGreaterThan(110);
+      await expectPageStillScrolls(page);
+    }
+  }
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(guidePath);
+  await expect(page.getByRole("navigation", { name: "Atalhos do Guia" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+});
+
 test("ações iniciais usam quatro tons distintos e confortáveis para leitura", async ({ page }) => {
   await page.goto(guidePath);
 
@@ -416,12 +471,12 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v26"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v27"');
   expect(serviceWorker).toContain(
-    '"/assets/css/guide-brand.css?v=20260808-a11y3"',
+    '"/assets/css/guide-brand.css?v=20260811-mobile-nav"',
   );
   expect(serviceWorker).toContain(
-    '"/assets/js/guide-navigation.js?v=20260802-a11y2"',
+    '"/assets/js/guide-navigation.js?v=20260811-mobile-nav"',
   );
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(

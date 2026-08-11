@@ -42,6 +42,28 @@
   let dialogTrigger = null;
   let semanticsReady = false;
 
+  const ensureMobileSectionNavigation = (header) => {
+    if (!header || document.querySelector(".guide-mobile-nav")) return;
+
+    const navigation = document.createElement("nav");
+    navigation.className = "guide-mobile-nav";
+    navigation.setAttribute("aria-label", "Atalhos do Guia");
+
+    [
+      ["#explorar", "Explorar"],
+      ["#registrar", "Exploração guiada"],
+      ["#comparar", "Comparar"],
+      ["#cuidados", "Cuidados"],
+    ].forEach(([href, label]) => {
+      const link = document.createElement("a");
+      link.href = href;
+      link.textContent = label;
+      navigation.append(link);
+    });
+
+    header.insertAdjacentElement("afterend", navigation);
+  };
+
   const dialogFocusable = (dialog) =>
     Array.from(dialog.querySelectorAll(focusableSelector)).filter(
       (element) => !element.closest('[aria-hidden="true"]'),
@@ -54,6 +76,8 @@
     const authorCard = document.querySelector("main .author-card");
     const target = document.getElementById("inicio");
     const guidedExploration = document.getElementById("registrar");
+
+    ensureMobileSectionNavigation(header);
 
     if (main) {
       main.setAttribute("aria-label", "Conteúdo principal do Guia de Emoções");
