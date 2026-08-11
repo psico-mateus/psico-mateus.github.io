@@ -5,9 +5,10 @@ Atualizado em 11/08/2026. Este documento descreve o trabalho local ainda não pu
 ## Estado do repositório
 
 - Branch: `agent/refina-p1-limites-exportacao`.
-- Último commit local antes do refinamento atual: `bfb0d60`.
-- A branch está um commit à frente de `origin/main`; o refinamento de 11/08
-  permanece local até a validação e o commit final.
+- Base remota conhecida no início deste lote: `a26347d` (`origin/main`).
+- Último commit funcional anterior ao refinamento inclusivo atual: `70ac936`.
+- Há commits e refinamentos locais ainda não publicados; o estado exato deve
+  ser confirmado com `git status` e `git log` antes de qualquer publicação.
 - Os Lotes 0 a 5 estão preservados no histórico local.
 - Portal: Next.js/React/Vinext em Cloudflare Worker, com D1/Drizzle já existentes.
 - Worker oficial: `area-do-paciente`; Worker antigo `registros` preservado por compatibilidade.
@@ -81,9 +82,38 @@ Atualizado em 11/08/2026. Este documento descreve o trabalho local ainda não pu
 - Se a consulta de compartilhamentos falhar, o estado não é presumido como
   privado: as ações ficam pausadas, o erro aparece na tela e há uma tentativa
   explícita de reconexão.
+- O compartilhamento lista somente partes já exploradas ou compartilhadas. Um
+  único aviso orienta o paciente quando ainda não existe uma parte disponível.
+- Apagar uma resposta ou observação exige uma confirmação na própria tela,
+  preserva o foco e oferece a alternativa clara de manter o conteúdo.
+- Falhas e sucessos ao compartilhar aparecem junto às ações, sem depender
+  apenas do leitor de tela.
+- A biblioteca mostra inicialmente dois textos de cada tema e permite revelar
+  os demais aos poucos; busca e filtros continuam mostrando todos os resultados.
+- Os botões de senha identificam qual campo será mostrado ou ocultado.
+- `Conta e privacidade` ganhou um indicador visual simples de aberto/fechado.
+- Em 320 px, o cabeçalho evita deixar `Instalar` isolado em uma linha própria.
+- O painel profissional considera registros e partes do mapa na data do último
+  compartilhamento e no destaque de conteúdos não vistos.
+- Filtros de leitura ficam dentro da seção de registros, e listas longas de
+  registros e convites usam revelação progressiva em blocos.
+- Ações repetidas do painel profissional identificam o paciente ou o convite em
+  seus nomes acessíveis, e o foco retorna ao resumo após concluir a leitura de
+  uma parte do mapa.
 - Campos em telas pequenas usam tamanho que evita o zoom automático do Safari.
 - Contraste aumentado, cores forçadas e redução de movimento seguem as
   preferências configuradas no aparelho.
+
+## Integração com o site e o Guia
+
+- Marca, CTA móvel e contato por e-mail do site público têm áreas de toque de
+  pelo menos 44 px, sem aumento visual desnecessário.
+- No celular, o Guia oferece atalhos compactos para `Explorar`, `Exploração
+  guiada`, `Comparar` e `Cuidados`; no desktop, a navegação completa permanece.
+- Os atalhos preservam hash, foco, rolagem livre e posicionamento abaixo dos
+  cabeçalhos fixos em 320 e 390 px.
+- O cache offline do Guia foi versionado para incluir os novos estilos e o novo
+  comportamento de navegação.
 
 ## Navegação, endereços e foco
 
@@ -126,11 +156,18 @@ Atualizado em 11/08/2026. Este documento descreve o trabalho local ainda não pu
 ## Testes confirmados
 
 - `pnpm lint`: aprovado.
-- `pnpm test`: build aprovado e 86/86 testes estruturais e unitários aprovados.
-- Integração autenticada local: aprovada com contas e conteúdo apenas sintéticos,
-  cobrindo compartilhamento, revogação, leitura, isolamento e cascata.
+- `pnpm test`: build aprovado e 87/87 testes estruturais e unitários aprovados.
+- Suíte pública do site e do Guia: 90 testes executados em Chromium desktop,
+  Chromium mobile e WebKit mobile; 53 aprovados e 37 ignorados pelas condições
+  explícitas da matriz, sem falhas na execução final.
+- Integração autenticada local: 151 verificações aprovadas com contas e conteúdo
+  apenas sintéticos, cobrindo cadastro, login, MFA, sessão, compartilhamento,
+  revogação, leitura, isolamento, recuperação, exclusão e cascata.
 - Ensaio local de restauração: 12 tabelas verificadas, somente dados sintéticos e zero requisições a produção.
-- Revisão visual: aprovada em 7 configurações.
+- Revisão visual principal: aprovada em 7 configurações.
+- Revisão visual profissional adicional: aprovada em WebKit 320 e 390 px e
+  Chromium desktop, com 27 pacientes, 28 registros, 27 acessos e 24 convites no
+  histórico, todos sintéticos.
 - Navegadores e larguras: WebKit em 320, 390 e 640 px; Chromium desktop; fluxos autenticados e de visitante incluídos.
 - Acessibilidade automática: Axe WCAG A/AA sem violações nas telas verificadas.
 - Responsividade: nenhum estouro horizontal nas larguras testadas.
@@ -152,6 +189,7 @@ Atualizado em 11/08/2026. Este documento descreve o trabalho local ainda não pu
 - `portal-production/tests/patient-tools.test.mjs`
 - `portal-production/tests/patient-map-catalog.test.mjs`
 - `portal-production/tests/manual-visual-review.mjs`
+- `portal-production/tests/manual-professional-visual-review.mjs`
 
 ## Limites e próximos passos
 
@@ -166,6 +204,6 @@ Atualizado em 11/08/2026. Este documento descreve o trabalho local ainda não pu
 
 ## Ações remotas não realizadas
 
-- O Lote 5 foi commitado localmente em `bfb0d60`, mas ainda não teve push,
-  deploy ou migration remota.
+- Os Lotes 4 e 5 e os refinamentos posteriores estão preservados localmente,
+  mas ainda não tiveram push, deploy ou migration remota deste lote.
 - Não houve escrita remota em D1, alteração de secrets, mudança de autenticação ou criação de conta real nesta etapa.

@@ -90,6 +90,8 @@ não dependa de enviar o mapa inteiro.
 - Conflitos de conteúdo oferecem escolhas explícitas entre manter a alteração
   desta tela ou usar a versão já salva; não há sobrescrita silenciosa.
 - `Salvar e voltar ao início` aguarda a fila de alterações antes de sair.
+- Apagar a resposta ou observação de um item pede confirmação no próprio local,
+  permite cancelar sem perder o foco e anuncia o resultado da ação.
 
 ## Persistência e privacidade
 
@@ -107,10 +109,18 @@ não dependa de enviar o mapa inteiro.
   esse buffer sem exibi-lo ou enviá-lo.
 - Nada é compartilhado automaticamente. O paciente escolhe uma parte e envia
   somente uma cópia das respostas e observações dessa parte.
+- A área de compartilhamento mostra somente partes já exploradas ou enviadas;
+  quando nenhuma está disponível, há uma única orientação em vez de cinco ações
+  repetidas.
+- Sucessos e falhas de compartilhar, atualizar ou retirar ficam visíveis perto
+  das ações. Se o estado não puder ser consultado, os controles permanecem
+  bloqueados até uma nova tentativa bem-sucedida.
 - Posição, síntese e partes não escolhidas permanecem privadas. Não existem
   comentário, chat, interpretação automática ou uso como prontuário.
 - A visão profissional é somente leitura e permite confirmar a visualização;
   retirar o compartilhamento apaga a cópia e interrompe o acesso.
+- O resumo profissional combina pendências e datas de registros e partes do
+  mapa, e devolve o foco ao conteúdo após a confirmação de visualização.
 - `Ainda não sei` é uma resposta deliberada; ausência de resposta continua
   representada separadamente.
 - A interface atual resume um mapa por vez. Ainda não existe uma síntese visual
