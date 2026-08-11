@@ -16,6 +16,7 @@ import {
   filterAndSortPatients,
   filterPatientAccesses,
   invitationStatusLabel,
+  latestPatientShareAt,
   type Invitation,
   type PatientAccess,
   type PatientSort,
@@ -460,13 +461,22 @@ function MapShareDisclosure({
 }) {
   const unread = Boolean(share.is_unread);
   const [open, setOpen] = useState(false);
+  const summaryRef = useRef<HTMLElement>(null);
+  const restoreFocusAfterView = useRef(false);
+
+  useEffect(() => {
+    if (!restoreFocusAfterView.current || viewing) return;
+    restoreFocusAfterView.current = false;
+    if (!unread) summaryRef.current?.focus();
+  }, [unread, viewing]);
+
   return (
     <details
       className={`professional-map-disclosure${unread ? " is-unread" : ""}`}
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary>
+      <summary ref={summaryRef}>
         <span className="record-summary-main">
           <span className={`record-view-state ${unread ? "unread" : "viewed"}`}>
             {viewing ? "Salvando visualização…" : unread ? "Não visto" : "Visto"}
@@ -509,7 +519,10 @@ function MapShareDisclosure({
               className="primary-button"
               type="button"
               disabled={viewing}
-              onClick={() => onViewed(share.map_id)}
+              onClick={() => {
+                restoreFocusAfterView.current = true;
+                onViewed(share.map_id);
+              }}
             >
               {viewing ? "Salvando visualização…" : "Concluir visualização"}
             </button>
@@ -559,13 +572,14 @@ function PatientList({
     >
       <div className="section-heading professional-section-heading">
         <div>
-          <p className="eyebrow">CONTEÚDOS AUTORIZADOS</p>
+          <p className="eyebrow">USO DO PORTAL</p>
           <h2 id="professional-patient-list-title" tabIndex={-1}>
-            Pacientes com conteúdo compartilhado
+            Atividade por paciente
           </h2>
           <p className="section-description">
-            Por paciente, você vê os registros e as partes do mapa compartilhados.
-            Dos registros privados, nenhum conteúdo ou data é exibido.
+            Veja a adesão de cada paciente e abra somente os registros ou partes
+            do mapa que ele decidiu compartilhar. Dos registros privados, nenhum
+            conteúdo ou data é exibido.
           </p>
         </div>
         <button
@@ -592,8 +606,9 @@ function PatientList({
           <strong>{activity.private_count}</strong>
         </div>
         <p>
-          A soma geral oferece uma visão rápida. Abaixo, a contagem é separada por
-          paciente, sem mostrar qualquer conteúdo privado.
+          A soma considera pacientes com acesso ativo e oferece uma visão rápida.
+          Abaixo, a contagem é separada por paciente, sem mostrar qualquer conteúdo
+          privado.
         </p>
       </section>
 
@@ -656,51 +671,53 @@ function PatientList({
         </div>
       ) : (
         <div className="patient-summary-list">
-          {visiblePatients.map((patient) => (
-            <article className="patient-summary-card" key={patient.patient_id}>
-              <div className="patient-summary-copy">
-                <h3>{displayedPatientName(patient.patient_name)}</h3>
-                <p className="patient-summary-count">
-                  {sharedCountLabel(patient.shared_count)} ·{" "}
-                  {patient.shared_map_count ?? 0}{" "}
-                  {(patient.shared_map_count ?? 0) === 1
-                    ? "parte do mapa compartilhada"
-                    : "partes do mapa compartilhadas"}{" · "}
-                  {patient.private_count}{" "}
-                  {patient.private_count === 1
-                    ? "registro privado"
-                    : "registros privados"}
-                </p>
-                <p
-                  className={`patient-summary-view-count${
-                    patient.unread_count > 0 ? " has-unread" : ""
-                  }`}
-                >
-                  {unreadContentCountLabel(
-                    patient.unread_count + (patient.unread_map_count ?? 0),
-                  )}
-                </p>
-                <p className="record-meta">
-                  {patient.latest_shared_at
-                    ? `Último compartilhamento: ${formatDate(patient.latest_shared_at)}`
-                    : "Nenhum conteúdo compartilhado"}
-                </p>
-              </div>
-              {patient.shared_count + (patient.shared_map_count ?? 0) > 0 ? (
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => onOpen(patient)}
-                >
-                  {patient.unread_count + (patient.unread_map_count ?? 0) > 0
-                    ? "Ver pendentes"
-                    : "Abrir compartilhamentos"}
-                </button>
-              ) : (
-                <span className="private-only-note">Sem conteúdo disponível</span>
-              )}
-            </article>
-          ))}
+          {visiblePatients.map((patient) => {
+            const unreadCount = patient.unread_count + (patient.unread_map_count ?? 0);
+            const latestSharedAt = latestPatientShareAt(patient);
+            const patientName = displayedPatientName(patient.patient_name);
+            return (
+              <article className="patient-summary-card" key={patient.patient_id}>
+                <div className="patient-summary-copy">
+                  <h3>{patientName}</h3>
+                  <p className="patient-summary-count">
+                    {sharedCountLabel(patient.shared_count)} ·{" "}
+                    {patient.shared_map_count ?? 0}{" "}
+                    {(patient.shared_map_count ?? 0) === 1
+                      ? "parte do mapa compartilhada"
+                      : "partes do mapa compartilhadas"}{" · "}
+                    {patient.private_count}{" "}
+                    {patient.private_count === 1
+                      ? "registro privado"
+                      : "registros privados"}
+                  </p>
+                  <p
+                    className={`patient-summary-view-count${
+                      unreadCount > 0 ? " has-unread" : ""
+                    }`}
+                  >
+                    {unreadContentCountLabel(unreadCount)}
+                  </p>
+                  <p className="record-meta">
+                    {latestSharedAt
+                      ? `Último compartilhamento: ${formatDate(latestSharedAt)}`
+                      : "Nenhum conteúdo compartilhado"}
+                  </p>
+                </div>
+                {patient.shared_count + (patient.shared_map_count ?? 0) > 0 ? (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    aria-label={`Abrir conteúdos compartilhados por ${patientName}`}
+                    onClick={() => onOpen(patient)}
+                  >
+                    Abrir conteúdos
+                  </button>
+                ) : (
+                  <span className="private-only-note">Sem conteúdo disponível</span>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -735,14 +752,16 @@ function PatientRecordsView({
   onMapViewed: (mapId: string) => void;
 }) {
   const [viewFilter, setViewFilter] = useState<EntryViewFilter>("all");
+  const [visibleEntryLimit, setVisibleEntryLimit] = useState(20);
   const unreadCount = entries.filter((entry) => Boolean(entry.is_unread)).length;
   const unreadMapCount = mapShares.filter((share) => Boolean(share.is_unread)).length;
   const viewedCount = entries.length - unreadCount;
-  const visibleEntries = entries.filter((entry) => {
+  const filteredEntries = entries.filter((entry) => {
     if (viewFilter === "unread") return Boolean(entry.is_unread);
     if (viewFilter === "viewed") return !entry.is_unread;
     return true;
   });
+  const visibleEntries = filteredEntries.slice(0, visibleEntryLimit);
 
   return (
     <section className="professional-section" aria-labelledby="selected-patient-title">
@@ -774,33 +793,6 @@ function PatientRecordsView({
       <div className="sr-status" aria-live="polite">
         {refreshing ? "Atualizando os conteúdos compartilhados." : ""}
       </div>
-
-      {!loading && !error && entries.length > 0 ? (
-        <div
-          className="entry-view-toolbar"
-          role="group"
-          aria-label="Filtrar registros por leitura"
-        >
-          {([
-            ["all", "Todos", entries.length],
-            ["unread", "Não vistos", unreadCount],
-            ["viewed", "Vistos", viewedCount],
-          ] as Array<[EntryViewFilter, string, number]>).map(
-            ([value, label, count]) => (
-              <button
-                key={value}
-                className={viewFilter === value ? "active" : ""}
-                type="button"
-                aria-pressed={viewFilter === value}
-                onClick={() => setViewFilter(value)}
-              >
-                <span>{label}</span>
-                <small>{count}</small>
-              </button>
-            ),
-          )}
-        </div>
-      ) : null}
 
       {loading ? (
         <div className="panel loading-panel" role="status">
@@ -849,8 +841,38 @@ function PatientRecordsView({
           {entries.length > 0 ? (
             <section className="professional-entry-shares" aria-labelledby="professional-entry-shares-title">
               <div className="subsection-heading">
-                <h3 id="professional-entry-shares-title">Registros entre sessões</h3>
+                <div>
+                  <h3 id="professional-entry-shares-title">Registros entre sessões</h3>
+                  <p>O filtro abaixo se aplica somente a estes registros.</p>
+                </div>
                 <span className="count">{entries.length}</span>
+              </div>
+              <div
+                className="entry-view-toolbar"
+                role="group"
+                aria-label="Filtrar somente os registros por leitura"
+              >
+                {([
+                  ["all", "Todos", entries.length],
+                  ["unread", "Não vistos", unreadCount],
+                  ["viewed", "Vistos", viewedCount],
+                ] as Array<[EntryViewFilter, string, number]>).map(
+                  ([value, label, count]) => (
+                    <button
+                      key={value}
+                      className={viewFilter === value ? "active" : ""}
+                      type="button"
+                      aria-pressed={viewFilter === value}
+                      onClick={() => {
+                        setViewFilter(value);
+                        setVisibleEntryLimit(20);
+                      }}
+                    >
+                      <span>{label}</span>
+                      <small>{count}</small>
+                    </button>
+                  ),
+                )}
               </div>
               {visibleEntries.length === 0 ? (
         <div className="empty-state compact-empty">
@@ -880,6 +902,21 @@ function PatientRecordsView({
                   ))}
                 </div>
               )}
+              {filteredEntries.length > 20 ? (
+                <button
+                  className="text-action list-toggle"
+                  type="button"
+                  onClick={() =>
+                    setVisibleEntryLimit((current) =>
+                      current >= filteredEntries.length ? 20 : current + 20,
+                    )
+                  }
+                >
+                  {visibleEntryLimit >= filteredEntries.length
+                    ? "Mostrar menos registros"
+                    : `Mostrar mais registros (${Math.min(20, filteredEntries.length - visibleEntryLimit)})`}
+                </button>
+              ) : null}
             </section>
           ) : null}
         </>
@@ -1026,6 +1063,7 @@ function PatientAccessView({
                     <button
                       className="secondary-button"
                       type="button"
+                      aria-label={`Gerar recuperação para ${displayedPatientName(patient.patient_name)}`}
                       onClick={(event) =>
                         onGenerateRecovery(patient, event.currentTarget)
                       }
@@ -1037,6 +1075,7 @@ function PatientAccessView({
                   <button
                     className={active ? "danger-button" : "secondary-button"}
                     type="button"
+                    aria-label={`${active ? "Revogar acesso" : "Restaurar acesso"} de ${displayedPatientName(patient.patient_name)}`}
                     onClick={() => onChangeAccess(patient, !active)}
                     disabled={updating || loading}
                   >
@@ -1090,6 +1129,7 @@ function InvitationItem({
         <button
           className="danger-button compact-button"
           type="button"
+          aria-label={`${revoking ? "Revogando…" : "Revogar"} convite criado em ${formatDate(invitation.created_at)} e válido até ${formatDate(invitation.expires_at)}`}
           onClick={(event) => onRevoke(invitation, event.currentTarget)}
           disabled={revoking || disabled}
         >
@@ -1126,9 +1166,11 @@ function InvitationsView({
   onRefresh: () => void;
 }) {
   const [showAllActive, setShowAllActive] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState({ code: "", message: "" });
   const { active, history } = useMemo(() => splitInvitations(invitations), [invitations]);
   const visibleActive = showAllActive ? active : active.slice(0, 5);
+  const visibleHistory = showAllHistory ? history : history.slice(0, 20);
   const copyMessage = copyFeedback.code === latestCode ? copyFeedback.message : "";
 
   async function copy() {
@@ -1260,13 +1302,24 @@ function InvitationsView({
               <p className="section-description">Nenhum convite no histórico.</p>
             ) : (
               <div className="invitation-list history-list">
-                {history.map((invitation) => (
+                {visibleHistory.map((invitation) => (
                   <InvitationItem
                     key={invitation.id}
                     invitation={invitation}
                     revoking={false}
                   />
                 ))}
+                {history.length > 20 ? (
+                  <button
+                    className="text-action list-toggle"
+                    type="button"
+                    onClick={() => setShowAllHistory((current) => !current)}
+                  >
+                    {showAllHistory
+                      ? "Mostrar menos convites"
+                      : `Mostrar todo o histórico (${history.length})`}
+                  </button>
+                ) : null}
               </div>
             )}
           </details>

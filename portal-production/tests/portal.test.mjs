@@ -20,6 +20,7 @@ import {
   filterAndSortPatients,
   filterPatientAccesses,
   invitationStatusLabel,
+  latestPatientShareAt,
   normalizePatientSearch,
   sharedCountLabel,
   splitInvitations,
@@ -358,6 +359,10 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /InstallAppButton/);
   assert.match(app, /Não são 12 dígitos/);
   assert.match(app, /12 caracteres; espaços também contam/);
+  assert.match(
+    app,
+    /aria-label=\{`\$\{passwordVisible \? "Ocultar" : "Mostrar"\} \$\{label\.toLocaleLowerCase\("pt-BR"\)\}`\}/u,
+  );
   assert.match(app, /<details className="professional-login-details">/);
   assert.match(app, /<strong>Acesso profissional<\/strong>/);
   assert.match(app, /<small>uso exclusivo de Mateus<\/small>/);
@@ -1271,6 +1276,17 @@ test("professional patient search ignores case and accents without merging equal
   assert.equal(unreadCountLabel(0), "Tudo visto");
   assert.equal(unreadCountLabel(1), "1 registro ainda não visto");
   assert.equal(unreadCountLabel(3), "3 registros ainda não vistos");
+  assert.equal(
+    latestPatientShareAt({
+      latest_shared_at: "2026-07-22T18:00:00.000Z",
+      latest_map_shared_at: "2026-07-24T18:00:00.000Z",
+    }),
+    "2026-07-24T18:00:00.000Z",
+  );
+  assert.equal(
+    latestPatientShareAt({ latest_shared_at: null, latest_map_shared_at: null }),
+    null,
+  );
 });
 
 test("patient access list keeps active accounts first and filters by name", () => {
@@ -1410,6 +1426,7 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(dashboard, /Salvando visualização/);
   assert.match(dashboard, /Concluir visualização/);
   assert.match(dashboard, /const restoreFocusAfterView = useRef\(false\)/);
+  assert.equal(dashboard.match(/const restoreFocusAfterView = useRef\(false\)/g)?.length, 2);
   assert.match(
     dashboard,
     /if \(!restoreFocusAfterView\.current \|\| viewing\) return;[\s\S]*?if \(!unread\) summaryRef\.current\?\.focus\(\)/,
@@ -1418,6 +1435,17 @@ test("professional API groups by stable patient id and filters every detail quer
     dashboard,
     /restoreFocusAfterView\.current = true;[\s\S]*?onViewed\(entry\.id\)/,
   );
+  assert.match(
+    dashboard,
+    /restoreFocusAfterView\.current = true;[\s\S]*?onViewed\(share\.map_id\)/,
+  );
+  assert.match(dashboard, /Atividade por paciente/u);
+  assert.match(dashboard, /const latestSharedAt = latestPatientShareAt\(patient\)/u);
+  assert.match(dashboard, /unreadCount > 0 \? " has-unread"/u);
+  assert.match(dashboard, /Abrir conteúdos compartilhados por \$\{patientName\}/u);
+  assert.match(dashboard, /Filtrar somente os registros por leitura/u);
+  assert.match(dashboard, /visibleHistory = showAllHistory \? history : history\.slice\(0, 20\)/u);
+  assert.match(dashboard, /visibleEntries = filteredEntries\.slice\(0, visibleEntryLimit\)/u);
   assert.match(
     dashboard,
     /setNotice\(null\);[\s\S]*?Visualização confirmada\. O paciente poderá ver essa confirmação no histórico\./,

@@ -42,6 +42,8 @@ const educationCategoryDescriptions: Record<EducationCategory, string> = {
     "Introduções cuidadosas para organizar dúvidas, sem funcionar como autodiagnóstico.",
 };
 
+const collapsedArticlesPerCategory = 2;
+
 function ArticleReferences({ article }: { article: EducationArticle }) {
   return (
     <details className="education-references">
@@ -287,6 +289,9 @@ export function PatientEducation({
   const [query, setQuery] = useState("");
   const [category, setCategory] =
     useState<EducationCategoryFilter>("all");
+  const [expandedCategories, setExpandedCategories] = useState<Set<EducationCategory>>(
+    () => new Set(),
+  );
   const selectedArticle = findEducationArticle(selectedSlug);
   const libraryTitleRef = useRef<HTMLHeadingElement>(null);
   const restoreArticleSlug = useRef<string | null>(null);
@@ -430,6 +435,13 @@ export function PatientEducation({
         </div>
       ) : null}
 
+      {!hasActiveFilters && visibleArticles.length > 0 ? (
+        <p className="education-progressive-note">
+          Mostramos primeiro dois textos de cada tema. Você pode abrir os demais
+          quando quiser.
+        </p>
+      ) : null}
+
       {visibleArticles.length === 0 ? (
         <div className="empty-state education-empty-state">
           <h2>Nenhuma leitura encontrada.</h2>
@@ -447,51 +459,79 @@ export function PatientEducation({
         </div>
       ) : (
         <div className="education-groups">
-          {groupedArticles.map((group, groupIndex) => (
-            <section
-              className="education-group"
-              key={group.category}
-              aria-labelledby={`education-group-${groupIndex}`}
-            >
-              <header className="education-group-header">
-                <div>
-                  <h2 id={`education-group-${groupIndex}`}>
-                    {group.category}
-                  </h2>
-                  <p>{educationCategoryDescriptions[group.category]}</p>
-                </div>
-                <span>
-                  {group.articles.length}{" "}
-                  {group.articles.length === 1 ? "texto" : "textos"}
-                </span>
-              </header>
+          {groupedArticles.map((group, groupIndex) => {
+            const expanded = hasActiveFilters || expandedCategories.has(group.category);
+            const displayedArticles = expanded
+              ? group.articles
+              : group.articles.slice(0, collapsedArticlesPerCategory);
+            const hiddenCount = group.articles.length - displayedArticles.length;
+            const listId = `education-list-${groupIndex}`;
+            return (
+              <section
+                className="education-group"
+                key={group.category}
+                aria-labelledby={`education-group-${groupIndex}`}
+              >
+                <header className="education-group-header">
+                  <div>
+                    <h2 id={`education-group-${groupIndex}`}>
+                      {group.category}
+                    </h2>
+                    <p>{educationCategoryDescriptions[group.category]}</p>
+                  </div>
+                  <span>
+                    {group.articles.length}{" "}
+                    {group.articles.length === 1 ? "texto" : "textos"}
+                  </span>
+                </header>
 
-              <div className="education-card-list">
-                {group.articles.map((article) => (
-                  <article className="education-card" key={article.slug}>
-                    <div className="education-card-meta">
-                      <span>{article.category}</span>
-                      <small>
-                        {educationReadingMinutes(article)} min de leitura
-                      </small>
-                    </div>
-                    <h3>{article.title}</h3>
-                    <p>{article.summary}</p>
-                    <button
-                      id={`education-read-${article.slug}`}
-                      className="secondary-button"
-                      type="button"
-                      aria-label={`Ler: ${article.title}`}
-                      onClick={() => onArticleChange(article.slug)}
-                    >
-                      <span>Ler texto</span>
-                      <span aria-hidden="true">→</span>
-                    </button>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ))}
+                <div className="education-card-list" id={listId}>
+                  {displayedArticles.map((article) => (
+                    <article className="education-card" key={article.slug}>
+                      <div className="education-card-meta">
+                        <span>{article.category}</span>
+                        <small>
+                          {educationReadingMinutes(article)} min de leitura
+                        </small>
+                      </div>
+                      <h3>{article.title}</h3>
+                      <p>{article.summary}</p>
+                      <button
+                        id={`education-read-${article.slug}`}
+                        className="secondary-button"
+                        type="button"
+                        aria-label={`Ler: ${article.title}`}
+                        onClick={() => onArticleChange(article.slug)}
+                      >
+                        <span>Ler texto</span>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    </article>
+                  ))}
+                </div>
+                {!hasActiveFilters && group.articles.length > collapsedArticlesPerCategory ? (
+                  <button
+                    className="secondary-button education-group-toggle"
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls={listId}
+                    onClick={() => {
+                      setExpandedCategories((current) => {
+                        const next = new Set(current);
+                        if (next.has(group.category)) next.delete(group.category);
+                        else next.add(group.category);
+                        return next;
+                      });
+                    }}
+                  >
+                    {expanded
+                      ? "Mostrar menos textos deste tema"
+                      : `Mostrar mais ${hiddenCount} ${hiddenCount === 1 ? "texto" : "textos"}`}
+                  </button>
+                ) : null}
+              </section>
+            );
+          })}
         </div>
       )}
     </section>

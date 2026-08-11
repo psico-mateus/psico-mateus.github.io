@@ -16,6 +16,7 @@
     "test:restore-local": "node scripts/rehearse-local-restore.mjs",
     "test:smoke-public": "node scripts/smoke-public.mjs",
     "test:visual": "node tests/manual-visual-review.mjs",
+    "test:visual:professional": "node tests/manual-professional-visual-review.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

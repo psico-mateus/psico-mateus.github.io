@@ -355,12 +355,23 @@ async function review(browserType, label, viewport) {
   );
   portalRoute.enableMapSharingReads();
   await page.getByRole("button", { name: "Tentar consultar novamente", exact: true }).click();
-  await page.getByRole("button", { name: "Explorar esta parte: Meu jeito", exact: true }).waitFor();
+  await page.getByText(/Quando você responder ou escrever uma observação em uma parte/).waitFor();
+  if (await page.locator('[id^="patient-map-share-action-"]').count()) {
+    throw new Error(`${label}: o mapa vazio repetiu ações de exploração na seção de compartilhamento`);
+  }
   await reviewScreen(page, `${label}-meu-mapa`, `${label}-meu-mapa.png`);
   await page.locator("#patient-map-card-meu-jeito").click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
   await page.getByLabel("Combina comigo", { exact: true }).check();
   await page.getByText(/O que realmente recupera você/).waitFor();
+  await page.getByRole("button", { name: "Apagar resposta deste item", exact: true }).click();
+  await page.getByRole("button", { name: "Apagar agora", exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-confirm-clear-answer");
+  if (await page.evaluate(() => document.activeElement?.id) !== "patient-map-confirm-clear-answer") {
+    throw new Error(`${label}: a confirmação de exclusão não recebeu foco`);
+  }
+  await page.getByRole("button", { name: "Manter resposta", exact: true }).click();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-clear-answer");
   await reviewScreen(page, `${label}-meu-mapa-item`, `${label}-meu-mapa-item.png`);
   await page.getByRole("button", { name: "Ver resumo deste mapa", exact: true }).click();
   await page.getByRole("heading", { name: "Resumo de Meu jeito", exact: true }).waitFor();
@@ -376,17 +387,28 @@ async function review(browserType, label, viewport) {
   await page.getByRole("button", { name: "Compartilhar esta parte: Meu jeito, com Mateus", exact: true }).click();
   await page.getByRole("button", { name: "Atualizar cópia de Meu jeito compartilhada com Mateus", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa-compartilhado`, `${label}-meu-mapa-compartilhado.png`);
+  await page.locator("#patient-map-card-meu-jeito").click();
+  await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Apagar resposta deste item", exact: true }).click();
+  await page.getByRole("button", { name: "Apagar agora", exact: true }).click();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-question-title");
+  const clearedTitleTop = await page.locator("#patient-map-question-title").evaluate(
+    (element) => element.getBoundingClientRect().top,
+  );
+  if (clearedTitleTop < 0 || clearedTitleTop >= (await page.evaluate(() => window.innerHeight))) {
+    throw new Error(`${label}: o foco após apagar ficou fora da área visível`);
+  }
+  await page.getByRole("button", { name: "Voltar ao Meu mapa", exact: true }).click();
+  await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
+  if (await page.getByText("“Meu jeito” foi compartilhado com Mateus.", { exact: true }).count()) {
+    throw new Error(`${label}: um aviso antigo de compartilhamento reapareceu depois da edição`);
+  }
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Retirar o compartilhamento de Meu jeito", exact: true }).click();
   await page.waitForFunction(
-    () => document.activeElement?.id === "patient-map-share-action-meu-jeito",
+    () => document.activeElement?.id === "patient-map-sharing-feedback",
   );
-  await page.getByRole("button", { name: "Explorar esta parte: Interesses", exact: true }).click();
-  await page.locator("#patient-map-question-title").waitFor();
-  await page.getByRole("button", { name: "Voltar ao Meu mapa", exact: true }).click();
-  await page.waitForFunction(
-    () => document.activeElement?.id === "patient-map-share-action-interesses",
-  );
+  await page.getByText(/Quando você responder ou escrever uma observação em uma parte/).waitFor();
 
   await page.getByRole("button", { name: "Recursos", exact: true }).click();
   await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
@@ -416,6 +438,14 @@ async function review(browserType, label, viewport) {
   }
   await page.getByRole("button", { name: "Ver leituras", exact: true }).click();
   await page.getByRole("heading", { name: "Leitura complementar", exact: true }).waitFor();
+  if (await page.locator(".education-card").count() !== 6) {
+    throw new Error(`${label}: a biblioteca não iniciou com dois textos por tema`);
+  }
+  const firstEducationToggle = page.locator(".education-group-toggle").first();
+  await firstEducationToggle.click();
+  if (await page.locator(".education-card").count() <= 6) {
+    throw new Error(`${label}: Mostrar mais não revelou os textos do tema`);
+  }
   await reviewScreen(page, `${label}-leituras`, `${label}-leituras.png`);
 
   await page.goto(`${baseUrl}#recursos`, { waitUntil: "domcontentloaded" });

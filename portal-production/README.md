@@ -86,6 +86,18 @@ público de saúde, ausência de criação de sessão e os cabeçalhos essenciai
 proteção. O comando não faz login, não envia dados, não consulta registros e não
 substitui os testes autenticados em ambiente local sintético.
 
+Com um servidor local já iniciado, as duas revisões visuais podem ser executadas
+com uma origem explicitamente local:
+
+```bash
+PORTAL_VISUAL_BASE_URL=http://localhost:3000/ pnpm test:visual
+PORTAL_VISUAL_BASE_URL=http://localhost:3000/ pnpm test:visual:professional
+```
+
+A primeira cobre visitante e paciente. A segunda intercepta a API somente no
+navegador e monta um painel profissional com dados inteiramente sintéticos para
+verificar responsividade, listas longas, foco e acessibilidade.
+
 ## Configuração local
 
 Crie um arquivo local ignorado pelo Git a partir de `.env.example`. As variáveis são:

@@ -503,6 +503,11 @@ test("education keeps the Guide URL configurable and external sources safe", asy
   assert.match(education, /role="group"[\s\S]*?aria-label="Filtrar leituras por tema"/u);
   assert.match(education, /aria-label=\{`Ler: \$\{article\.title\}`\}/u);
   assert.match(education, /Limpar busca e filtros/);
+  assert.match(education, /collapsedArticlesPerCategory = 2/u);
+  assert.match(education, /expandedCategories/u);
+  assert.match(education, /Mostrar mais \$\{hiddenCount\}/u);
+  assert.match(education, /aria-expanded=\{expanded\}/u);
+  assert.match(education, /Mostramos primeiro dois textos de cada tema/u);
   assert.doesNotMatch(education, /localStorage|sessionStorage/);
 });
 

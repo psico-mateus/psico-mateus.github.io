@@ -201,6 +201,7 @@ function Field({
             type="button"
             aria-controls={inputId}
             aria-pressed={passwordVisible}
+            aria-label={`${passwordVisible ? "Ocultar" : "Mostrar"} ${label.toLocaleLowerCase("pt-BR")}`}
             onClick={() => setPasswordVisible((current) => !current)}
           >
             {passwordVisible ? "Ocultar" : "Mostrar"}

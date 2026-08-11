@@ -131,6 +131,17 @@ export function filterAndSortPatients(
     });
 }
 
+export function latestPatientShareAt(
+  patient: Pick<PatientSummary, "latest_shared_at" | "latest_map_shared_at">,
+): string | null {
+  return [patient.latest_shared_at, patient.latest_map_shared_at]
+    .filter((value): value is string => Boolean(value))
+    .reduce<string | null>((latest, value) => {
+      if (!latest) return value;
+      return new Date(value).getTime() > new Date(latest).getTime() ? value : latest;
+    }, null);
+}
+
 export function filterPatientAccesses(
   patients: PatientAccess[],
   query: string,

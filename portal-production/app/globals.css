@@ -338,7 +338,7 @@ h1,h2,h3{font-family:var(--serif);font-weight:400}
 h1,h2{letter-spacing:-.035em}
 .eyebrow{
   color:var(--green-2);
-  font-size:.72rem;
+  font-size:.75rem;
   font-weight:800;
   letter-spacing:.16em;
   text-transform:uppercase;
@@ -372,7 +372,7 @@ h1,h2{letter-spacing:-.035em}
   font-weight:800;
   line-height:1.25;
 }
-.brand small{font-size:.72rem}
+.brand small{font-size:.75rem}
 .top-links{gap:1.2rem;font-size:.82rem;font-weight:650}
 .top-links a,.link-button{color:#57534d}
 .top-links a:hover,.link-button:hover{
@@ -869,7 +869,7 @@ input[type="range"]{accent-color:#9a6d27}
   background:#ece9e1;
   padding:.12rem .5rem;
   color:#5d5a53;
-  font-size:.64rem;
+  font-size:.75rem;
   font-weight:800;
   letter-spacing:.02em;
 }
@@ -878,7 +878,7 @@ input[type="range"]{accent-color:#9a6d27}
   justify-self:end;
   margin-top:-.1rem;
   color:var(--muted);
-  font-size:.74rem;
+  font-size:.75rem;
   font-weight:650;
 }
 .character-limit.limit-reached{color:var(--danger)}
@@ -901,7 +901,7 @@ input[type="range"]{accent-color:#9a6d27}
   justify-content:space-between;
   gap:1rem;
   color:var(--muted);
-  font-size:.72rem;
+  font-size:.78rem;
   font-weight:500;
 }
 .range-adjustments{
@@ -954,7 +954,7 @@ input[type="range"]{accent-color:#9a6d27}
   background:#f3eadc;
   padding:.2rem .65rem;
   color:#5b421f;
-  font-size:.68rem;
+  font-size:.75rem;
   font-weight:800;
 }
 .optional-save-shortcut{
@@ -1307,6 +1307,21 @@ input[type="range"]{accent-color:#9a6d27}
   list-style:none;
 }
 .patient-account-panel>summary::-webkit-details-marker{display:none}
+.patient-account-panel>summary::after{
+  width:1.8rem;
+  height:1.8rem;
+  display:grid;
+  flex:0 0 auto;
+  place-items:center;
+  border-radius:50%;
+  background:#fffdfa;
+  color:#654b27;
+  font-size:1.15rem;
+  font-weight:700;
+  line-height:1;
+  content:"+";
+}
+.patient-account-panel[open]>summary::after{content:"−"}
 .patient-account-panel>summary span{font-weight:750}
 .patient-account-panel>summary small{color:var(--muted);font-weight:500}
 .patient-account-panel>div{margin:0;padding:0 1.2rem 1.2rem}
@@ -1633,7 +1648,7 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .install-device-grid section>span{
   color:#8a6429;
-  font-size:.68rem;
+  font-size:.75rem;
   font-weight:800;
   letter-spacing:.1em;
   text-transform:uppercase;
@@ -1891,6 +1906,16 @@ input[type="range"]{accent-color:#9a6d27}
   font-size:.86rem;
 }
 .education-filter-reset-row{margin-top:-1rem}
+.education-progressive-note{
+  width:fit-content;
+  max-width:720px;
+  margin:-.35rem 0 1.35rem;
+  border-left:3px solid var(--gold);
+  padding:.25rem 0 .25rem .85rem;
+  color:var(--muted);
+  font-size:.86rem;
+  line-height:1.55;
+}
 .education-groups{
   display:grid;
   gap:2.2rem;
@@ -1956,14 +1981,14 @@ input[type="range"]{accent-color:#9a6d27}
   gap:1rem;
   margin-bottom:.7rem;
   color:#765721;
-  font-size:.73rem;
+  font-size:.78rem;
   font-weight:800;
   letter-spacing:.025em;
 }
 .education-card-meta small{
   flex:0 0 auto;
   color:var(--muted);
-  font-size:.73rem;
+  font-size:.78rem;
   font-weight:600;
   letter-spacing:0;
 }
@@ -1987,6 +2012,10 @@ input[type="range"]{accent-color:#9a6d27}
   align-items:center;
   justify-content:space-between;
   gap:.6rem;
+}
+.education-group-toggle{
+  width:fit-content;
+  margin-top:.9rem;
 }
 .education-empty-state{background:#fbf5ed}
 
@@ -2190,6 +2219,7 @@ input[type="range"]{accent-color:#9a6d27}
     align-items:center;
   }
   .education-card-list{grid-template-columns:1fr}
+  .education-group-toggle{width:100%}
   .education-record-cta{grid-template-columns:1fr}
   .education-record-cta .primary-button{width:100%;white-space:normal}
 }
@@ -2327,7 +2357,7 @@ input[type="range"]{accent-color:#9a6d27}
   border-radius:50%;
   background:#e6eee8;
   color:#265343;
-  font-size:.74rem;
+  font-size:.75rem;
   font-weight:850;
 }
 .patient-how-to-steps p{margin:0}
@@ -2438,6 +2468,12 @@ input[type="range"]{accent-color:#9a6d27}
   }
 }
 
+@media(max-width:360px){
+  .top-links{gap:.3rem .25rem;font-size:.78rem}
+  .top-links a{padding-right:0;padding-left:0;white-space:nowrap}
+  .top-links .install-app-button{padding-right:.55rem;padding-left:.55rem}
+}
+
 /* Nova organização da Área do paciente. Estes shells não persistem dados. */
 .patient-start{
   margin:0 0 1.2rem;
@@ -2482,7 +2518,7 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-start-kicker{
   grid-column:1;
   color:#6a5b48;
-  font-size:.66rem;
+  font-size:.75rem;
   font-weight:850;
   letter-spacing:.08em;
 }
@@ -2551,7 +2587,7 @@ input[type="range"]{accent-color:#9a6d27}
   background:#f0dfc5;
   padding:.35rem .65rem;
   color:#5c401a;
-  font-size:.72rem;
+  font-size:.75rem;
   font-weight:800;
   white-space:nowrap;
 }
@@ -2583,7 +2619,7 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-map-save-status.conflict .patient-map-save-dot{background:#8c6528}
 .patient-map-save-status>div:not(.patient-map-conflict-actions){display:grid;gap:.08rem}
 .patient-map-save-status strong{font-size:.82rem}
-.patient-map-save-status small{color:var(--muted);font-size:.74rem}
+.patient-map-save-status small{color:var(--muted);font-size:.75rem}
 .patient-map-save-status>.quiet-button{min-height:44px;white-space:nowrap}
 .patient-map-conflict-actions{display:flex;align-items:center;gap:.45rem}
 .patient-map-conflict-actions button{min-height:44px;font-size:.76rem;white-space:nowrap}
@@ -2720,7 +2756,7 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-map-sharing-heading{display:flex;align-items:start;justify-content:space-between;gap:1rem}
 .patient-map-sharing-heading h2{margin:0 0 .35rem;font-size:1.45rem}
 .patient-map-sharing-heading p:not(.eyebrow){max-width:660px;margin:0;color:#4e594f;font-size:.84rem;line-height:1.55}
-.patient-map-sharing-heading>span{flex:none;border-radius:999px;background:#dce6dc;padding:.38rem .65rem;color:#315c4b;font-size:.74rem;font-weight:800}
+.patient-map-sharing-heading>span{flex:none;border-radius:999px;background:#dce6dc;padding:.38rem .65rem;color:#315c4b;font-size:.75rem;font-weight:800}
 .patient-map-sharing ul{display:grid;gap:.55rem;margin:1rem 0 0;padding:0;list-style:none}
 .patient-map-sharing li{
   display:grid;
@@ -2741,13 +2777,35 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-map-sharing-actions button{min-width:0;min-height:44px;white-space:normal}
 .patient-map-sharing-actions .quiet-button{min-height:44px}
 .patient-map-sharing-loading,.patient-map-sharing-note{margin:.8rem 0 0;color:#566057;font-size:.78rem;line-height:1.55}
+.patient-map-sharing-feedback{
+  margin:.85rem 0 0;
+  border-radius:12px;
+  padding:.72rem .85rem;
+  font-size:.84rem;
+  font-weight:700;
+  line-height:1.5;
+}
+.patient-map-sharing-feedback.success{background:#e7efe8;color:#295443}
+.patient-map-sharing-feedback.error{border:1px solid rgba(155,61,53,.22);background:#fbefec;color:#70423c}
+.patient-map-sharing-feedback:focus{outline:3px solid rgba(121,90,35,.38);outline-offset:3px}
+.patient-map-sharing-empty{
+  margin:1rem 0 0;
+  border:1px dashed rgba(65,91,69,.24);
+  border-radius:14px;
+  background:rgba(255,253,250,.5);
+  padding:1rem;
+  color:#566057;
+  font-size:.84rem;
+  line-height:1.55;
+}
 .patient-map-sharing-error{display:grid;justify-items:start;gap:.45rem;margin-top:1rem;border:1px solid rgba(155,61,53,.28);border-radius:14px;background:#fbefec;padding:1rem}
 .patient-map-sharing-error strong{font-size:.9rem}
 .patient-map-sharing-error p{max-width:680px;margin:0;color:#65443f;font-size:.82rem;line-height:1.55}
 .patient-map-sharing-error .secondary-button{margin-top:.25rem}
 .patient-map-sharing-note{border-top:1px solid rgba(65,91,69,.13);padding-top:.8rem}
 .professional-map-shares,.professional-entry-shares{margin-top:1.4rem}
-.professional-map-shares .subsection-heading p{margin:.2rem 0 0;color:var(--muted);font-size:.78rem}
+.professional-map-shares .subsection-heading p,
+.professional-entry-shares .subsection-heading p{margin:.2rem 0 0;color:var(--muted);font-size:.78rem}
 .professional-map-list{display:grid;gap:.85rem;margin-top:1rem}
 .professional-map-disclosure{min-width:0;border:1px solid rgba(65,91,69,.22);border-radius:18px;background:#f8faf7;overflow:hidden}
 .professional-map-disclosure.is-unread{border-color:rgba(185,144,69,.65);box-shadow:inset 3px 0 0 var(--gold)}
@@ -2762,7 +2820,7 @@ input[type="range"]{accent-color:#9a6d27}
 .professional-map-description{margin:0 0 1rem;color:var(--muted);font-size:.84rem;line-height:1.55}
 .professional-map-answer-list{display:grid;gap:.65rem}
 .professional-map-answer-list article{border:1px solid rgba(36,36,35,.11);border-radius:13px;background:#fffdfa;padding:.85rem .95rem}
-.professional-map-answer-list span{color:#6b6258;font-size:.7rem;font-weight:800;text-transform:uppercase}
+.professional-map-answer-list span{color:#6b6258;font-size:.75rem;font-weight:800;text-transform:uppercase}
 .professional-map-answer-list h4{margin:.18rem 0 .45rem;font:500 1.12rem/1.25 var(--serif)}
 .professional-map-answer-list strong{display:inline-block;border-radius:999px;background:#efe2d1;padding:.25rem .55rem;color:#5c401a;font-size:.75rem}
 .professional-map-answer-list p{margin:.6rem 0 0;color:#413d37;font-size:.84rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -2800,7 +2858,7 @@ input[type="range"]{accent-color:#9a6d27}
   background:#efe2d1;
   padding:.4rem .7rem;
   color:#65491f;
-  font-size:.72rem;
+  font-size:.75rem;
   font-weight:850;
   white-space:nowrap;
 }
@@ -2934,6 +2992,22 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-map-note textarea{width:100%;resize:vertical}
 .patient-map-note label>small{justify-self:end;color:var(--muted);font-size:.75rem}
 .patient-map-clear-answer{min-height:44px;margin-top:.65rem}
+.patient-map-clear-confirmation{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  margin-top:.75rem;
+  border:1px solid rgba(155,61,53,.22);
+  border-radius:14px;
+  background:#fbefec;
+  padding:.9rem;
+}
+.patient-map-clear-confirmation p{display:grid;gap:.18rem;margin:0;color:#65443f;font-size:.84rem;line-height:1.5}
+.patient-map-clear-confirmation p strong{color:#733832}
+.patient-map-clear-confirmation p span{font-size:.8rem}
+.patient-map-clear-confirmation>div{display:flex;align-items:center;justify-content:flex-end;gap:.45rem;flex-wrap:wrap}
+.patient-map-clear-confirmation button{min-height:44px}
 .patient-map-item-navigation{
   display:grid;
   grid-template-columns:auto minmax(0,1fr) auto;
@@ -3079,7 +3153,7 @@ input[type="range"]{accent-color:#9a6d27}
   background:#eee5d8;
   padding:.32rem .58rem;
   color:#665846;
-  font-size:.72rem;
+  font-size:.75rem;
   font-weight:800;
 }
 .patient-tool-card h3{margin:0 0 .5rem;font-family:var(--serif);font-size:1.4rem;font-weight:500}
@@ -3108,7 +3182,7 @@ input[type="range"]{accent-color:#9a6d27}
   background:#f8f4ee;
   padding:1rem;
 }
-.patient-tool-meta dt{margin-bottom:.28rem;color:#6d5a3d;font-size:.72rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}
+.patient-tool-meta dt{margin-bottom:.28rem;color:#6d5a3d;font-size:.75rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}
 .patient-tool-meta dd{margin:0;color:#47423c;font-size:.9rem;line-height:1.55}
 .patient-tool-section{
   margin-top:.8rem;
@@ -3253,6 +3327,13 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-map-question-card>header>span,.patient-tool-card-meta span,
   .patient-tool-meta dt,.patient-tool-steps li:before{font-size:.75rem}
   .patient-map-sharing li{padding:.9rem}
+  .patient-map-clear-confirmation{align-items:stretch;flex-direction:column}
+  .patient-map-clear-confirmation>div{display:grid;grid-template-columns:1fr}
+  .patient-map-clear-confirmation button{width:100%}
+  .patient-account-panel>summary{grid-template-columns:minmax(0,1fr) auto}
+  .patient-account-panel>summary span{grid-column:1;grid-row:1}
+  .patient-account-panel>summary small{grid-column:1;grid-row:2}
+  .patient-account-panel>summary::after{grid-column:2;grid-row:1/3;align-self:center}
 }
 
 @media(prefers-contrast:more){
@@ -3265,7 +3346,8 @@ input[type="range"]{accent-color:#9a6d27}
 @media(forced-colors:active){
   :where(a,button,input,textarea,select,summary):focus-visible{outline:3px solid Highlight}
   .patient-navigation button.active,.patient-start-card.primary,
-  .patient-map-response-options label.selected,.patient-tools-filters button.active{
+  .patient-map-response-options label.selected,.patient-tools-filters button.active,
+  .professional-navigation button.active,.entry-view-toolbar button.active{
     border:2px solid Highlight;
     forced-color-adjust:auto;
   }

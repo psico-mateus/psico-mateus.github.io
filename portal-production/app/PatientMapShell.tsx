@@ -167,7 +167,9 @@ export function PatientMapShell({
   const [sharesLoadError, setSharesLoadError] = useState("");
   const [sharingMapId, setSharingMapId] = useState<string | null>(null);
   const [sharingMessage, setSharingMessage] = useState("");
+  const [sharingMessageTone, setSharingMessageTone] = useState<"success" | "error">("success");
   const [noteOpenByItem, setNoteOpenByItem] = useState<Record<string, boolean>>({});
+  const [confirmingClearItemId, setConfirmingClearItemId] = useState<string | null>(null);
   const mapTriggerElementIdRef = useRef<string | null>(null);
   const sharesRequestIdRef = useRef(0);
   const sharingActionFocusMapIdRef = useRef<string | null>(null);
@@ -184,6 +186,9 @@ export function PatientMapShell({
     (total, map) => total + exploredCountForMap(map, draft),
     0,
   );
+  const shareableMaps = PATIENT_MAP_CATALOG.maps.filter(
+    (map) => Boolean(shares[map.id]) || exploredCountForMap(map, draft) > 0,
+  );
 
   const loadMapShares = useCallback(async () => {
     const requestId = sharesRequestIdRef.current + 1;
@@ -197,6 +202,7 @@ export function PatientMapShell({
         Object.fromEntries(result.shares.map((share) => [share.map_id, share])),
       );
       setSharingMessage("");
+      setSharingMessageTone("success");
     } catch (error: unknown) {
       if (sharesRequestIdRef.current !== requestId) return;
       setSharesLoadError(
@@ -220,17 +226,22 @@ export function PatientMapShell({
   useEffect(() => {
     const mapId = sharingActionFocusMapIdRef.current;
     if (!mapId) return;
+    sharingActionFocusMapIdRef.current = null;
     const target = document.getElementById(`patient-map-share-action-${mapId}`);
     if (target?.isConnected) {
       target.focus({ preventScroll: true });
-      sharingActionFocusMapIdRef.current = null;
+      return;
     }
+    const fallback = document.getElementById("patient-map-sharing-feedback");
+    fallback?.scrollIntoView({ block: "center", behavior: "auto" });
+    fallback?.focus({ preventScroll: true });
   }, [shares]);
 
   async function changeMapSharing(map: PatientMapDefinition, shared: boolean) {
     if (sharingMapId) return;
     if (shared && exploredCountForMap(map, draft) === 0) {
       setSharingMessage("Explore ao menos um item desta parte antes de compartilhar.");
+      setSharingMessageTone("error");
       return;
     }
     const confirmed = window.confirm(
@@ -241,9 +252,11 @@ export function PatientMapShell({
     if (!confirmed) return;
     setSharingMapId(map.id);
     setSharingMessage("");
+    setSharingMessageTone("success");
     try {
       if (shared && !(await onSaveAndExit())) {
         setSharingMessage("Espere o salvamento terminar antes de compartilhar.");
+        setSharingMessageTone("error");
         return;
       }
       const result = await portalRequest<{ share?: PatientMapShareStatus }>(
@@ -262,12 +275,14 @@ export function PatientMapShell({
         ? `“${map.navigationTitle}” foi compartilhado com Mateus.`
         : `O compartilhamento de “${map.navigationTitle}” foi retirado.`;
       setSharingMessage(message);
+      setSharingMessageTone("success");
     } catch (error) {
       setSharingMessage(
         error instanceof Error
           ? error.message
           : "Não foi possível atualizar o compartilhamento.",
       );
+      setSharingMessageTone("error");
     } finally {
       setSharingMapId(null);
     }
@@ -313,6 +328,10 @@ export function PatientMapShell({
       map.sections[nextSectionIndex].items.length - 1,
     );
     mapTriggerElementIdRef.current = triggerElementId;
+    setAnnouncement("");
+    setSharingMessage("");
+    setSharingMessageTone("success");
+    setConfirmingClearItemId(null);
     setActiveMapId(mapId);
     setSectionIndex(nextSectionIndex);
     setItemIndex(nextItemIndex);
@@ -332,6 +351,8 @@ export function PatientMapShell({
   }
 
   function returnToOverview() {
+    setAnnouncement("");
+    setConfirmingClearItemId(null);
     rememberPosition(sectionIndex, itemIndex);
     restoreOverviewTriggerRef.current = true;
     setView("overview");
@@ -398,11 +419,19 @@ export function PatientMapShell({
       contentVersion: PATIENT_MAP_CONTENT_VERSION,
       answers: nextAnswers,
     });
+    setConfirmingClearItemId(null);
     setAnnouncement("A resposta e a observação deste item foram apagadas.");
+    window.requestAnimationFrame(() => {
+      const title = document.getElementById("patient-map-question-title");
+      title?.scrollIntoView({ block: "center", behavior: "auto" });
+      title?.focus({ preventScroll: true });
+    });
   }
 
   function moveToPreviousItem() {
     if (!activeMap) return;
+    setAnnouncement("");
+    setConfirmingClearItemId(null);
     if (itemIndex > 0) {
       const nextItemIndex = itemIndex - 1;
       rememberPosition(sectionIndex, nextItemIndex);
@@ -420,6 +449,8 @@ export function PatientMapShell({
 
   function moveToNextItem() {
     if (!activeMap || !activeSection) return;
+    setAnnouncement("");
+    setConfirmingClearItemId(null);
     if (itemIndex < activeSection.items.length - 1) {
       const nextItemIndex = itemIndex + 1;
       rememberPosition(sectionIndex, nextItemIndex);
@@ -582,9 +613,18 @@ export function PatientMapShell({
                   : `${Object.keys(shares).length} de ${PATIENT_MAP_CATALOG.maps.length} compartilhadas`}
             </span>
           </div>
-          <p className="sr-status" role="status" aria-live="polite">
-            {sharingMessage}
-          </p>
+          {sharingMessage ? (
+            <p
+              id="patient-map-sharing-feedback"
+              className={`patient-map-sharing-feedback ${sharingMessageTone}`}
+              role={sharingMessageTone === "error" ? "alert" : "status"}
+              aria-live="polite"
+              tabIndex={-1}
+            >
+              {sharingMessage}
+              {sharingMessageTone === "error" ? " Nenhum compartilhamento foi alterado." : ""}
+            </p>
+          ) : null}
           {sharesLoading ? (
             <p className="patient-map-sharing-loading" role="status">
               Consultando compartilhamentos…
@@ -604,9 +644,14 @@ export function PatientMapShell({
                 Tentar consultar novamente
               </button>
             </div>
+          ) : shareableMaps.length === 0 ? (
+            <p className="patient-map-sharing-empty">
+              Quando você responder ou escrever uma observação em uma parte, ela
+              aparecerá aqui com a opção de compartilhar.
+            </p>
           ) : (
             <ul>
-              {PATIENT_MAP_CATALOG.maps.map((map) => {
+              {shareableMaps.map((map) => {
                 const share = shares[map.id];
                 const viewed = Boolean(
                   share?.viewed_at && share.viewed_at >= share.shared_at,
@@ -659,20 +704,7 @@ export function PatientMapShell({
                           </button>
                         </>
                       ) : (
-                        explored === 0 ? (
-                          <button
-                            id={`patient-map-share-action-${map.id}`}
-                            className="secondary-button"
-                            type="button"
-                            disabled={Boolean(sharingMapId)}
-                            aria-label={`Explorar esta parte: ${map.navigationTitle}`}
-                            onClick={() =>
-                              openMap(map.id, `patient-map-share-action-${map.id}`)
-                            }
-                          >
-                            Explorar esta parte
-                          </button>
-                        ) : (
+                        explored > 0 ? (
                           <button
                             id={`patient-map-share-action-${map.id}`}
                             className="share-button"
@@ -689,7 +721,7 @@ export function PatientMapShell({
                               ? "Compartilhando…"
                               : "Compartilhar esta parte"}
                           </button>
-                        )
+                        ) : null
                       )}
                     </div>
                   </li>
@@ -774,7 +806,14 @@ export function PatientMapShell({
 
     return (
       <section className="patient-module patient-map-summary" aria-labelledby="patient-map-summary-title">
-        <button className="back-button" type="button" onClick={() => setView("item")}>
+        <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </p>
+        <button className="back-button" type="button" onClick={() => {
+          setAnnouncement("");
+          setConfirmingClearItemId(null);
+          setView("item");
+        }}>
           <span aria-hidden="true">←</span> Voltar ao último item
         </button>
         <header className="patient-module-header">
@@ -832,6 +871,8 @@ export function PatientMapShell({
                     aria-label={`Abrir ${section.title.toLocaleLowerCase("pt-BR")}`}
                     onClick={() => {
                       rememberPosition(index, 0);
+                      setAnnouncement("");
+                      setConfirmingClearItemId(null);
                       setSectionIndex(index);
                       setItemIndex(0);
                       setView("item");
@@ -858,7 +899,11 @@ export function PatientMapShell({
           <button className="secondary-button" type="button" onClick={returnToOverview}>
             Escolher outro mapa
           </button>
-          <button className="primary-button" type="button" onClick={() => setView("item")}>
+          <button className="primary-button" type="button" onClick={() => {
+            setAnnouncement("");
+            setConfirmingClearItemId(null);
+            setView("item");
+          }}>
             Continuar neste mapa ({mapExplored} {mapExplored === 1 ? "item explorado" : "itens explorados"})
           </button>
         </div>
@@ -874,9 +919,17 @@ export function PatientMapShell({
     itemIndex === activeSection.items.length - 1;
   const mapExplored = exploredCountForMap(activeMap, draft);
   const noteOpen = noteOpenByItem[activeItem.id] ?? Boolean(currentAnswer?.note);
+  const clearCurrentLabel = currentAnswer?.response && currentAnswer.note
+    ? "Apagar resposta e observação deste item"
+    : currentAnswer?.note
+      ? "Apagar observação deste item"
+      : "Apagar resposta deste item";
 
   return (
     <section className="patient-module patient-map-workspace" aria-labelledby="patient-map-question-title">
+      <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
       <button className="back-button" type="button" onClick={returnToOverview}>
         <span aria-hidden="true">←</span> Voltar ao Meu mapa
       </button>
@@ -900,7 +953,11 @@ export function PatientMapShell({
 
       <div className="patient-map-mode-guidance">
         <p>{activeMap.modeGuidance.replace(/MODO RÁPIDO\s*•\s*/u, "").replace(/\s*MODO COMPLETO\s*•\s*/u, " ")}</p>
-        <button className="quiet-button" type="button" onClick={() => setView("summary")}>
+        <button className="quiet-button" type="button" onClick={() => {
+          setAnnouncement("");
+          setConfirmingClearItemId(null);
+          setView("summary");
+        }}>
           Ver resumo deste mapa
         </button>
       </div>
@@ -933,6 +990,8 @@ export function PatientMapShell({
               aria-current={sectionIndex === index ? "step" : undefined}
               onClick={() => {
                 rememberPosition(index, 0);
+                setAnnouncement("");
+                setConfirmingClearItemId(null);
                 setSectionIndex(index);
                 setItemIndex(0);
               }}
@@ -1000,13 +1059,59 @@ export function PatientMapShell({
         </details>
 
         {currentAnswer?.response || currentAnswer?.note ? (
-          <button className="danger-link patient-map-clear-answer" type="button" onClick={clearCurrentAnswer}>
-            {currentAnswer.response && currentAnswer.note
-              ? "Apagar resposta e observação deste item"
-              : currentAnswer.note
-                ? "Apagar observação deste item"
-                : "Apagar resposta deste item"}
-          </button>
+          confirmingClearItemId === activeItem.id ? (
+            <div className="patient-map-clear-confirmation" role="group" aria-label="Confirmar exclusão deste item">
+              <p>
+                <strong>{clearCurrentLabel}?</strong>
+                <span>
+                  A exclusão será salva automaticamente e, depois disso, não
+                  poderá ser desfeita.
+                </span>
+              </p>
+              <div>
+                <button
+                  id="patient-map-confirm-clear-answer"
+                  className="danger-button"
+                  type="button"
+                  onClick={clearCurrentAnswer}
+                >
+                  Apagar agora
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    setConfirmingClearItemId(null);
+                    setAnnouncement("Exclusão cancelada. Sua resposta continua salva.");
+                    window.requestAnimationFrame(() => {
+                      window.requestAnimationFrame(() => {
+                        document.getElementById("patient-map-clear-answer")?.focus({ preventScroll: true });
+                      });
+                    });
+                  }}
+                >
+                  Manter resposta
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              id="patient-map-clear-answer"
+              className="danger-link patient-map-clear-answer"
+              type="button"
+              onClick={() => {
+                setConfirmingClearItemId(activeItem.id);
+                setAnnouncement(`Confirme se deseja ${clearCurrentLabel.toLocaleLowerCase("pt-BR")}.`);
+                window.requestAnimationFrame(() => {
+                  window.requestAnimationFrame(() => {
+                    document.getElementById("patient-map-confirm-clear-answer")?.focus({ preventScroll: true });
+                  });
+                });
+              }}
+            >
+              {clearCurrentLabel}
+            </button>
+          )
         ) : null}
       </article>
 
