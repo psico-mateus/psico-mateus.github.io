@@ -127,6 +127,7 @@ function trackRuntimeErrors(page, label) {
 
 async function routePortal(page, sessionRole = "patient") {
   let mapGeneration = 1;
+  let mapSharingReadsEnabled = false;
   const mapFields = new Map();
   const mapShares = new Map();
   await page.route("**/api/portal/**", async (route) => {
@@ -223,6 +224,13 @@ async function routePortal(page, sessionRole = "patient") {
       }
     }
     if (path === "/map-sharing" && route.request().method() === "GET") {
+      if (!mapSharingReadsEnabled) {
+        await route.fulfill({
+          contentType: "application/json",
+          body: "{resposta-incompleta",
+        });
+        return;
+      }
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ shares: Array.from(mapShares.values()) }),
@@ -254,6 +262,11 @@ async function routePortal(page, sessionRole = "patient") {
     }
     await route.fulfill({ status: 204, body: "" });
   });
+  return {
+    enableMapSharingReads() {
+      mapSharingReadsEnabled = true;
+    },
+  };
 }
 
 async function reviewGuest(browserType, label, viewport) {
@@ -300,9 +313,13 @@ async function review(browserType, label, viewport) {
   });
   const page = await context.newPage();
   const assertNoRuntimeErrors = trackRuntimeErrors(page, label);
-  await routePortal(page);
+  const portalRoute = await routePortal(page);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Olá, Paciente." }).waitFor();
+  await page.waitForFunction(() => {
+    const button = document.querySelector(".patient-overview-refresh");
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
   await reviewScreen(page, `${label}-inicio`, `${label}-inicio.png`);
 
   await page.getByRole("button", { name: /Registrar algo/ }).click();
@@ -327,6 +344,18 @@ async function review(browserType, label, viewport) {
 
   await page.getByRole("button", { name: "Meu mapa", exact: true }).click();
   await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
+  await page.getByRole("alert").getByText("Não foi possível confirmar o que está compartilhado.", { exact: true }).waitFor();
+  if (await page.locator('[id^="patient-map-share-action-"]').count()) {
+    throw new Error(`${label}: ações de compartilhamento ficaram disponíveis sem confirmar o estado`);
+  }
+  await reviewScreen(
+    page,
+    `${label}-meu-mapa-erro-compartilhamento`,
+    `${label}-meu-mapa-erro-compartilhamento.png`,
+  );
+  portalRoute.enableMapSharingReads();
+  await page.getByRole("button", { name: "Tentar consultar novamente", exact: true }).click();
+  await page.getByRole("button", { name: "Explorar esta parte: Meu jeito", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa`, `${label}-meu-mapa.png`);
   await page.locator("#patient-map-card-meu-jeito").click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
@@ -344,9 +373,20 @@ async function review(browserType, label, viewport) {
     throw new Error(`${label}: o foco não voltou ao cartão do mapa (${returnedMapFocus ?? "sem foco"})`);
   }
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Compartilhar esta parte", exact: true }).first().click();
-  await page.getByRole("button", { name: "Atualizar cópia", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Compartilhar esta parte: Meu jeito, com Mateus", exact: true }).click();
+  await page.getByRole("button", { name: "Atualizar cópia de Meu jeito compartilhada com Mateus", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa-compartilhado`, `${label}-meu-mapa-compartilhado.png`);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Retirar o compartilhamento de Meu jeito", exact: true }).click();
+  await page.waitForFunction(
+    () => document.activeElement?.id === "patient-map-share-action-meu-jeito",
+  );
+  await page.getByRole("button", { name: "Explorar esta parte: Interesses", exact: true }).click();
+  await page.locator("#patient-map-question-title").waitFor();
+  await page.getByRole("button", { name: "Voltar ao Meu mapa", exact: true }).click();
+  await page.waitForFunction(
+    () => document.activeElement?.id === "patient-map-share-action-interesses",
+  );
 
   await page.getByRole("button", { name: "Recursos", exact: true }).click();
   await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
@@ -396,6 +436,12 @@ async function review(browserType, label, viewport) {
   }
   await page.goBack({ waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Leitura complementar", exact: true }).waitFor();
+  if (firstArticleLabel) {
+    await page.waitForFunction(
+      (expectedLabel) => document.activeElement?.getAttribute("aria-label") === expectedLabel,
+      firstArticleLabel,
+    );
+  }
   if (
     firstArticleLabel &&
     (await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) !== firstArticleLabel

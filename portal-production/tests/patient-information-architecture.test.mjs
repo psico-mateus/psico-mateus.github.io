@@ -35,7 +35,7 @@ test("home separates the four patient uses without adding progress pressure", ()
   for (const phrase of [
     "O que pode ajudar você agora?",
     "Registrar algo",
-    "Voltar aos meus registros",
+    "Ver meus registros",
     "Abrir Meu mapa",
     "Ver recursos",
     "Nada é compartilhado automaticamente",
@@ -69,6 +69,17 @@ test("map is private by default with explicit sharing while tools remain ephemer
   assert.match(map, /Compartilhar uma parte com Mateus/u);
   assert.match(map, /A síntese geral e as outras partes continuarão privadas/u);
   assert.match(map, /Atualizar cópia/u);
+  assert.match(map, /Explorar esta parte/u);
+  assert.match(map, /Não foi possível confirmar o que está compartilhado/u);
+  assert.match(map, /Tentar consultar novamente/u);
+  assert.match(map, /sharesLoading \? \([\s\S]*?: sharesLoadError \? \(/u);
+  assert.match(map, /aria-label=\{`Explorar esta parte: \$\{map\.navigationTitle\}`\}/u);
+  assert.match(map, /`Compartilhar esta parte: \$\{map\.navigationTitle\}, com Mateus`/u);
+  assert.match(map, /`Compartilhando… esta parte: \$\{map\.navigationTitle\}, com Mateus`/u);
+  assert.match(map, /`Atualizar cópia de \$\{map\.navigationTitle\} compartilhada com Mateus`/u);
+  assert.match(map, /`Atualizando… cópia de \$\{map\.navigationTitle\} compartilhada com Mateus`/u);
+  assert.match(map, /aria-label=\{`Retirar o compartilhamento de \$\{map\.navigationTitle\}`\}/u);
+  assert.match(map, /patient-map-share-action-\$\{map\.id\}/u);
   assert.match(map, />\s*Retirar\s*</u);
   assert.match(map, /Isso não é acompanhamento em tempo real/u);
   assert.match(map, /Não é\s+nota, resultado ou interpretação/u);

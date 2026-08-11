@@ -1124,6 +1124,18 @@ test("mobile layout keeps the portal within the viewport", async () => {
   );
 });
 
+test("patient UI adapts to motion, contrast and mobile text preferences", async () => {
+  const styles = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(styles, /@media\(prefers-reduced-motion:reduce\)[\s\S]*?transition-duration:\.01ms!important/u);
+  assert.match(styles, /@media\(prefers-contrast:more\)/u);
+  assert.match(styles, /@media\(forced-colors:active\)/u);
+  assert.match(styles, /@media\(max-width:560px\)[\s\S]*?input,textarea,select\{font-size:1rem\}/u);
+});
+
 test("mobile access shortcut and patient summary remain simple and private", async () => {
   const [app, styles, visualReview] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),

@@ -2721,16 +2721,30 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-map-sharing-heading h2{margin:0 0 .35rem;font-size:1.45rem}
 .patient-map-sharing-heading p:not(.eyebrow){max-width:660px;margin:0;color:#4e594f;font-size:.84rem;line-height:1.55}
 .patient-map-sharing-heading>span{flex:none;border-radius:999px;background:#dce6dc;padding:.38rem .65rem;color:#315c4b;font-size:.74rem;font-weight:800}
-.patient-map-sharing ul{display:grid;gap:.45rem;margin:1rem 0 0;padding:0;list-style:none}
-.patient-map-sharing li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:1rem;border-top:1px solid rgba(65,91,69,.13);padding:.72rem 0}
-.patient-map-sharing li:first-child{border-top:0}
+.patient-map-sharing ul{display:grid;gap:.55rem;margin:1rem 0 0;padding:0;list-style:none}
+.patient-map-sharing li{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:1rem;
+  border:1px solid rgba(65,91,69,.14);
+  border-radius:14px;
+  background:rgba(255,253,250,.5);
+  padding:.8rem .85rem;
+}
+.patient-map-sharing li.is-ready{border-color:rgba(121,90,35,.24);background:#faf5ed}
+.patient-map-sharing li.is-shared{border-color:rgba(65,91,69,.28);background:#f8fbf7;box-shadow:inset 3px 0 0 #75917a}
 .patient-map-sharing li>div{display:grid;gap:.16rem}
 .patient-map-sharing li strong{font-size:.88rem}
 .patient-map-sharing li span{color:#566057;font-size:.76rem;line-height:1.45}
 .patient-map-sharing-actions{display:flex;align-items:center;justify-content:flex-end;gap:.45rem;flex-wrap:wrap}
-.patient-map-sharing-actions button{min-width:0;white-space:normal}
+.patient-map-sharing-actions button{min-width:0;min-height:44px;white-space:normal}
 .patient-map-sharing-actions .quiet-button{min-height:44px}
 .patient-map-sharing-loading,.patient-map-sharing-note{margin:.8rem 0 0;color:#566057;font-size:.78rem;line-height:1.55}
+.patient-map-sharing-error{display:grid;justify-items:start;gap:.45rem;margin-top:1rem;border:1px solid rgba(155,61,53,.28);border-radius:14px;background:#fbefec;padding:1rem}
+.patient-map-sharing-error strong{font-size:.9rem}
+.patient-map-sharing-error p{max-width:680px;margin:0;color:#65443f;font-size:.82rem;line-height:1.55}
+.patient-map-sharing-error .secondary-button{margin-top:.25rem}
 .patient-map-sharing-note{border-top:1px solid rgba(65,91,69,.13);padding-top:.8rem}
 .professional-map-shares,.professional-entry-shares{margin-top:1.4rem}
 .professional-map-shares .subsection-heading p{margin:.2rem 0 0;color:var(--muted);font-size:.78rem}
@@ -3187,6 +3201,7 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-map-sharing li{grid-template-columns:1fr}
   .patient-map-sharing-actions{display:grid;grid-template-columns:1fr}
   .patient-map-sharing-actions button{width:100%;min-width:0}
+  .patient-map-sharing-error .secondary-button{width:100%;white-space:normal}
   .professional-map-disclosure>summary{align-items:flex-start;flex-wrap:wrap;gap:.8rem;padding:1rem}
   .professional-map-content{padding:1rem}
 }
@@ -3222,10 +3237,38 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
   .patient-start-card{transition:none}
   .patient-start-card:hover{transform:none}
   .patient-map-area-card{transition:none}
   .patient-map-area-card:hover{transform:none}
   .patient-tools-filters button{transition:none}
   .patient-map-save-status.saving .patient-map-save-dot{animation:none}
+}
+
+/* Adaptações para leitura, zoom e preferências do sistema. */
+@media(max-width:560px){
+  input,textarea,select{font-size:1rem}
+  .patient-start-kicker,.patient-preview-label,.patient-map-workspace-header>span,
+  .patient-map-question-card>header>span,.patient-tool-card-meta span,
+  .patient-tool-meta dt,.patient-tool-steps li:before{font-size:.75rem}
+  .patient-map-sharing li{padding:.9rem}
+}
+
+@media(prefers-contrast:more){
+  :root{--muted:#45413c;--line:rgba(36,36,35,.38);--shadow:none}
+  .patient-navigation,.patient-start-card,.patient-map-area-card,.patient-map-sharing li,
+  .patient-map-question-card,.patient-resource-card,.patient-tool-card{border-width:2px}
+  .patient-navigation button.active{outline:2px solid currentColor;outline-offset:-4px}
+}
+
+@media(forced-colors:active){
+  :where(a,button,input,textarea,select,summary):focus-visible{outline:3px solid Highlight}
+  .patient-navigation button.active,.patient-start-card.primary,
+  .patient-map-response-options label.selected,.patient-tools-filters button.active{
+    border:2px solid Highlight;
+    forced-color-adjust:auto;
+  }
+  .patient-privacy-chip>span,.patient-module-privacy>span,
+  .patient-map-save-dot{border:1px solid ButtonText}
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PATIENT_MAP_CATALOG,
   PATIENT_MAP_CONTENT_VERSION,
@@ -164,10 +164,13 @@ export function PatientMapShell({
   const [announcement, setAnnouncement] = useState("");
   const [shares, setShares] = useState<Record<string, PatientMapShareStatus>>({});
   const [sharesLoading, setSharesLoading] = useState(true);
+  const [sharesLoadError, setSharesLoadError] = useState("");
   const [sharingMapId, setSharingMapId] = useState<string | null>(null);
   const [sharingMessage, setSharingMessage] = useState("");
   const [noteOpenByItem, setNoteOpenByItem] = useState<Record<string, boolean>>({});
-  const mapTriggerIdRef = useRef<string | null>(null);
+  const mapTriggerElementIdRef = useRef<string | null>(null);
+  const sharesRequestIdRef = useRef(0);
+  const sharingActionFocusMapIdRef = useRef<string | null>(null);
   const restoreOverviewTriggerRef = useRef(false);
 
   const activeMap = useMemo(
@@ -182,31 +185,47 @@ export function PatientMapShell({
     0,
   );
 
-  useEffect(() => {
-    let active = true;
-    void portalRequest<{ shares: PatientMapShareStatus[] }>("/map-sharing")
-      .then((result) => {
-        if (!active) return;
-        setShares(
-          Object.fromEntries(result.shares.map((share) => [share.map_id, share])),
-        );
-        setSharingMessage("");
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setSharingMessage(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível consultar os compartilhamentos agora.",
-        );
-      })
-      .finally(() => {
-        if (active) setSharesLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+  const loadMapShares = useCallback(async () => {
+    const requestId = sharesRequestIdRef.current + 1;
+    sharesRequestIdRef.current = requestId;
+    setSharesLoading(true);
+    setSharesLoadError("");
+    try {
+      const result = await portalRequest<{ shares: PatientMapShareStatus[] }>("/map-sharing");
+      if (sharesRequestIdRef.current !== requestId) return;
+      setShares(
+        Object.fromEntries(result.shares.map((share) => [share.map_id, share])),
+      );
+      setSharingMessage("");
+    } catch (error: unknown) {
+      if (sharesRequestIdRef.current !== requestId) return;
+      setSharesLoadError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível consultar os compartilhamentos agora.",
+      );
+    } finally {
+      if (sharesRequestIdRef.current === requestId) setSharesLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const initialRequest = window.setTimeout(() => void loadMapShares(), 0);
+    return () => {
+      window.clearTimeout(initialRequest);
+      sharesRequestIdRef.current += 1;
+    };
+  }, [loadMapShares]);
+
+  useEffect(() => {
+    const mapId = sharingActionFocusMapIdRef.current;
+    if (!mapId) return;
+    const target = document.getElementById(`patient-map-share-action-${mapId}`);
+    if (target?.isConnected) {
+      target.focus({ preventScroll: true });
+      sharingActionFocusMapIdRef.current = null;
+    }
+  }, [shares]);
 
   async function changeMapSharing(map: PatientMapDefinition, shared: boolean) {
     if (sharingMapId) return;
@@ -232,6 +251,7 @@ export function PatientMapShell({
         { method: "PATCH", body: JSON.stringify({ shared }) },
         csrf,
       );
+      sharingActionFocusMapIdRef.current = map.id;
       setShares((current) => {
         const next = { ...current };
         if (shared && result.share) next[map.id] = result.share;
@@ -242,7 +262,6 @@ export function PatientMapShell({
         ? `“${map.navigationTitle}” foi compartilhado com Mateus.`
         : `O compartilhamento de “${map.navigationTitle}” foi retirado.`;
       setSharingMessage(message);
-      setAnnouncement(message);
     } catch (error) {
       setSharingMessage(
         error instanceof Error
@@ -264,10 +283,8 @@ export function PatientMapShell({
     window.requestAnimationFrame(() => {
       if (view === "overview" && restoreOverviewTriggerRef.current) {
         restoreOverviewTriggerRef.current = false;
-        const triggerId = mapTriggerIdRef.current;
-        const trigger = triggerId
-          ? document.getElementById(`patient-map-card-${triggerId}`)
-          : null;
+        const triggerId = mapTriggerElementIdRef.current;
+        const trigger = triggerId ? document.getElementById(triggerId) : null;
         if (trigger?.isConnected) {
           trigger.scrollIntoView({ block: "center", behavior: "auto" });
           trigger.focus({ preventScroll: true });
@@ -280,7 +297,10 @@ export function PatientMapShell({
     });
   }, [activeMapId, itemIndex, sectionIndex, view]);
 
-  function openMap(mapId: string) {
+  function openMap(
+    mapId: string,
+    triggerElementId = `patient-map-card-${mapId}`,
+  ) {
     const map = PATIENT_MAP_CATALOG.maps.find((item) => item.id === mapId);
     if (!map) return;
     const savedPosition = draft.positions?.[mapId];
@@ -292,7 +312,7 @@ export function PatientMapShell({
       Math.max(savedPosition?.itemIndex ?? 0, 0),
       map.sections[nextSectionIndex].items.length - 1,
     );
-    mapTriggerIdRef.current = mapId;
+    mapTriggerElementIdRef.current = triggerElementId;
     setActiveMapId(mapId);
     setSectionIndex(nextSectionIndex);
     setItemIndex(nextItemIndex);
@@ -554,7 +574,13 @@ export function PatientMapShell({
                 partes e a síntese geral continuam privadas.
               </p>
             </div>
-            <span>{Object.keys(shares).length} de {PATIENT_MAP_CATALOG.maps.length} compartilhadas</span>
+            <span>
+              {sharesLoading
+                ? "Consultando…"
+                : sharesLoadError
+                  ? "Estado indisponível"
+                  : `${Object.keys(shares).length} de ${PATIENT_MAP_CATALOG.maps.length} compartilhadas`}
+            </span>
           </div>
           <p className="sr-status" role="status" aria-live="polite">
             {sharingMessage}
@@ -563,6 +589,21 @@ export function PatientMapShell({
             <p className="patient-map-sharing-loading" role="status">
               Consultando compartilhamentos…
             </p>
+          ) : sharesLoadError ? (
+            <div className="patient-map-sharing-error" role="alert">
+              <strong>Não foi possível confirmar o que está compartilhado.</strong>
+              <p>
+                {sharesLoadError} Para evitar mudanças por engano, as opções ficam
+                pausadas até essa consulta terminar.
+              </p>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void loadMapShares()}
+              >
+                Tentar consultar novamente
+              </button>
+            </div>
           ) : (
             <ul>
               {PATIENT_MAP_CATALOG.maps.map((map) => {
@@ -572,7 +613,10 @@ export function PatientMapShell({
                 );
                 const explored = exploredCountForMap(map, draft);
                 return (
-                  <li key={map.id}>
+                  <li
+                    className={share ? "is-shared" : explored > 0 ? "is-ready" : undefined}
+                    key={map.id}
+                  >
                     <div>
                       <strong>{map.navigationTitle}</strong>
                       <span>
@@ -589,9 +633,15 @@ export function PatientMapShell({
                       {share ? (
                         <>
                           <button
+                            id={`patient-map-share-action-${map.id}`}
                             className="share-button"
                             type="button"
                             disabled={Boolean(sharingMapId) || explored === 0}
+                            aria-label={
+                              sharingMapId === map.id
+                                ? `Atualizando… cópia de ${map.navigationTitle} compartilhada com Mateus`
+                                : `Atualizar cópia de ${map.navigationTitle} compartilhada com Mateus`
+                            }
                             onClick={() => void changeMapSharing(map, true)}
                           >
                             {sharingMapId === map.id
@@ -602,22 +652,44 @@ export function PatientMapShell({
                             className="quiet-button"
                             type="button"
                             disabled={Boolean(sharingMapId)}
+                            aria-label={`Retirar o compartilhamento de ${map.navigationTitle}`}
                             onClick={() => void changeMapSharing(map, false)}
                           >
                             Retirar
                           </button>
                         </>
                       ) : (
-                        <button
-                          className="share-button"
-                          type="button"
-                          disabled={Boolean(sharingMapId) || explored === 0}
-                          onClick={() => void changeMapSharing(map, true)}
-                        >
-                          {sharingMapId === map.id
-                            ? "Compartilhando…"
-                            : "Compartilhar esta parte"}
-                        </button>
+                        explored === 0 ? (
+                          <button
+                            id={`patient-map-share-action-${map.id}`}
+                            className="secondary-button"
+                            type="button"
+                            disabled={Boolean(sharingMapId)}
+                            aria-label={`Explorar esta parte: ${map.navigationTitle}`}
+                            onClick={() =>
+                              openMap(map.id, `patient-map-share-action-${map.id}`)
+                            }
+                          >
+                            Explorar esta parte
+                          </button>
+                        ) : (
+                          <button
+                            id={`patient-map-share-action-${map.id}`}
+                            className="share-button"
+                            type="button"
+                            disabled={Boolean(sharingMapId)}
+                            aria-label={
+                              sharingMapId === map.id
+                                ? `Compartilhando… esta parte: ${map.navigationTitle}, com Mateus`
+                                : `Compartilhar esta parte: ${map.navigationTitle}, com Mateus`
+                            }
+                            onClick={() => void changeMapSharing(map, true)}
+                          >
+                            {sharingMapId === map.id
+                              ? "Compartilhando…"
+                              : "Compartilhar esta parte"}
+                          </button>
+                        )
                       )}
                     </div>
                   </li>

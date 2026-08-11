@@ -1,13 +1,14 @@
 # Área do paciente — estado local de continuidade
 
-Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não publicado.
+Atualizado em 11/08/2026. Este documento descreve o trabalho local ainda não publicado.
 
 ## Estado do repositório
 
 - Branch: `agent/refina-p1-limites-exportacao`.
-- Commit-base: `a1b476454b149ef000f887ce0de71200c5a84d63`.
-- A branch e `origin/main` partiam do mesmo commit antes deste trabalho.
-- As alterações dos Lotes 0 a 3 permanecem locais e não commitadas.
+- Último commit local antes do refinamento atual: `bfb0d60`.
+- A branch está um commit à frente de `origin/main`; o refinamento de 11/08
+  permanece local até a validação e o commit final.
+- Os Lotes 0 a 5 estão preservados no histórico local.
 - Portal: Next.js/React/Vinext em Cloudflare Worker, com D1/Drizzle já existentes.
 - Worker oficial: `area-do-paciente`; Worker antigo `registros` preservado por compatibilidade.
 
@@ -68,6 +69,21 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
 - Limpar o mapa, encerrar o vínculo ou excluir a conta também apaga as cópias.
 - O profissional lê somente com vínculo ativo, não edita e confirma a
   visualização deliberadamente; a confirmação aparece ao paciente.
+
+## Refinamento de 11/08 — clareza e adaptação
+
+- Ações de compartilhar, atualizar e retirar identificam a parte do mapa para
+  leitores de tela, evitando cinco botões com o mesmo nome acessível.
+- Partes ainda vazias oferecem `Explorar esta parte` em vez de um botão de
+  compartilhamento desativado e sem caminho de continuidade.
+- O bloco de compartilhamento diferencia visualmente áreas privadas, prontas e
+  compartilhadas sem depender apenas de cor.
+- Se a consulta de compartilhamentos falhar, o estado não é presumido como
+  privado: as ações ficam pausadas, o erro aparece na tela e há uma tentativa
+  explícita de reconexão.
+- Campos em telas pequenas usam tamanho que evita o zoom automático do Safari.
+- Contraste aumentado, cores forçadas e redução de movimento seguem as
+  preferências configuradas no aparelho.
 
 ## Navegação, endereços e foco
 
@@ -139,16 +155,17 @@ Atualizado em 08/08/2026. Este documento descreve o trabalho local ainda não pu
 
 ## Limites e próximos passos
 
-- Os Lotes 0 a 4 estão implementados localmente; a validação integral do Lote 4
-  ainda precisa terminar antes de qualquer publicação.
+- Os Lotes 0 a 5 estão implementados e validados localmente.
 - Ferramentas não guardam uso. O rascunho integral do Meu mapa continua privado;
   somente cópias escolhidas podem ser compartilhadas.
 - O aviso de privacidade local descreve o fluxo e conserva a versão vigente de
   8 de agosto de 2026.
-- Uma checagem física final em iPhone/Safari continua recomendada antes de futura publicação.
-- Qualquer persistência, migration, endpoint ou acesso profissional ao Meu mapa exige lote separado e nova revisão de autorização.
+- Uma checagem física final em iPhone/Safari continua recomendada após a publicação.
+- A publicação exige aplicar a migration 0004 antes do Worker que expõe as
+  novas rotas e executar smoke tests imediatamente depois.
 
 ## Ações remotas não realizadas
 
-- O Lote 5 ainda não teve commit, push, deploy ou migration remota.
+- O Lote 5 foi commitado localmente em `bfb0d60`, mas ainda não teve push,
+  deploy ou migration remota.
 - Não houve escrita remota em D1, alteração de secrets, mudança de autenticação ou criação de conta real nesta etapa.

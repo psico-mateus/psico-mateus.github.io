@@ -1,8 +1,9 @@
 # Meu mapa — estado do módulo
 
-Atualizado em 08/08/2026. O módulo está funcional no código local com
-persistência privada por paciente preparada no portal. A migration permanece
-somente local: não houve commit, push, aplicação remota nem publicação.
+Atualizado em 11/08/2026. O módulo está funcional no código local com
+persistência privada e compartilhamento opcional por parte. O trabalho foi
+commitado localmente, mas as migrations e o código ainda não foram enviados ou
+aplicados em produção.
 
 ## Fonte editorial e catálogo
 
@@ -120,19 +121,13 @@ não dependa de enviar o mapa inteiro.
 
 ## Próximos lotes seguros
 
-1. **Fechar a validação local:** cobrir criação, leitura, tombstone, retry
-   idempotente, conflito, duas abas, geração antiga, CSRF, sessão expirada,
-   isolamento entre pacientes e exclusão em cascata.
-2. **Revisar aviso de privacidade:** o texto local já descreve o Meu mapa, mas a
-   versão oficial continua `2026-07-29`. Definir atualização e eventual ciência
-   dos usuários antes de qualquer publicação; não alterar autenticação de forma
-   silenciosa.
-3. **Executar revisão manual:** Safari/iPhone e desktop, 320 px, zoom, teclado,
-   foco, leitor de tela, modo reduzido e interrupção de rede.
-4. **Avaliar exportação em lote próprio:** o mapa não deve ser incluído ou omitido
-   de uma cópia de dados sem decisão explícita e documentação consistente.
-5. **Compartilhamento concluído localmente:** revisar a experiência final com
-   paciente e profissional sem dados reais.
-6. **Publicar por último:** somente depois de testes completos, revisão visual,
-   migration remota deliberada e autorização explícita. Este documento não
-   autoriza API, D1, deploy, push ou publicação.
+1. **Publicação controlada:** conferir o backup remoto, aplicar a migration 0004
+   antes do Worker antigo e então atualizar o Worker oficial que faz o proxy.
+2. **Smoke test imediato:** confirmar login, MFA, cadastro por convite,
+   registros, salvamento do mapa, compartilhamento, retirada e visualização com
+   dados sintéticos ou contas de teste já autorizadas.
+3. **Retorno rápido:** se a interface ou as rotas apresentarem regressão, voltar
+   os Workers ao commit publicado anterior; a migration é apenas aditiva e não
+   altera as tabelas já usadas por contas e registros.
+4. **Avaliar exportação em lote próprio:** o mapa não deve ser incluído ou
+   omitido da cópia de dados sem decisão explícita e documentação consistente.

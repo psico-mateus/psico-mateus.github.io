@@ -1168,6 +1168,17 @@ const revokeSessionsWithoutCsrf = await api("/account/sessions", {
 });
 expectStatus(revokeSessionsWithoutCsrf, 403, "revogação de sessões sem CSRF");
 
+const revokeSessionsWithoutPassword = await api("/account/sessions", {
+  method: "DELETE",
+  body: {},
+  auth: patientA,
+});
+expectStatus(
+  revokeSessionsWithoutPassword,
+  400,
+  "revogação de sessões sem informar a senha atual",
+);
+
 const revokeSessionsWrongPassword = await api("/account/sessions", {
   method: "DELETE",
   body: { current_password: "SenhaPacienteIncorreta123" },
@@ -1176,7 +1187,7 @@ const revokeSessionsWrongPassword = await api("/account/sessions", {
 expectStatus(
   revokeSessionsWrongPassword,
   400,
-  "revogação de sessões sem a senha atual",
+  "revogação de sessões com a senha atual incorreta",
 );
 expectStatus(
   await api("/entries", { auth: patientASecondSession }),
@@ -1914,7 +1925,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 150,
+    checks: 151,
     data: "synthetic-only",
     production_requests: 0,
   }),

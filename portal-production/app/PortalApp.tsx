@@ -1637,7 +1637,7 @@ function PatientDashboard({
               </button>
               <button className="patient-start-card" type="button" onClick={openRecordHistory}>
                 <span className="patient-start-kicker">HISTÓRICO</span>
-                <strong>Voltar aos meus registros</strong>
+                <strong>Ver meus registros</strong>
                 <small>Consultar o que você escreveu e os compartilhamentos.</small>
                 <span className="patient-start-arrow" aria-hidden="true">→</span>
               </button>
