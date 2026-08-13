@@ -130,6 +130,11 @@ test("menu móvel libera a página após clique e Escape", async ({ page }, test
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(toggle).toHaveAttribute("aria-label", "Fechar menu");
   await expect(page.locator("body")).toHaveClass(/menu-open/);
+  await expect(page.locator("main")).toHaveAttribute("inert", "");
+  await expect(page.locator(".site-footer")).toHaveAttribute("inert", "");
+  await expect(page.locator(".skip-link")).toHaveAttribute("inert", "");
+  await expect(page.locator("[data-mobile-cta]")).toHaveAttribute("inert", "");
+  await expect(page.locator(".site-header")).not.toHaveAttribute("inert", "");
   await expect(
     page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link").first(),
   ).toBeFocused();
@@ -140,6 +145,8 @@ test("menu móvel libera a página após clique e Escape", async ({ page }, test
   await expect(page).toHaveURL(/#atendimentos$/);
   await expect(page.locator("body")).not.toHaveClass(/menu-open/);
   await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
+  await expect(page.locator("main")).not.toHaveAttribute("inert", "");
+  await expect(page.locator(".site-footer")).not.toHaveAttribute("inert", "");
   const before = await page.evaluate(() => window.scrollY);
   await page.evaluate(() => window.scrollBy(0, 180));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
@@ -149,11 +156,16 @@ test("menu móvel libera a página após clique e Escape", async ({ page }, test
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(toggle).toBeFocused();
   await expect(page.locator("body")).not.toHaveClass(/menu-open/);
+  await expect(page.locator("main")).not.toHaveAttribute("inert", "");
+  await expect(page.locator(".site-footer")).not.toHaveAttribute("inert", "");
 });
 
 test("Guia preserva busca, rascunho local e PDF", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Fluxo de dados locais executado uma vez.");
   await page.goto("/guia-emocoes/");
+
+  await expect(page.getByRole("link", { name: "Ver contatos de ajuda imediata" }))
+    .toHaveAttribute("href", "/cuidados/");
 
   const search = page.getByRole("searchbox", { name: "Buscar no guia" });
   await search.fill("Gratidão");
@@ -208,7 +220,7 @@ test("páginas auxiliares, metadados e PWA permanecem íntegros", async ({ page 
   expect(manifest.display).toBe("standalone");
 
   const guideWorker = await readFile("guia-emocoes/sw.js", "utf8");
-  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v27"');
+  expect(guideWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v28"');
   expect(guideWorker).toContain('const GUIDE_PATH = "/guia-emocoes/"');
   expect(guideWorker).toContain(
     '"/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"',

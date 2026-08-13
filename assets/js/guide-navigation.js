@@ -74,6 +74,7 @@
     const header = document.querySelector("main > header");
     const footer = document.querySelector("main > footer");
     const authorCard = document.querySelector("main .author-card");
+    const urgentCare = document.querySelector("main .urgent-care");
     const target = document.getElementById("inicio");
     const guidedExploration = document.getElementById("registrar");
 
@@ -87,6 +88,14 @@
     if (header) header.setAttribute("role", "group");
     if (footer) footer.setAttribute("role", "group");
     if (authorCard) authorCard.setAttribute("role", "presentation");
+
+    if (urgentCare && !urgentCare.querySelector(".urgent-care-link")) {
+      const immediateHelpLink = document.createElement("a");
+      immediateHelpLink.className = "urgent-care-link";
+      immediateHelpLink.href = "/cuidados/";
+      immediateHelpLink.textContent = "Ver contatos de ajuda imediata";
+      urgentCare.append(immediateHelpLink);
+    }
     document
       .querySelectorAll(".record-progress[aria-label]")
       .forEach((progress) => progress.setAttribute("role", "group"));

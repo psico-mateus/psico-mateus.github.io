@@ -17,6 +17,17 @@
   const menu = document.querySelector("[data-menu]");
   let menuTrigger = null;
   let menuFocusTimer;
+  const menuBackgroundState = new Map();
+  const menuFallbackFocusState = new Map();
+
+  const focusableSelector = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(",");
 
   const menuFocusable = () =>
     menu
@@ -27,12 +38,67 @@
         )
       : [];
 
+  const menuBackgroundElements = () =>
+    menu
+      ? Array.from(document.body.children).filter(
+          (element) => element !== menu && !element.contains(menu),
+        )
+      : [];
+
+  const setMenuBackgroundInert = (isInert) => {
+    if (isInert) {
+      menuBackgroundElements().forEach((element) => {
+        if (menuBackgroundState.has(element)) return;
+
+        const supportsInert = "inert" in element;
+        menuBackgroundState.set(element, {
+          hadInert: element.hasAttribute("inert"),
+          ariaHidden: element.getAttribute("aria-hidden"),
+          supportsInert,
+        });
+        element.setAttribute("inert", "");
+
+        if (supportsInert) return;
+        element.setAttribute("aria-hidden", "true");
+        const fallbackFocusable = [
+          ...(element.matches(focusableSelector) ? [element] : []),
+          ...element.querySelectorAll(focusableSelector),
+        ];
+        fallbackFocusable.forEach((focusable) => {
+          if (menuFallbackFocusState.has(focusable)) return;
+          menuFallbackFocusState.set(focusable, {
+            hadTabindex: focusable.hasAttribute("tabindex"),
+            tabindex: focusable.getAttribute("tabindex"),
+          });
+          focusable.setAttribute("tabindex", "-1");
+        });
+      });
+      return;
+    }
+
+    menuBackgroundState.forEach((state, element) => {
+      if (!state.hadInert) element.removeAttribute("inert");
+      if (!state.supportsInert) {
+        if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", state.ariaHidden);
+      }
+    });
+    menuBackgroundState.clear();
+
+    menuFallbackFocusState.forEach((state, element) => {
+      if (!state.hadTabindex) element.removeAttribute("tabindex");
+      else if (state.tabindex !== null) element.setAttribute("tabindex", state.tabindex);
+    });
+    menuFallbackFocusState.clear();
+  };
+
   const closeMenu = ({ restoreFocus = true } = {}) => {
     if (!menu || !menuToggle) return;
     menu.dataset.open = "false";
     menuToggle.setAttribute("aria-expanded", "false");
     menuToggle.setAttribute("aria-label", "Abrir menu");
     document.body.classList.remove("menu-open");
+    setMenuBackgroundInert(false);
     window.clearTimeout(menuFocusTimer);
     menuFocusTimer = undefined;
     if (restoreFocus && menuTrigger) menuTrigger.focus();
@@ -45,6 +111,7 @@
     menuToggle.setAttribute("aria-expanded", "true");
     menuToggle.setAttribute("aria-label", "Fechar menu");
     document.body.classList.add("menu-open");
+    setMenuBackgroundInert(true);
     menuFocusTimer = window.setTimeout(() => menuFocusable()[0]?.focus(), 180);
   };
 
@@ -98,6 +165,12 @@
 
     window.addEventListener("resize", () => {
       if (window.innerWidth > 960) closeMenu({ restoreFocus: false });
+    });
+
+    window.addEventListener("popstate", () => {
+      if (menuToggle.getAttribute("aria-expanded") === "true") {
+        closeMenu({ restoreFocus: false });
+      }
     });
   }
 

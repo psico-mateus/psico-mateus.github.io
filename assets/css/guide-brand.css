@@ -184,6 +184,22 @@ main .author-card > p {
   color: #68645c;
 }
 
+main .urgent-care .urgent-care-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-top: 10px;
+  color: #653c39;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 0.22em;
+}
+
+main .urgent-care .urgent-care-link:hover {
+  color: #4f2e2b;
+}
+
 @media (width <= 680px) {
   /* Evita o zoom automático do Safari ao focar campos de texto no iPhone. */
   main input:not([type="range"]),

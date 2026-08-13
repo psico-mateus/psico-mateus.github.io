@@ -453,10 +453,11 @@ test("busca mantém foco visível e campos móveis não provocam autozoom", asyn
 });
 
 test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", async () => {
-  const [bundle, css, brandCss, serviceWorker, guideHtml] = await Promise.all([
+  const [bundle, css, brandCss, navigationScript, serviceWorker, guideHtml] = await Promise.all([
     readFile("assets/EmotionGuideApp-BiKEL11_.js", "utf8"),
     readFile("assets/index-BBQ5DOp1.css", "utf8"),
     readFile("assets/css/guide-brand.css", "utf8"),
+    readFile("assets/js/guide-navigation.js", "utf8"),
     readFile("guia-emocoes/sw.js", "utf8"),
     readFile("guia-emocoes/index.html", "utf8"),
   ]);
@@ -471,12 +472,17 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(guideHtml).toContain(Buffer.from(bundle).toString("base64"));
   expect(css).toContain("html{scroll-behavior:auto");
   expect(brandCss).toContain("outline: 3px solid #6e4e16");
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v27"');
+  expect(brandCss).toContain(".urgent-care-link");
+  expect(navigationScript).toContain('immediateHelpLink.href = "/cuidados/"');
+  expect(navigationScript).toContain(
+    'immediateHelpLink.textContent = "Ver contatos de ajuda imediata"',
+  );
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v28"');
   expect(serviceWorker).toContain(
-    '"/assets/css/guide-brand.css?v=20260811-mobile-nav"',
+    '"/assets/css/guide-brand.css?v=20260813-care-link"',
   );
   expect(serviceWorker).toContain(
-    '"/assets/js/guide-navigation.js?v=20260811-mobile-nav"',
+    '"/assets/js/guide-navigation.js?v=20260813-care-link"',
   );
   expect(serviceWorker).toContain('"/assets/js/guide-navigation.js"');
   expect(serviceWorker).toContain(
