@@ -334,7 +334,10 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /seguir direto para salvar/);
   assert.match(app, /preencha somente “Título breve” e “O que aconteceu\?”/);
   assert.match(app, /className="field-label-line"[\s\S]*?Necessário/);
-  assert.doesNotMatch(app, /<details className="entry-optional"/);
+  assert.match(app, /className="entry-optional-disclosure"/);
+  assert.match(app, /open=\{optionalOpen\}/);
+  assert.match(app, /useState\(\(\) => optionalHasContent\)/);
+  assert.match(app, /Fechar não apaga suas respostas/);
   assert.match(app, /Será salvo como privado/);
   assert.match(app, /Continuará compartilhado com Mateus/);
   assert.match(app, /Salvar registro privado/);
@@ -1174,7 +1177,7 @@ test("mobile access shortcut and patient summary remain simple and private", asy
   assert.doesNotMatch(visualReview, /https:\/\/area-do-paciente/u);
 });
 
-test("record form allows an early private save without hiding optional fields", async () => {
+test("record form keeps an early private save and reveals optional fields without losing values", async () => {
   const [app, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -1182,15 +1185,18 @@ test("record form allows an early private save without hiding optional fields", 
 
   const optionalStep =
     app.match(
-      /<section className="entry-step entry-step-optional"[\s\S]*?<div className="two-columns optional-fields">[\s\S]*?<\/section>/u,
+      /<section className="entry-step entry-step-optional"[\s\S]*?<details[\s\S]*?<div className="two-columns optional-fields">[\s\S]*?<\/section>/u,
     )?.[0] ?? "";
   assert.match(optionalStep, /Quer parar por aqui\?/u);
   assert.match(optionalStep, /type="submit"/u);
   assert.match(optionalStep, /Salvar agora como privado/u);
   assert.match(optionalStep, /As perguntas abaixo são opcionais/u);
+  assert.match(optionalStep, /Adicionar mais detalhes/u);
+  assert.match(optionalStep, /onToggle=\{\(event\) => setOptionalOpen\(event\.currentTarget\.open\)\}/u);
   assert.match(optionalStep, /O que percebeu no corpo\?/u);
   assert.match(optionalStep, /Quais pensamentos apareceram\?/u);
   assert.match(styles, /\.optional-save-shortcut\{/u);
+  assert.match(styles, /\.entry-optional-disclosure>summary\{/u);
   assert.match(
     styles,
     /@media\(max-width:560px\)\{[\s\S]*?\.optional-save-shortcut\{align-items:stretch;flex-direction:column\}/u,
@@ -1440,6 +1446,12 @@ test("professional API groups by stable patient id and filters every detail quer
     /restoreFocusAfterView\.current = true;[\s\S]*?onViewed\(share\.map_id\)/,
   );
   assert.match(dashboard, /Atividade por paciente/u);
+  assert.match(dashboard, /const PATIENT_LIST_PAGE_SIZE = 15/u);
+  assert.equal(dashboard.match(/visiblePatients\.slice\(0, visiblePatientLimit\)/gu)?.length, 2);
+  assert.equal(dashboard.match(/setVisiblePatientLimit\(PATIENT_LIST_PAGE_SIZE\)/gu)?.length, 5);
+  assert.match(dashboard, /Mostrar mais pacientes: próximos/u);
+  assert.match(dashboard, /Mostrar mais acessos: próximos/u);
+  assert.equal(dashboard.match(/aria-live="polite"[\s\S]*?Exibindo \{displayedPatients\.length\}/gu)?.length, 2);
   assert.match(dashboard, /const latestSharedAt = latestPatientShareAt\(patient\)/u);
   assert.match(dashboard, /unreadCount > 0 \? " has-unread"/u);
   assert.match(dashboard, /Abrir conteúdos compartilhados por \$\{patientName\}/u);
@@ -1493,6 +1505,23 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.match(
     dashboard,
     /id="active-invitations-title" tabIndex=\{-1\}/,
+  );
+  assert.match(dashboard, /const LATEST_INVITATION_CODE_VISIBLE_MS = 2 \* 60 \* 1000/u);
+  assert.match(
+    dashboard,
+    /if \(nextArea !== "invitations"\) setLatestCode\(""\)/u,
+  );
+  assert.match(
+    dashboard,
+    /window\.setTimeout\([\s\S]*?LATEST_INVITATION_CODE_VISIBLE_MS/u,
+  );
+  assert.match(
+    dashboard,
+    /document\.addEventListener\("visibilitychange", refreshVisibleInvitations\)/u,
+  );
+  assert.match(
+    dashboard,
+    /if \(area === "invitations"\) void loadInvitations\(\)/u,
   );
   const disclosureToggle =
     dashboard.match(/onToggle=\{\(event\) => \{[\s\S]*?\}\}/u)?.[0] ?? "";

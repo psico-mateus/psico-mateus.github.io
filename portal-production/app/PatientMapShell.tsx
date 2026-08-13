@@ -754,8 +754,8 @@ export function PatientMapShell({
                 </summary>
                 <div>
                   <p>
-                    Apagar o mapa remove todas as respostas, observações, a
-                    as anotações de “O que percebi” e também encerra os
+                    Apagar o mapa remove todas as respostas, observações e
+                    anotações de “O que percebi”. Isso também encerra os
                     compartilhamentos com Mateus.
                   </p>
                   <button
@@ -1071,11 +1071,14 @@ export function PatientMapShell({
 
         <section className="patient-map-subjects" aria-labelledby="patient-map-subjects-title">
           <div className="patient-map-subjects-heading">
-            <h2 id="patient-map-subjects-title">Ou escolha um assunto</h2>
+            <h2 id="patient-map-subjects-title">
+              {hasStarted ? "Ou escolha um assunto" : "Ou escolha outro assunto"}
+            </h2>
             <p>Todos são independentes; não é preciso seguir a ordem.</p>
           </div>
           <ul>
             {activeMap.sections.map((section, index) => {
+              if (!hasStarted && index === nextSectionIndex) return null;
               const count = section.items.filter((item) => {
                 const answer = draft.answers?.[item.id];
                 return Boolean(answer?.response || answer?.note.trim());

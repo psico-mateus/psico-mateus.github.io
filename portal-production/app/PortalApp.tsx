@@ -778,6 +778,9 @@ function EntryForm({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const [originalDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
+  const optionalHasContent = [draft.body, draft.thoughts, draft.urge, draft.message]
+    .some((value) => Boolean(value.trim()));
+  const [optionalOpen, setOptionalOpen] = useState(() => optionalHasContent);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const submissionInFlight = useRef(false);
@@ -843,7 +846,7 @@ function EntryForm({
       <section className="entry-step entry-step-emotion" aria-labelledby="entry-step-two">
         <div className="entry-step-heading">
           <span aria-hidden="true">02</span>
-          <div><h2 id="entry-step-two">Como isso chegou em você?</h2><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
+          <div><h2 id="entry-step-two">O que você sentiu?</h2><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
         </div>
         <div className="emotion-row">
           <div className="field">
@@ -911,28 +914,44 @@ function EntryForm({
             {busy ? "Salvando…" : initial ? "Salvar alterações agora" : "Salvar agora como privado"}
           </button>
         </div>
-        <div className="two-columns optional-fields">
-          <label className="field">
-            <span>O que percebeu no corpo?</span>
-            <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} />
-            <CharacterLimit value={draft.body} maxLength={1500} />
-          </label>
-          <label className="field">
-            <span>Quais pensamentos apareceram?</span>
-            <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} />
-            <CharacterLimit value={draft.thoughts} maxLength={1500} />
-          </label>
-          <label className="field">
-            <span>O que teve vontade de fazer?</span>
-            <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} />
-            <CharacterLimit value={draft.urge} maxLength={1500} />
-          </label>
-          <label className="field">
-            <span>Há algo que queira levar para a sessão?</span>
-            <textarea value={draft.message} maxLength={1500} rows={4} placeholder="Uma dúvida, assunto ou ponto que queira lembrar depois." onChange={(e) => update("message", e.target.value)} disabled={busy} />
-            <CharacterLimit value={draft.message} maxLength={1500} />
-          </label>
-        </div>
+        <details
+          className="entry-optional-disclosure"
+          open={optionalOpen}
+          onToggle={(event) => setOptionalOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span>
+              <strong>{optionalOpen ? "Ocultar perguntas opcionais" : "Adicionar mais detalhes"}</strong>
+              <small>
+                {optionalHasContent
+                  ? "Você já preencheu parte desta etapa. Fechar não apaga suas respostas."
+                  : "Quatro perguntas opcionais sobre corpo, pensamentos, vontade e sessão."}
+              </small>
+            </span>
+          </summary>
+          <div className="two-columns optional-fields">
+            <label className="field">
+              <span>O que percebeu no corpo?</span>
+              <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} />
+              <CharacterLimit value={draft.body} maxLength={1500} />
+            </label>
+            <label className="field">
+              <span>Quais pensamentos apareceram?</span>
+              <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} />
+              <CharacterLimit value={draft.thoughts} maxLength={1500} />
+            </label>
+            <label className="field">
+              <span>O que teve vontade de fazer?</span>
+              <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} />
+              <CharacterLimit value={draft.urge} maxLength={1500} />
+            </label>
+            <label className="field">
+              <span>Há algo que queira levar para a sessão?</span>
+              <textarea value={draft.message} maxLength={1500} rows={4} placeholder="Uma dúvida, assunto ou ponto que queira lembrar depois." onChange={(e) => update("message", e.target.value)} disabled={busy} />
+              <CharacterLimit value={draft.message} maxLength={1500} />
+            </label>
+          </div>
+        </details>
       </section>
 
       {message ? <Notice tone="error" message={message} /> : null}

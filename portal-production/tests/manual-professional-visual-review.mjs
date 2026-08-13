@@ -233,6 +233,15 @@ async function routeProfessionalPortal(page) {
       );
       return;
     }
+    if (path === "/invitations" && method === "POST") {
+      await route.fulfill(
+        jsonResponse({
+          code: "CONVITE-LOCAL-2026",
+          expires_at: ahead(7),
+        }, 201),
+      );
+      return;
+    }
 
     const patientEntriesMatch = path.match(
       /^\/professional\/patients\/([^/]+)\/entries$/u,
@@ -372,6 +381,19 @@ async function reviewProfessional(browserType, label, viewport) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Olá, Mateus.", exact: true }).waitFor();
   await page.locator(".patient-summary-card").first().waitFor();
+  if ((await page.locator(".patient-summary-card").count()) !== 15) {
+    throw new Error(`${label}: a atividade não iniciou limitada a 15 pacientes`);
+  }
+  await page.getByRole("button", { name: /Mostrar mais pacientes:/u }).click();
+  if ((await page.locator(".patient-summary-card").count()) !== patients.length) {
+    throw new Error(`${label}: Mostrar mais não revelou o lote restante de pacientes`);
+  }
+  await page.getByLabel("Ordenar por").selectOption("alphabetical");
+  if ((await page.locator(".patient-summary-card").count()) !== 15) {
+    throw new Error(`${label}: mudar a ordem não reiniciou o limite da atividade`);
+  }
+  await page.getByLabel("Ordenar por").selectOption("unread");
+  await page.getByLabel("Buscar paciente").fill("Mapa Apenas");
 
   const mapOnlyCard = page
     .locator(".patient-summary-card")
@@ -386,6 +408,7 @@ async function reviewProfessional(browserType, label, viewport) {
   if (!mapOnlyViewClass.includes("has-unread")) {
     throw new Error(`${label}: pendência somente no mapa ficou sem destaque`);
   }
+  await page.getByLabel("Buscar paciente").fill("");
   await assertUniqueActionNames(
     page.locator(".patient-summary-card button"),
     `${label}-ações-dos-pacientes`,
@@ -399,7 +422,7 @@ async function reviewProfessional(browserType, label, viewport) {
   }
   await assertAccessible(page, `${label}-modo-privacidade`);
   await page.getByRole("button", { name: "Mostrar dados na tela", exact: true }).click();
-  await mapOnlyCard.waitFor();
+  await page.locator(".patient-summary-card").first().waitFor();
 
   const completeCard = page
     .locator(".patient-summary-card")
@@ -440,8 +463,20 @@ async function reviewProfessional(browserType, label, viewport) {
   await page.getByRole("button", { name: /Acessos de pacientes/u }).click();
   await page.getByRole("heading", { name: "Acessos de pacientes", exact: true }).waitFor();
   await page.locator(".patient-access-card").first().waitFor();
+  if ((await page.locator(".patient-access-card").count()) !== 15) {
+    throw new Error(`${label}: a lista de acessos não iniciou limitada a 15 pacientes`);
+  }
+  await page.getByRole("button", { name: /Mostrar mais acessos:/u }).click();
   if ((await page.locator(".patient-access-card").count()) !== accesses.length) {
-    throw new Error(`${label}: lista extensa de acessos não foi exibida por completo`);
+    throw new Error(`${label}: Mostrar mais não revelou o lote restante de acessos`);
+  }
+  await page.getByLabel("Buscar paciente").fill("Mapa Apenas");
+  if ((await page.locator(".patient-access-card").count()) !== 1) {
+    throw new Error(`${label}: a busca de acessos não mostrou o resultado esperado`);
+  }
+  await page.getByLabel("Buscar paciente").fill("");
+  if ((await page.locator(".patient-access-card").count()) !== 15) {
+    throw new Error(`${label}: mudar a busca não reiniciou o limite dos acessos`);
   }
   await assertUniqueActionNames(
     page.locator(".patient-access-actions button"),
@@ -449,8 +484,16 @@ async function reviewProfessional(browserType, label, viewport) {
   );
   await reviewScreen(page, `${label}-acessos`, `${label}-acessos.png`);
 
+  const firstInvitationRefresh = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname.endsWith("/api/portal/invitations"),
+  );
   await page.getByRole("button", { name: /Convites/u }).click();
+  await firstInvitationRefresh;
   await page.getByRole("heading", { name: "Convites", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Gerar convite", exact: true }).click();
+  await page.getByText("CONVITE-LOCAL-2026", { exact: true }).waitFor();
   await page.getByRole("button", { name: `Mostrar todos (${activeInvitations.length})` }).click();
   await assertUniqueActionNames(
     page.locator(".invitation-section .invitation-item .danger-button"),
@@ -470,6 +513,25 @@ async function reviewProfessional(browserType, label, viewport) {
     throw new Error(`${label}: o histórico sintético não cobriu mais de 20 convites`);
   }
   await reviewScreen(page, `${label}-convites`, `${label}-convites.png`);
+
+  await page.getByRole("button", { name: /Conteúdos compartilhados/u }).click();
+  const invitationRefreshAfterReturn = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname.endsWith("/api/portal/invitations"),
+  );
+  await page.getByRole("button", { name: /Convites/u }).click();
+  await invitationRefreshAfterReturn;
+  if (await page.getByText("CONVITE-LOCAL-2026", { exact: true }).count()) {
+    throw new Error(`${label}: o código recém-gerado reapareceu após sair de Convites`);
+  }
+  const invitationRefreshAfterVisibility = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname.endsWith("/api/portal/invitations"),
+  );
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await invitationRefreshAfterVisibility;
 
   const dimensions = await assertViewportFits(page, `${label}-final`);
   assertNoRuntimeErrors();

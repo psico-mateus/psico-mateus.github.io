@@ -52,6 +52,9 @@ type ProfessionalActivity = {
   private_count: number;
 };
 
+const PATIENT_LIST_PAGE_SIZE = 15;
+const LATEST_INVITATION_CODE_VISIBLE_MS = 2 * 60 * 1000;
+
 function Notice({ message, tone = "info" }: { message: string; tone?: NoticeTone }) {
   const noticeRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
@@ -560,10 +563,28 @@ function PatientList({
   onRefresh: () => void;
   onOpen: (patient: PatientSummary) => void;
 }) {
+  const [visiblePatientLimit, setVisiblePatientLimit] = useState(
+    PATIENT_LIST_PAGE_SIZE,
+  );
   const visiblePatients = useMemo(
     () => filterAndSortPatients(patients, query, sort),
     [patients, query, sort],
   );
+  const displayedPatients = visiblePatients.slice(0, visiblePatientLimit);
+  const hiddenPatientCount = Math.max(
+    0,
+    visiblePatients.length - displayedPatients.length,
+  );
+
+  function changeQuery(value: string) {
+    setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
+    onQueryChange(value);
+  }
+
+  function changeSort(value: PatientSort) {
+    setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
+    onSortChange(value);
+  }
 
   return (
     <section
@@ -618,7 +639,7 @@ function PatientList({
           <input
             type="search"
             value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
+            onChange={(event) => changeQuery(event.target.value)}
             autoComplete="off"
             placeholder="Digite parte do nome"
           />
@@ -627,7 +648,7 @@ function PatientList({
           <span>Ordenar por</span>
           <select
             value={sort}
-            onChange={(event) => onSortChange(event.target.value as PatientSort)}
+            onChange={(event) => changeSort(event.target.value as PatientSort)}
           >
             <option value="unread">Com pendências primeiro</option>
             <option value="recent">Mais recentes</option>
@@ -664,14 +685,24 @@ function PatientList({
           <button
             className="secondary-button"
             type="button"
-            onClick={() => onQueryChange("")}
+            onClick={() => changeQuery("")}
           >
             Limpar busca
           </button>
         </div>
       ) : (
-        <div className="patient-summary-list">
-          {visiblePatients.map((patient) => {
+        <>
+          <p
+            className="list-result-count"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            Exibindo {displayedPatients.length} de {visiblePatients.length}{" "}
+            {visiblePatients.length === 1 ? "paciente" : "pacientes"}.
+          </p>
+          <div className="patient-summary-list" id="professional-patient-list">
+          {displayedPatients.map((patient) => {
             const unreadCount = patient.unread_count + (patient.unread_map_count ?? 0);
             const latestSharedAt = latestPatientShareAt(patient);
             const patientName = displayedPatientName(patient.patient_name);
@@ -718,7 +749,38 @@ function PatientList({
               </article>
             );
           })}
-        </div>
+          </div>
+          {hiddenPatientCount > 0 || visiblePatientLimit > PATIENT_LIST_PAGE_SIZE ? (
+            <div className="list-pagination" aria-label="Navegação da lista de atividade">
+              {hiddenPatientCount > 0 ? (
+                <button
+                  className="text-action list-toggle"
+                  type="button"
+                  aria-controls="professional-patient-list"
+                  aria-label={`Mostrar mais pacientes: próximos ${Math.min(PATIENT_LIST_PAGE_SIZE, hiddenPatientCount)} de ${hiddenPatientCount} restantes`}
+                  onClick={() =>
+                    setVisiblePatientLimit((current) =>
+                      Math.min(current + PATIENT_LIST_PAGE_SIZE, visiblePatients.length),
+                    )
+                  }
+                >
+                  Mostrar mais ({Math.min(PATIENT_LIST_PAGE_SIZE, hiddenPatientCount)})
+                </button>
+              ) : null}
+              {visiblePatientLimit > PATIENT_LIST_PAGE_SIZE ? (
+                <button
+                  className="text-action list-toggle"
+                  type="button"
+                  aria-controls="professional-patient-list"
+                  aria-label={`Mostrar somente os primeiros ${PATIENT_LIST_PAGE_SIZE} pacientes`}
+                  onClick={() => setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE)}
+                >
+                  Mostrar menos
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -949,13 +1011,26 @@ function PatientAccessView({
     trigger: HTMLButtonElement,
   ) => void;
 }) {
+  const [visiblePatientLimit, setVisiblePatientLimit] = useState(
+    PATIENT_LIST_PAGE_SIZE,
+  );
   const visiblePatients = useMemo(
     () => filterPatientAccesses(patients, query),
     [patients, query],
   );
+  const displayedPatients = visiblePatients.slice(0, visiblePatientLimit);
+  const hiddenPatientCount = Math.max(
+    0,
+    visiblePatients.length - displayedPatients.length,
+  );
   const activeCount = patients.filter(
     (patient) => patient.access_status === "active",
   ).length;
+
+  function changeQuery(value: string) {
+    setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
+    onQueryChange(value);
+  }
 
   return (
     <section className="professional-section" aria-labelledby="patient-access-title">
@@ -992,7 +1067,7 @@ function PatientAccessView({
         <input
           type="search"
           value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
+          onChange={(event) => changeQuery(event.target.value)}
           autoComplete="off"
           placeholder="Digite parte do nome"
         />
@@ -1021,14 +1096,24 @@ function PatientAccessView({
           <button
             className="secondary-button"
             type="button"
-            onClick={() => onQueryChange("")}
+            onClick={() => changeQuery("")}
           >
             Limpar busca
           </button>
         </div>
       ) : (
-        <div className="patient-access-list">
-          {visiblePatients.map((patient) => {
+        <>
+          <p
+            className="list-result-count"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            Exibindo {displayedPatients.length} de {visiblePatients.length}{" "}
+            {visiblePatients.length === 1 ? "acesso" : "acessos"}.
+          </p>
+          <div className="patient-access-list" id="patient-access-list">
+          {displayedPatients.map((patient) => {
             const active = patient.access_status === "active";
             const updating = updatingIds.has(patient.patient_id);
             return (
@@ -1089,7 +1174,38 @@ function PatientAccessView({
               </article>
             );
           })}
-        </div>
+          </div>
+          {hiddenPatientCount > 0 || visiblePatientLimit > PATIENT_LIST_PAGE_SIZE ? (
+            <div className="list-pagination" aria-label="Navegação da lista de acessos">
+              {hiddenPatientCount > 0 ? (
+                <button
+                  className="text-action list-toggle"
+                  type="button"
+                  aria-controls="patient-access-list"
+                  aria-label={`Mostrar mais acessos: próximos ${Math.min(PATIENT_LIST_PAGE_SIZE, hiddenPatientCount)} de ${hiddenPatientCount} restantes`}
+                  onClick={() =>
+                    setVisiblePatientLimit((current) =>
+                      Math.min(current + PATIENT_LIST_PAGE_SIZE, visiblePatients.length),
+                    )
+                  }
+                >
+                  Mostrar mais ({Math.min(PATIENT_LIST_PAGE_SIZE, hiddenPatientCount)})
+                </button>
+              ) : null}
+              {visiblePatientLimit > PATIENT_LIST_PAGE_SIZE ? (
+                <button
+                  className="text-action list-toggle"
+                  type="button"
+                  aria-controls="patient-access-list"
+                  aria-label={`Mostrar somente os primeiros ${PATIENT_LIST_PAGE_SIZE} acessos`}
+                  onClick={() => setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE)}
+                >
+                  Mostrar menos
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -1575,8 +1691,27 @@ export function ProfessionalDashboard({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (area === "invitations" && !invitationsLoaded) void loadInvitations();
-  }, [area, invitationsLoaded, loadInvitations]);
+    if (area === "invitations") void loadInvitations();
+  }, [area, loadInvitations]);
+
+  useEffect(() => {
+    if (area !== "invitations") return;
+    const refreshVisibleInvitations = () => {
+      if (document.visibilityState === "visible") void loadInvitations();
+    };
+    document.addEventListener("visibilitychange", refreshVisibleInvitations);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshVisibleInvitations);
+  }, [area, loadInvitations]);
+
+  useEffect(() => {
+    if (!latestCode) return;
+    const hideCodeTimer = window.setTimeout(
+      () => setLatestCode(""),
+      LATEST_INVITATION_CODE_VISIBLE_MS,
+    );
+    return () => window.clearTimeout(hideCodeTimer);
+  }, [latestCode]);
 
   function openPatient(patient: PatientSummary) {
     setSelectedPatient(patient);
@@ -2001,6 +2136,7 @@ export function ProfessionalDashboard({
         activePatientCount={activePatientCount}
         activeInvitationCount={activeInvitationCount}
         onChange={(nextArea) => {
+          if (nextArea !== "invitations") setLatestCode("");
           setArea(nextArea);
           setNotice(null);
         }}

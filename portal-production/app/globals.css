@@ -73,6 +73,8 @@ select{width:100%;border:1px solid var(--line);border-radius:12px;background:#ff
 .professional-activity-summary strong{font:500 1.8rem/1 var(--serif)}
 .professional-activity-summary>p{grid-column:1/-1;margin:0;color:var(--muted);font-size:.8rem}
 .professional-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.34fr);gap:1rem;align-items:end;margin:1.2rem 0}
+.list-result-count{margin:-.25rem 0 .7rem;color:var(--muted);font-size:.82rem;font-weight:700}
+.list-pagination{display:flex;align-items:center;flex-wrap:wrap;gap:1.25rem}
 .patient-summary-list{display:grid;gap:.75rem}
 .patient-summary-card{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:1.25rem 1.4rem}
 .patient-summary-copy{min-width:0}
@@ -974,9 +976,47 @@ input[type="range"]{accent-color:#9a6d27}
 .optional-save-shortcut strong{font-size:.88rem}
 .optional-save-shortcut span{color:var(--muted);font-size:.8rem;line-height:1.45}
 .optional-save-shortcut .secondary-button{flex:0 0 auto;white-space:nowrap}
+.entry-optional-disclosure{
+  margin-top:.65rem;
+  border:1px solid rgba(121,90,35,.18);
+  border-radius:14px;
+  background:#faf6f0;
+  overflow:hidden;
+}
+.entry-optional-disclosure>summary{
+  min-height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:.72rem .9rem;
+  color:var(--ink);
+  cursor:pointer;
+  list-style:none;
+}
+.entry-optional-disclosure>summary::-webkit-details-marker{display:none}
+.entry-optional-disclosure>summary::after{
+  content:"+";
+  flex:0 0 auto;
+  width:1.7rem;
+  height:1.7rem;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#e9dfd1;
+  color:#644c27;
+  font-size:1.05rem;
+  font-weight:800;
+}
+.entry-optional-disclosure[open]>summary::after{content:"−"}
+.entry-optional-disclosure>summary>span{display:grid;gap:.12rem}
+.entry-optional-disclosure>summary strong{font-size:.88rem}
+.entry-optional-disclosure>summary small{color:var(--muted);font-size:.8rem;line-height:1.45}
+.entry-optional-disclosure[open]>summary{border-bottom:1px solid rgba(121,90,35,.12)}
 .optional-fields{
   grid-template-columns:repeat(2,minmax(0,1fr));
-  margin-top:.45rem;
+  margin:0;
+  padding:.9rem;
 }
 .optional-fields .field{
   align-content:start;
@@ -1405,7 +1445,7 @@ input[type="range"]{accent-color:#9a6d27}
   .form-finish{grid-template-columns:1fr;padding:1.25rem 0 0}
   .form-finish .button-row{display:grid;grid-template-columns:1fr}
   .form-finish .button-row>*{width:100%}
-  .range-scale{font-size:.68rem}
+  .range-scale{font-size:.78rem}
   .patient-records-heading{display:grid}
   .patient-records-heading-actions{
     display:grid;
@@ -3501,7 +3541,7 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-map-view-switcher{gap:.3rem;padding:.3rem}
   .patient-map-view-switcher button{min-height:58px;padding:.5rem .25rem}
   .patient-map-view-switcher button strong{font-size:.82rem}
-  .patient-map-view-switcher button span{font-size:.74rem}
+  .patient-map-view-switcher button span{font-size:.78rem}
   .patient-map-how-to,.patient-map-synthesis-screen,.patient-map-subjects{padding:1rem}
   .patient-map-area-card{grid-template-columns:1rem minmax(0,1fr) auto;padding:1rem}
   .patient-map-area-copy strong{font-size:1.22rem}
@@ -3549,7 +3589,12 @@ input[type="range"]{accent-color:#9a6d27}
   input,textarea,select{font-size:1rem}
   .patient-start-kicker,.patient-preview-label,.patient-map-workspace-header>span,
   .patient-map-question-card>header>span,.patient-tool-card-meta span,
-  .patient-tool-meta dt,.patient-tool-steps li:before{font-size:.75rem}
+  .patient-tool-meta dt,.patient-tool-steps li:before,
+  .patient-map-save-status small,.patient-map-conflict-actions button,
+  .patient-map-settings>summary small,.patient-map-synthesis-screen>header>span,
+  .patient-map-synthesis-question small,.patient-map-sharing-heading>span,
+  .patient-map-sharing li span,.patient-map-demonstration span,
+  .patient-map-sections button small,.patient-map-note label>small{font-size:.78rem}
   .patient-map-sharing li{padding:.9rem}
   .patient-map-clear-confirmation{align-items:stretch;flex-direction:column}
   .patient-map-clear-confirmation>div{display:grid;grid-template-columns:1fr}

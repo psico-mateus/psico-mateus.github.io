@@ -331,11 +331,16 @@ async function review(browserType, label, viewport) {
   await page.getByRole("button", { name: "Meus registros", exact: true }).click();
   await page.getByRole("heading", { name: "Seu registro continua guardado.", exact: true }).waitFor();
   await page.getByRole("button", { name: "Continuar escrevendo", exact: true }).click();
+  const restoredTitle = await page.getByLabel("Título breve").inputValue();
+  const restoredHappened = await page.getByLabel("O que aconteceu?").inputValue();
   if (
-    await page.getByLabel("Título breve").inputValue() !== "Rascunho preservado" ||
-    await page.getByLabel("O que aconteceu?").inputValue() !== "Texto sintético que deve continuar na tela."
+    restoredTitle !== "Rascunho preservado" ||
+    restoredHappened !== "Texto sintético que deve continuar na tela."
   ) {
-    throw new Error(`${label}: o rascunho não foi preservado entre as áreas`);
+    throw new Error(
+      `${label}: o rascunho não foi preservado entre as áreas ` +
+      `(título=${JSON.stringify(restoredTitle)}, situação=${JSON.stringify(restoredHappened)})`,
+    );
   }
   await page.getByRole("button", { name: "Meus registros", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
