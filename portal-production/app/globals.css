@@ -87,6 +87,10 @@ select{width:100%;border:1px solid var(--line);border-radius:12px;background:#ff
 .loading-panel,.error-state{min-height:190px;display:grid;place-content:center;justify-items:center;text-align:center;margin-top:1rem}
 .loading-panel p{margin:.8rem 0 0;color:var(--muted)}
 .error-state .notice{max-width:620px}
+.retained-data-warning{min-height:0;place-content:initial;justify-items:start;gap:.55rem;text-align:left;padding:1rem 1.1rem}
+.retained-data-warning .notice,.retained-data-warning>p{margin:0}
+.retained-data-warning>p{color:var(--muted);font-size:.84rem}
+.retained-data-warning .secondary-button{margin-top:.15rem}
 .back-button{min-height:44px;border:0;background:transparent;color:var(--green-2);font-weight:750;padding:.5rem 0;margin-bottom:1rem}
 .patient-detail-heading{padding-bottom:1rem;border-bottom:1px solid var(--line)}
 .professional-record-list{display:grid;gap:.85rem;margin-top:1rem}

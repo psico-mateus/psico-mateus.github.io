@@ -2,6 +2,10 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, webkit } from "../../node_modules/@playwright/test/index.mjs";
 import axe from "axe-core";
+import {
+  PATIENT_MAP_CATALOG,
+  PATIENT_MAP_RESPONSES,
+} from "../content/patient-map-catalog.ts";
 
 const baseUrl = process.env.PORTAL_VISUAL_BASE_URL;
 if (!baseUrl) {
@@ -94,28 +98,32 @@ const entries = Array.from({ length: 28 }, (_, index) => ({
   is_unread: index % 3 === 0 ? 1 : 0,
 }));
 
-const mapTitles = [
-  "Meu jeito",
-  "O que me faz bem",
-  "Meus limites",
-  "O que importa",
-  "Possibilidades",
-];
-const completeMapShares = mapTitles.map((title, mapIndex) => ({
-  map_id: `synthetic-map-${mapIndex + 1}`,
-  map_title: title,
-  map_description: "Descrição sintética desta parte do mapa pessoal.",
-  answers: Array.from({ length: 10 }, (_, answerIndex) => ({
-    item_id: `synthetic-map-${mapIndex + 1}-item-${answerIndex + 1}`,
-    item_title: `Item sintético ${answerIndex + 1}`,
-    section_title: `Seção ${Math.floor(answerIndex / 3) + 1}`,
-    response_key: answerIndex % 2 === 0 ? "observe" : "matches",
-    response_label: answerIndex % 2 === 0 ? "Quero observar" : "Combina comigo",
-    note:
-      answerIndex % 3 === 0
-        ? "Observação sintética um pouco mais longa para verificar legibilidade, espaçamento e quebra de linha."
-        : "",
-  })),
+const completeMapShares = PATIENT_MAP_CATALOG.maps.map((map, mapIndex) => ({
+  map_id: map.id,
+  map_title: map.navigationTitle,
+  map_description: map.description,
+  answers: map.sections
+    .flatMap((section) =>
+      section.items.map((item) => ({
+        item,
+        section,
+      })),
+    )
+    .slice(0, 10)
+    .map(({ item, section }, answerIndex) => {
+      const response = PATIENT_MAP_RESPONSES[answerIndex % 2];
+      return {
+        item_id: item.id,
+        item_title: item.title,
+        section_title: section.title,
+        response_key: response.key,
+        response_label: response.label,
+        note:
+          answerIndex % 3 === 0
+            ? "Observação sintética um pouco mais longa para verificar legibilidade, espaçamento e quebra de linha."
+            : "",
+      };
+    }),
   shared_at: ago(mapIndex),
   viewed_at: mapIndex % 2 === 0 ? null : ago(mapIndex),
   is_unread: mapIndex % 2 === 0 ? 1 : 0,
@@ -123,7 +131,7 @@ const completeMapShares = mapTitles.map((title, mapIndex) => ({
 
 const mapOnlyShare = {
   ...completeMapShares[0],
-  map_id: "synthetic-map-only-share",
+  map_id: "meu-jeito",
   map_title: "Meu jeito",
   shared_at: ago(0),
   viewed_at: null,
@@ -170,6 +178,11 @@ function jsonResponse(value, status = 200) {
 }
 
 async function routeProfessionalPortal(page) {
+  const controls = {
+    failNextEntryRequest: false,
+    failNextMapRequest: false,
+    delayNextMapRequestMs: 0,
+  };
   const mapSharesByPatient = new Map([
     [mapOnlyPatient.patient_id, [structuredClone(mapOnlyShare)]],
     [completePatient.patient_id, structuredClone(completeMapShares)],
@@ -247,6 +260,13 @@ async function routeProfessionalPortal(page) {
       /^\/professional\/patients\/([^/]+)\/entries$/u,
     );
     if (patientEntriesMatch && method === "GET") {
+      if (controls.failNextEntryRequest) {
+        controls.failNextEntryRequest = false;
+        await route.fulfill(
+          jsonResponse({ error: "Não foi possível atualizar os registros." }, 503),
+        );
+        return;
+      }
       const patientId = decodeURIComponent(patientEntriesMatch[1]);
       await route.fulfill(
         jsonResponse({ entries: patientId === completePatient.patient_id ? entries : [] }),
@@ -258,6 +278,18 @@ async function routeProfessionalPortal(page) {
       /^\/professional\/patients\/([^/]+)\/map-shares$/u,
     );
     if (patientMapsMatch && method === "GET") {
+      if (controls.delayNextMapRequestMs > 0) {
+        const delay = controls.delayNextMapRequestMs;
+        controls.delayNextMapRequestMs = 0;
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, delay));
+      }
+      if (controls.failNextMapRequest) {
+        controls.failNextMapRequest = false;
+        await route.fulfill(
+          jsonResponse({ error: "Não foi possível atualizar as partes do mapa." }, 503),
+        );
+        return;
+      }
       const patientId = decodeURIComponent(patientMapsMatch[1]);
       await route.fulfill(
         jsonResponse({ shares: mapSharesByPatient.get(patientId) ?? [] }),
@@ -292,6 +324,7 @@ async function routeProfessionalPortal(page) {
 
     await route.fulfill({ status: 204, body: "" });
   });
+  return controls;
 }
 
 async function assertAccessible(page, label) {
@@ -344,11 +377,16 @@ async function reviewScreen(page, label, screenshotName) {
   }
 }
 
-function trackRuntimeErrors(page, label) {
+function trackRuntimeErrors(page, label, expectedConsoleError) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(`console: ${message.text()}`);
+    if (
+      message.type() === "error" &&
+      !expectedConsoleError?.test(message.text())
+    ) {
+      errors.push(`console: ${message.text()}`);
+    }
   });
   return () => {
     if (errors.length > 0) {
@@ -376,8 +414,12 @@ async function reviewProfessional(browserType, label, viewport) {
     serviceWorkers: "block",
   });
   const page = await context.newPage();
-  const assertNoRuntimeErrors = trackRuntimeErrors(page, label);
-  await routeProfessionalPortal(page);
+  const assertNoRuntimeErrors = trackRuntimeErrors(
+    page,
+    label,
+    /503 \(Service Unavailable\)/u,
+  );
+  const routeControls = await routeProfessionalPortal(page);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Olá, Mateus.", exact: true }).waitFor();
   await page.locator(".patient-summary-card").first().waitFor();
@@ -440,6 +482,77 @@ async function reviewProfessional(browserType, label, viewport) {
   if ((await page.locator(".professional-record-disclosure").count()) !== entries.length) {
     throw new Error(`${label}: Mostrar mais não revelou os registros restantes`);
   }
+
+  routeControls.failNextMapRequest = true;
+  await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+  const partialWarning = page.getByText(
+    /As partes do mapa não puderam ser atualizadas/u,
+  );
+  await partialWarning.waitFor();
+  if (
+    (await page.locator(".professional-map-disclosure").count()) !==
+    completeMapShares.length
+  ) {
+    throw new Error(`${label}: a falha parcial ocultou mapas já carregados`);
+  }
+  if ((await page.locator(".professional-record-disclosure").count()) !== entries.length) {
+    throw new Error(`${label}: a falha parcial ocultou registros disponíveis`);
+  }
+  await page
+    .getByRole("button", { name: "Tentar atualizar novamente", exact: true })
+    .click();
+  await partialWarning.waitFor({ state: "detached" });
+
+  routeControls.failNextEntryRequest = true;
+  await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+  const inversePartialWarning = page.getByText(
+    /Os registros não puderam ser atualizados/u,
+  );
+  await inversePartialWarning.waitFor();
+  if (
+    (await page.locator(".professional-map-disclosure").count()) !==
+    completeMapShares.length
+  ) {
+    throw new Error(`${label}: a falha dos registros ocultou mapas disponíveis`);
+  }
+  if ((await page.locator(".professional-record-disclosure").count()) !== entries.length) {
+    throw new Error(`${label}: a falha dos registros ocultou dados já carregados`);
+  }
+  await page
+    .getByRole("button", { name: "Tentar atualizar novamente", exact: true })
+    .click();
+  await inversePartialWarning.waitFor({ state: "detached" });
+
+  routeControls.delayNextMapRequestMs = 350;
+  await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+  await page.getByRole("button", { name: "Atualizando…", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Ocultar dados na tela", exact: true }).click();
+  await page.getByRole("heading", { name: "Dados ocultos na tela.", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Mostrar dados na tela", exact: true }).click();
+  await page
+    .getByRole("heading", { name: completePatient.patient_name, exact: true })
+    .waitFor();
+  await page.locator(".professional-record-disclosure").first().waitFor();
+  await page.getByRole("button", { name: "Atualizar", exact: true }).waitFor();
+
+  const unreadFilter = page
+    .locator(".entry-view-toolbar button")
+    .filter({ hasText: "Não vistos" });
+  await unreadFilter.click();
+  const firstUnreadDisclosure = page.locator(".professional-record-disclosure.is-unread").first();
+  await firstUnreadDisclosure.locator("summary").click();
+  await firstUnreadDisclosure
+    .getByRole("button", { name: "Concluir visualização", exact: true })
+    .click();
+  await page.waitForFunction(() =>
+    document.activeElement?.matches(
+      ".professional-record-disclosure.is-unread > summary",
+    ),
+  );
+  await page
+    .locator(".entry-view-toolbar button")
+    .filter({ hasText: "Todos" })
+    .click();
 
   const mapDisclosure = page
     .locator(".professional-map-disclosure")

@@ -661,12 +661,22 @@ function PatientList({
         {refreshing ? "Atualizando a lista de pacientes." : ""}
       </div>
 
-      {loading ? (
+      {error && patients.length > 0 ? (
+        <div className="panel error-state retained-data-warning">
+          <Notice tone="error" message={error} />
+          <p>A lista já carregada continua disponível abaixo.</p>
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar atualizar novamente
+          </button>
+        </div>
+      ) : null}
+
+      {loading && patients.length === 0 ? (
         <div className="panel loading-panel" role="status">
           <div className="loader" />
           <p>Carregando registros compartilhados…</p>
         </div>
-      ) : error ? (
+      ) : error && patients.length === 0 ? (
         <div className="panel error-state">
           <Notice tone="error" message={error} />
           <button className="secondary-button" type="button" onClick={onRefresh}>
@@ -815,6 +825,9 @@ function PatientRecordsView({
 }) {
   const [viewFilter, setViewFilter] = useState<EntryViewFilter>("all");
   const [visibleEntryLimit, setVisibleEntryLimit] = useState(20);
+  const sectionRef = useRef<HTMLElement>(null);
+  const unreadFilterRef = useRef<HTMLButtonElement>(null);
+  const pendingViewedFocus = useRef<string | null>(null);
   const unreadCount = entries.filter((entry) => Boolean(entry.is_unread)).length;
   const unreadMapCount = mapShares.filter((share) => Boolean(share.is_unread)).length;
   const viewedCount = entries.length - unreadCount;
@@ -824,9 +837,28 @@ function PatientRecordsView({
     return true;
   });
   const visibleEntries = filteredEntries.slice(0, visibleEntryLimit);
+  const hasContent = entries.length > 0 || mapShares.length > 0;
+
+  useEffect(() => {
+    const entryId = pendingViewedFocus.current;
+    if (!entryId || viewingIds.has(entryId)) return;
+    const viewedEntry = entries.find((entry) => entry.id === entryId);
+    if (!viewedEntry || viewedEntry.is_unread) return;
+    pendingViewedFocus.current = null;
+    window.requestAnimationFrame(() => {
+      const nextUnreadSummary = sectionRef.current?.querySelector<HTMLElement>(
+        ".professional-record-disclosure.is-unread > summary",
+      );
+      (nextUnreadSummary ?? unreadFilterRef.current)?.focus();
+    });
+  }, [entries, viewingIds]);
 
   return (
-    <section className="professional-section" aria-labelledby="selected-patient-title">
+    <section
+      ref={sectionRef}
+      className="professional-section"
+      aria-labelledby="selected-patient-title"
+    >
       <button className="back-button" type="button" onClick={onBack}>
         ← Voltar aos pacientes
       </button>
@@ -856,12 +888,22 @@ function PatientRecordsView({
         {refreshing ? "Atualizando os conteúdos compartilhados." : ""}
       </div>
 
-      {loading ? (
+      {error && hasContent ? (
+        <div className="panel error-state retained-data-warning">
+          <Notice tone="error" message={error} />
+          <p>Os conteúdos já carregados continuam disponíveis abaixo.</p>
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar atualizar novamente
+          </button>
+        </div>
+      ) : null}
+
+      {loading && !hasContent ? (
         <div className="panel loading-panel" role="status">
           <div className="loader" />
           <p>Carregando os conteúdos desta pessoa…</p>
         </div>
-      ) : error ? (
+      ) : error && !hasContent ? (
         <div className="panel error-state">
           <Notice tone="error" message={error} />
           <button className="secondary-button" type="button" onClick={onRefresh}>
@@ -921,6 +963,7 @@ function PatientRecordsView({
                 ] as Array<[EntryViewFilter, string, number]>).map(
                   ([value, label, count]) => (
                     <button
+                      ref={value === "unread" ? unreadFilterRef : undefined}
                       key={value}
                       className={viewFilter === value ? "active" : ""}
                       type="button"
@@ -959,7 +1002,12 @@ function PatientRecordsView({
                       key={entry.id}
                       entry={entry}
                       viewing={viewingIds.has(entry.id)}
-                      onViewed={onViewed}
+                      onViewed={(entryId) => {
+                        if (viewFilter === "unread") {
+                          pendingViewedFocus.current = entryId;
+                        }
+                        onViewed(entryId);
+                      }}
                     />
                   ))}
                 </div>
@@ -1073,7 +1121,17 @@ function PatientAccessView({
         />
       </label>
 
-      {error ? (
+      {error && patients.length > 0 ? (
+        <div className="panel error-state retained-data-warning">
+          <Notice tone="error" message={error} />
+          <p>A lista já carregada continua disponível abaixo.</p>
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar atualizar novamente
+          </button>
+        </div>
+      ) : null}
+
+      {error && patients.length === 0 ? (
         <div className="panel error-state">
           <Notice tone="error" message={error} />
           <button className="secondary-button" type="button" onClick={onRefresh}>
@@ -1361,7 +1419,17 @@ function InvitationsView({
         ) : null}
       </section>
 
-      {error ? (
+      {error && invitations.length > 0 ? (
+        <div className="panel error-state retained-data-warning">
+          <Notice tone="error" message={error} />
+          <p>Os convites já carregados continuam disponíveis abaixo.</p>
+          <button className="secondary-button" type="button" onClick={onRefresh}>
+            Tentar atualizar novamente
+          </button>
+        </div>
+      ) : null}
+
+      {error && invitations.length === 0 ? (
         <div className="panel error-state">
           <Notice tone="error" message={error} />
           <button className="secondary-button" type="button" onClick={onRefresh}>
@@ -1598,7 +1666,7 @@ export function ProfessionalDashboard({
       }
       setEntriesError("");
       try {
-        const [entryResult, mapResult] = await Promise.all([
+        const [entryResult, mapResult] = await Promise.allSettled([
           portalRequest<{ entries: SharedEntry[] }>(
             `/professional/patients/${encodeURIComponent(patient.patient_id)}/entries`,
             { signal: controller.signal },
@@ -1608,9 +1676,41 @@ export function ProfessionalDashboard({
             { signal: controller.signal },
           ),
         ]);
-        if (sequence !== patientRequestSequence.current) return;
-        setEntries(entryResult.entries);
-        setMapShares(mapResult.shares);
+        if (controller.signal.aborted || sequence !== patientRequestSequence.current) {
+          return;
+        }
+
+        const rejectedResults = [entryResult, mapResult].filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected",
+        );
+        const sessionFailure = rejectedResults.find((result) =>
+          isSessionError(result.reason),
+        );
+        if (sessionFailure) return;
+
+        if (entryResult.status === "fulfilled") {
+          setEntries(entryResult.value.entries);
+        }
+        if (mapResult.status === "fulfilled") {
+          setMapShares(mapResult.value.shares);
+        }
+
+        if (entryResult.status === "rejected" && mapResult.status === "rejected") {
+          const firstReason = entryResult.reason;
+          setEntriesError(
+            firstReason instanceof Error
+              ? firstReason.message
+              : "Não foi possível carregar os conteúdos desta pessoa.",
+          );
+        } else if (entryResult.status === "rejected") {
+          setEntriesError(
+            `Os registros não puderam ser ${refresh ? "atualizados" : "carregados"}. As partes do mapa disponíveis continuam exibidas.`,
+          );
+        } else if (mapResult.status === "rejected") {
+          setEntriesError(
+            `As partes do mapa não puderam ser ${refresh ? "atualizadas" : "carregadas"}. Os registros disponíveis continuam exibidos.`,
+          );
+        }
       } catch (error) {
         if (controller.signal.aborted || sequence !== patientRequestSequence.current) {
           return;
@@ -2038,6 +2138,8 @@ export function ProfessionalDashboard({
   function showPrivacyMode() {
     patientRequest.current?.abort();
     patientRequestSequence.current += 1;
+    setEntriesLoading(false);
+    setEntriesRefreshing(false);
     setRecoveryPatient(null);
     setIssuedRecovery(null);
     setLatestCode("");
@@ -2049,6 +2151,12 @@ export function ProfessionalDashboard({
 
   function hidePrivacyMode() {
     setPrivacyMode(false);
+    if (selectedPatient) {
+      void loadPatientEntries(
+        selectedPatient,
+        entries.length > 0 || mapShares.length > 0,
+      );
+    }
     window.requestAnimationFrame(() => privacyToggleRef.current?.focus());
   }
 

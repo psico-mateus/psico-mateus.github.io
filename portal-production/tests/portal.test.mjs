@@ -1536,6 +1536,37 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.doesNotMatch(`${route}\n${dashboard}`, /BREVO|Brevo/u);
 });
 
+test("professional dashboard preserves useful work through partial and transient failures", async () => {
+  const dashboard = await readFile(
+    new URL("../app/ProfessionalDashboard.tsx", import.meta.url),
+    "utf8",
+  );
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(dashboard, /Promise\.allSettled\(\[/u);
+  assert.match(dashboard, /entryResult\.status === "fulfilled"[\s\S]*?setEntries\(/u);
+  assert.match(dashboard, /mapResult\.status === "fulfilled"[\s\S]*?setMapShares\(/u);
+  assert.match(dashboard, /Os registros não puderam ser \$\{refresh/u);
+  assert.match(dashboard, /As partes do mapa não puderam ser \$\{refresh/u);
+  assert.equal(dashboard.match(/retained-data-warning/gu)?.length, 4);
+  assert.match(styles, /\.retained-data-warning\{min-height:0/u);
+
+  assert.match(dashboard, /const pendingViewedFocus = useRef<string \| null>\(null\)/u);
+  assert.match(dashboard, /pendingViewedFocus\.current = entryId/u);
+  assert.match(
+    dashboard,
+    /professional-record-disclosure\.is-unread > summary[\s\S]*?unreadFilterRef\.current/u,
+  );
+  assert.match(
+    dashboard,
+    /function showPrivacyMode\(\)[\s\S]*?setEntriesLoading\(false\)[\s\S]*?setEntriesRefreshing\(false\)/u,
+  );
+  assert.match(
+    dashboard,
+    /function hidePrivacyMode\(\)[\s\S]*?loadPatientEntries\([\s\S]*?selectedPatient/u,
+  );
+});
+
 test("registration commits account, invitation, link, session and audit atomically", async () => {
   const [route, portal] = await Promise.all([
     readFile(
