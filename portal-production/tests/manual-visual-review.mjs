@@ -97,6 +97,46 @@ async function assertViewportFits(page, label) {
   return dimensions;
 }
 
+async function patientMapScrollState(page) {
+  return page.evaluate(() => {
+    const card = document.getElementById("patient-map-question-card");
+    const header = document.querySelector(".site-header");
+    if (!(card instanceof HTMLElement)) throw new Error("Cartão da pergunta não encontrado");
+    const headerRect = header instanceof HTMLElement ? header.getBoundingClientRect() : null;
+    const headerPosition = header instanceof HTMLElement
+      ? window.getComputedStyle(header).position
+      : "";
+    const fixedHeaderVisible =
+      Boolean(headerRect && headerRect.bottom > 0) &&
+      (headerPosition === "sticky" || headerPosition === "fixed");
+    return {
+      scrollY: window.scrollY,
+      cardTop: card.getBoundingClientRect().top,
+      expectedCardTop: fixedHeaderVisible ? headerRect.bottom + 12 : 16,
+    };
+  });
+}
+
+function assertStableMapScroll(before, after, label) {
+  const scrollDelta = Math.abs(after.scrollY - before.scrollY);
+  const cardDelta = Math.abs(after.cardTop - before.cardTop);
+  if (scrollDelta > 2 || cardDelta > 2) {
+    throw new Error(
+      `${label}: o salvamento deslocou a tela ` +
+      `(scrollY ${before.scrollY}→${after.scrollY}; cartão ${before.cardTop}→${after.cardTop})`,
+    );
+  }
+}
+
+function assertMapQuestionAtUsefulTop(state, label) {
+  if (Math.abs(state.cardTop - state.expectedCardTop) > 3) {
+    throw new Error(
+      `${label}: a nova pergunta não ficou no topo útil ` +
+      `(cartão=${state.cardTop}; esperado=${state.expectedCardTop})`,
+    );
+  }
+}
+
 async function reviewScreen(page, label, screenshotName) {
   await assertAccessible(page, label);
   await assertViewportFits(page, label);
@@ -197,6 +237,7 @@ async function routePortal(page, sessionRole = "patient") {
           updated_at: now,
         };
         mapFields.set(key, field);
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 80));
         await route.fulfill({
           contentType: "application/json",
           body: JSON.stringify({
@@ -374,7 +415,30 @@ async function review(browserType, label, viewport) {
   await reviewScreen(page, `${label}-meu-mapa-tema`, `${label}-meu-mapa-tema.png`);
   await page.getByRole("button", { name: "Começar por energia e descanso", exact: true }).click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-question-title");
+  const beforeAnswerScroll = await patientMapScrollState(page);
   await page.getByLabel("Combina comigo", { exact: true }).check();
+  await page.getByText("Salvando…", { exact: true }).waitFor();
+  const savingScroll = await patientMapScrollState(page);
+  assertStableMapScroll(beforeAnswerScroll, savingScroll, `${label}-meu-mapa-salvando`);
+  await page.getByText("Salvo na sua conta", { exact: true }).waitFor();
+  const savedScroll = await patientMapScrollState(page);
+  assertStableMapScroll(beforeAnswerScroll, savedScroll, `${label}-meu-mapa-salvo`);
+
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  await page.getByRole("heading", { name: "Estar com alguém para recuperar energia", exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-question-title");
+  assertMapQuestionAtUsefulTop(
+    await patientMapScrollState(page),
+    `${label}-meu-mapa-proxima-pergunta`,
+  );
+  await page.getByRole("button", { name: "Anterior", exact: true }).click();
+  await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.id === "patient-map-question-title");
+  assertMapQuestionAtUsefulTop(
+    await patientMapScrollState(page),
+    `${label}-meu-mapa-pergunta-anterior`,
+  );
   await page.getByText(/O que realmente recupera você/).waitFor();
   await page.getByRole("button", { name: "Apagar resposta deste item", exact: true }).click();
   await page.getByRole("button", { name: "Apagar agora", exact: true }).waitFor();

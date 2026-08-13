@@ -77,27 +77,30 @@ function PatientMapPersistenceStatus({
   conflict,
   onRetry,
   onResolveConflict,
+  stable = false,
 }: {
   state: PatientMapDraftSaveState;
   message: string;
   conflict: PatientMapDraftConflict | null;
   onRetry: () => void;
   onResolveConflict: (choice: "local" | "remote") => void;
+  stable?: boolean;
 }) {
-  if (state === "idle" && !message) return null;
+  if (!stable && state === "idle" && !message) return null;
   const needsAttention = state === "offline" || state === "error" || state === "conflict";
+  const visibleMessage = message || "Salvamento automático";
   return (
     <aside
-      className={`patient-map-save-status ${state}`}
+      className={`patient-map-save-status ${state}${stable ? " is-stable" : ""}`}
       aria-label="Estado de salvamento do Meu mapa"
     >
       <span className="patient-map-save-dot" aria-hidden="true" />
       <div>
-        <strong>{message}</strong>
-        {state === "saving" ? <small>Você pode continuar enquanto isso.</small> : null}
+        <strong>{visibleMessage}</strong>
+        {state === "saving" && !stable ? <small>Você pode continuar enquanto isso.</small> : null}
         {needsAttention ? (
           <span className="sr-status" role="alert" aria-live="assertive">
-            {message}
+            {visibleMessage}
           </span>
         ) : null}
       </div>
@@ -148,6 +151,29 @@ function responseCountForMap(
 function sentenceCase(value: string): string {
   const lower = value.toLocaleLowerCase("pt-BR");
   return lower.charAt(0).toLocaleUpperCase("pt-BR") + lower.slice(1);
+}
+
+function scrollPatientMapQuestionIntoView() {
+  const card = document.getElementById("patient-map-question-card");
+  const title = document.getElementById("patient-map-question-title");
+  if (!card) return;
+
+  const root = document.documentElement;
+  const previousScrollBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+
+  const header = document.querySelector<HTMLElement>(".site-header");
+  const headerRect = header?.getBoundingClientRect();
+  const headerPosition = header ? window.getComputedStyle(header).position : "";
+  const headerIsVisibleAndFixed =
+    Boolean(headerRect && headerRect.bottom > 0) &&
+    (headerPosition === "sticky" || headerPosition === "fixed");
+  const visibleTop = headerIsVisibleAndFixed ? headerRect!.bottom + 12 : 16;
+  const cardTop = window.scrollY + card.getBoundingClientRect().top - visibleTop;
+
+  window.scrollTo({ top: Math.max(0, cardTop), behavior: "auto" });
+  title?.focus({ preventScroll: true });
+  root.style.scrollBehavior = previousScrollBehavior;
 }
 
 export function PatientMapShell({
@@ -317,7 +343,8 @@ export function PatientMapShell({
               : view === "synthesis"
                 ? "patient-map-synthesis-title"
                 : "patient-map-question-title";
-    window.requestAnimationFrame(() => {
+    let nestedFrame = 0;
+    const frame = window.requestAnimationFrame(() => {
       if (view === "overview" && restoreOverviewTriggerRef.current) {
         restoreOverviewTriggerRef.current = false;
         const triggerId = mapTriggerElementIdRef.current;
@@ -328,19 +355,27 @@ export function PatientMapShell({
           return;
         }
       }
+      if (view === "item") {
+        scrollPatientMapQuestionIntoView();
+        return;
+      }
       const target = document.getElementById(targetId);
       target?.scrollIntoView({ block: "start", behavior: "auto" });
       target?.focus({ preventScroll: true });
       if (view === "sharing" && sharingViewFocusMapIdRef.current) {
         const mapId = sharingViewFocusMapIdRef.current;
         sharingViewFocusMapIdRef.current = null;
-        window.requestAnimationFrame(() => {
+        nestedFrame = window.requestAnimationFrame(() => {
           const row = document.getElementById(`patient-map-sharing-row-${mapId}`);
           row?.scrollIntoView({ block: "center", behavior: "auto" });
           row?.focus({ preventScroll: true });
         });
       }
     });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (nestedFrame) window.cancelAnimationFrame(nestedFrame);
+    };
   }, [activeMapId, itemIndex, sectionIndex, view]);
 
   useEffect(() => {
@@ -523,9 +558,7 @@ export function PatientMapShell({
     setConfirmingClearItemId(null);
     setAnnouncement("A resposta e a observação deste item foram apagadas.");
     window.requestAnimationFrame(() => {
-      const title = document.getElementById("patient-map-question-title");
-      title?.scrollIntoView({ block: "center", behavior: "auto" });
-      title?.focus({ preventScroll: true });
+      scrollPatientMapQuestionIntoView();
     });
   }
 
@@ -1285,6 +1318,7 @@ export function PatientMapShell({
         conflict={conflict}
         onRetry={onRetrySave}
         onResolveConflict={onResolveConflict}
+        stable
       />
 
       <header className="patient-map-item-context">
@@ -1294,7 +1328,7 @@ export function PatientMapShell({
         <p>{activeSection.question}</p>
       </header>
 
-      <article className="patient-map-question-card">
+      <article id="patient-map-question-card" className="patient-map-question-card">
         <header>
           <div>
             <p className="patient-map-question-position">

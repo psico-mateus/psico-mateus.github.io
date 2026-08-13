@@ -71,6 +71,9 @@ test("map is private by default with explicit sharing while tools remain ephemer
     map,
     /Pergunta \{itemIndex \+ 1\} de \{activeSection\.items\.length\} neste assunto/u,
   );
+  assert.match(map, /scrollPatientMapQuestionIntoView/u);
+  assert.match(map, /id="patient-map-question-card"/u);
+  assert.match(map, /onResolveConflict=\{onResolveConflict\}[\s\S]*?stable/u);
   assert.doesNotMatch(map, /Pergunta atual/u);
   assert.match(map, /Tudo fica só com você, a menos que escolha compartilhar um tema/u);
   assert.match(map, /O que Mateus pode ver/u);
