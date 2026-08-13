@@ -67,6 +67,11 @@ test("map is private by default with explicit sharing while tools remain ephemer
   assert.match(map, /Uma coisa de cada vez/u);
   assert.match(map, /Por onde você quer começar\?/u);
   assert.match(map, /Qual opção chega mais perto do que você pensa hoje\?/u);
+  assert.match(
+    map,
+    /Pergunta \{itemIndex \+ 1\} de \{activeSection\.items\.length\} neste assunto/u,
+  );
+  assert.doesNotMatch(map, /Pergunta atual/u);
   assert.match(map, /Tudo fica só com você, a menos que escolha compartilhar um tema/u);
   assert.match(map, /O que Mateus pode ver/u);
   assert.match(map, /Todo o\s+restante do mapa continua privado/u);

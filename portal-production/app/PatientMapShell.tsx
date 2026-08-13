@@ -1298,7 +1298,7 @@ export function PatientMapShell({
         <header>
           <div>
             <p className="patient-map-question-position">
-              Pergunta atual
+              Pergunta {itemIndex + 1} de {activeSection.items.length} neste assunto
             </p>
             <h2 id="patient-map-question-title" tabIndex={-1}>{activeItem.title}</h2>
             <p className="patient-map-question-examples"><strong>Alguns exemplos:</strong> {activeItem.examples}.</p>
