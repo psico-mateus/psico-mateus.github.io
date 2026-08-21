@@ -329,9 +329,9 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /As outras perguntas podem ficar em branco/);
   assert.match(app, /O registro começa privado/);
   assert.match(app, /Você escolhe se quer compartilhar/);
-  assert.match(app, /Quer complementar\?/);
+  assert.match(app, /Levar para a próxima sessão/);
   assert.match(app, /className="optional-badge">Opcional/);
-  assert.match(app, /seguir direto para salvar/);
+  assert.match(app, /Este campo não envia mensagem nem pedido de resposta imediata/);
   assert.match(app, /preencha somente “Título breve” e “O que aconteceu\?”/);
   assert.match(app, /className="field-label-line"[\s\S]*?Necessário/);
   assert.match(app, /className="entry-optional-disclosure"/);
@@ -456,7 +456,11 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /disabled=\{busy\}>Cancelar/);
   assert.equal(
     app.match(/onChange=\{\(e\) => update\([^\n]+disabled=\{busy\}/g)?.length,
-    8,
+    7,
+  );
+  assert.match(
+    app,
+    /id="entry-session-note"[\s\S]*?onChange=\{\(event\) => update\("message", event\.target\.value\)\}[\s\S]*?disabled=\{busy\}/u,
   );
   assert.match(app, /disabled=\{busy \|\| draft\.intensity === 0\}/);
   assert.match(app, /disabled=\{busy \|\| draft\.intensity === 10\}/);
@@ -1204,7 +1208,7 @@ test("mobile access shortcut and patient summary remain simple and private", asy
   assert.doesNotMatch(visualReview, /https:\/\/area-do-paciente/u);
 });
 
-test("record form keeps an early private save and reveals optional fields without losing values", async () => {
+test("record form keeps the session note visible and reveals other optional fields without losing values", async () => {
   const [app, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -1217,11 +1221,28 @@ test("record form keeps an early private save and reveals optional fields withou
   assert.match(optionalStep, /Quer parar por aqui\?/u);
   assert.match(optionalStep, /type="submit"/u);
   assert.match(optionalStep, /Salvar agora como privado/u);
-  assert.match(optionalStep, /As perguntas abaixo são opcionais/u);
-  assert.match(optionalStep, /Adicionar mais detalhes/u);
+  assert.match(optionalStep, /O restante é opcional/u);
+  assert.match(optionalStep, /Adicionar outros detalhes/u);
   assert.match(optionalStep, /onToggle=\{\(event\) => setOptionalOpen\(event\.currentTarget\.open\)\}/u);
   assert.match(optionalStep, /O que percebeu no corpo\?/u);
   assert.match(optionalStep, /Quais pensamentos apareceram\?/u);
+  assert.match(optionalStep, /id="entry-session-note"/u);
+  assert.match(optionalStep, /O que quero levar/u);
+  assert.match(optionalStep, /O que ficou presente desde a última sessão\?/u);
+  assert.match(optionalStep, /O que gostaria de levar para a próxima sessão\?/u);
+  assert.match(optionalStep, /Nada é compartilhado automaticamente/u);
+  assert.equal(optionalStep.match(/update\("message", event\.target\.value\)/gu)?.length, 1);
+  assert.ok(
+    optionalStep.indexOf('id="entry-session-note"') <
+      optionalStep.indexOf('className="entry-optional-disclosure"'),
+    "the session note must be visible before the disclosure for other optional details",
+  );
+  assert.match(
+    app,
+    /const optionalHasContent = \[draft\.body, draft\.thoughts, draft\.urge\]/u,
+  );
+  assert.match(app, /status session-note">Para a próxima sessão/u);
+  assert.match(styles, /\.session-note-block\{/u);
   assert.match(styles, /\.optional-save-shortcut\{/u);
   assert.match(styles, /\.entry-optional-disclosure>summary\{/u);
   assert.match(

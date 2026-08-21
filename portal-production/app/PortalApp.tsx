@@ -778,7 +778,7 @@ function EntryForm({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const [originalDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
-  const optionalHasContent = [draft.body, draft.thoughts, draft.urge, draft.message]
+  const optionalHasContent = [draft.body, draft.thoughts, draft.urge]
     .some((value) => Boolean(value.trim()));
   const [optionalOpen, setOptionalOpen] = useState(() => optionalHasContent);
   const [message, setMessage] = useState("");
@@ -893,11 +893,46 @@ function EntryForm({
           <span aria-hidden="true">03</span>
           <div>
             <div className="optional-heading-line">
-              <h2 id="entry-step-three">Quer complementar?</h2>
+              <h2 id="entry-step-three">Levar para a próxima sessão</h2>
               <span className="optional-badge">Opcional</span>
             </div>
-            <p>Estas perguntas podem ajudar a olhar o momento com mais calma. Você pode responder só às que fizerem sentido ou seguir direto para salvar.</p>
+            <p>Se quiser, use este espaço para organizar algo que gostaria de retomar. Você não precisa responder todas as perguntas.</p>
           </div>
+        </div>
+        <div className={`session-note-block ${remainsShared ? "shared" : "private"}`}>
+          <label className="field session-note-field" htmlFor="entry-session-note">
+            <span>O que quero levar</span>
+            <textarea
+              id="entry-session-note"
+              value={draft.message}
+              maxLength={1500}
+              rows={4}
+              placeholder="Ex.: uma dúvida, um assunto difícil de começar ou algo que não quero esquecer."
+              onChange={(event) => update("message", event.target.value)}
+              disabled={busy}
+              aria-describedby="entry-session-note-help entry-session-note-privacy"
+            />
+            <small id="entry-session-note-help">
+              Escreva só o que ajudar. Você pode deixar partes em aberto e conversar sobre elas depois.
+            </small>
+            <CharacterLimit value={draft.message} maxLength={1500} />
+          </label>
+          <details className="session-note-prompts">
+            <summary>Se estiver difícil começar, veja algumas perguntas</summary>
+            <ul>
+              <li>O que ficou presente desde a última sessão?</li>
+              <li>O que você não gostaria de esquecer?</li>
+              <li>O que quer compreender melhor?</li>
+              <li>Existe algo difícil de começar a contar?</li>
+              <li>O que gostaria de levar para a próxima sessão?</li>
+            </ul>
+          </details>
+          <p className="session-note-privacy" id="entry-session-note-privacy">
+            {remainsShared
+              ? "Ao salvar, Mateus poderá ver também esta parte."
+              : "Este conteúdo segue a privacidade do registro. Nada é compartilhado automaticamente."}{" "}
+            Este campo não envia mensagem nem pedido de resposta imediata.
+          </p>
         </div>
         <div className="optional-save-shortcut">
           <p>
@@ -906,8 +941,8 @@ function EntryForm({
               {remainsShared
                 ? "Este registro continuará compartilhado com Mateus."
                 : initial
-                  ? "As perguntas abaixo são opcionais e o registro continuará privado."
-                  : "As perguntas abaixo são opcionais e o registro será salvo como privado."}
+                  ? "O restante é opcional e o registro continuará privado."
+                  : "O restante é opcional e o registro será salvo como privado."}
             </span>
           </p>
           <button className="secondary-button" type="submit" disabled={busy}>
@@ -921,11 +956,11 @@ function EntryForm({
         >
           <summary>
             <span>
-              <strong>{optionalOpen ? "Ocultar perguntas opcionais" : "Adicionar mais detalhes"}</strong>
+              <strong>{optionalOpen ? "Ocultar outros detalhes" : "Adicionar outros detalhes"}</strong>
               <small>
                 {optionalHasContent
                   ? "Você já preencheu parte desta etapa. Fechar não apaga suas respostas."
-                  : "Quatro perguntas opcionais sobre corpo, pensamentos, vontade e sessão."}
+                  : "Três perguntas opcionais sobre corpo, pensamentos e vontade."}
               </small>
             </span>
           </summary>
@@ -944,11 +979,6 @@ function EntryForm({
               <span>O que teve vontade de fazer?</span>
               <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} />
               <CharacterLimit value={draft.urge} maxLength={1500} />
-            </label>
-            <label className="field">
-              <span>Há algo que queira levar para a sessão?</span>
-              <textarea value={draft.message} maxLength={1500} rows={4} placeholder="Uma dúvida, assunto ou ponto que queira lembrar depois." onChange={(e) => update("message", e.target.value)} disabled={busy} />
-              <CharacterLimit value={draft.message} maxLength={1500} />
             </label>
           </div>
         </details>
@@ -983,7 +1013,7 @@ function EntryForm({
 }
 
 function EntryDetails({ entry }: { entry: Entry }) {
-  const items = [["O que aconteceu", entry.happened], ["No corpo", entry.body], ["Pensamentos", entry.thoughts], ["Vontade de agir", entry.urge], ["Para a sessão", entry.message]];
+  const items = [["O que aconteceu", entry.happened], ["No corpo", entry.body], ["Pensamentos", entry.thoughts], ["Vontade de agir", entry.urge], ["Levar para a próxima sessão", entry.message]];
   return <div className="entry-details">{items.filter(([, value]) => value).map(([label, value]) => <div key={label}><strong>{label}</strong><p>{value}</p></div>)}</div>;
 }
 
@@ -1894,6 +1924,7 @@ function PatientDashboard({
                 <span className="patient-record-summary-copy">
                   <span className="patient-record-statuses">
                     <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
+                    {entry.message.trim() ? <span className="status session-note">Para a próxima sessão</span> : null}
                   </span>
                   <strong>{entry.title}</strong>
                   <small>{formatDate(entry.created_at)} · {entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</small>

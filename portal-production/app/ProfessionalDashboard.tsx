@@ -372,7 +372,7 @@ function RecordDisclosure({
     ["Percepções no corpo", entry.body],
     ["Pensamentos", entry.thoughts],
     ["Vontade de agir", entry.urge],
-    ["Para levar à sessão", entry.message],
+    ["Levar para a próxima sessão", entry.message],
   ].filter((item): item is [string, string] => Boolean(item[1]));
 
   useEffect(() => {

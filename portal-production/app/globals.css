@@ -964,6 +964,57 @@ input[type="range"]{accent-color:#9a6d27}
   font-size:.75rem;
   font-weight:800;
 }
+.session-note-block{
+  display:grid;
+  gap:.85rem;
+  border:1px solid rgba(53,105,91,.2);
+  border-radius:16px;
+  background:#f3f6f3;
+  padding:1rem;
+}
+.session-note-block.shared{
+  border-color:rgba(154,109,39,.24);
+  background:#faf6ee;
+}
+.session-note-field textarea{
+  min-height:132px;
+  background:#fffefa;
+}
+.session-note-field>small{
+  color:var(--muted);
+  font-size:.8rem;
+  line-height:1.5;
+}
+.session-note-prompts{
+  border-top:1px solid rgba(53,105,91,.14);
+  padding-top:.35rem;
+}
+.session-note-prompts>summary{
+  min-height:44px;
+  display:list-item;
+  padding:.65rem 0;
+  color:var(--green-2);
+  cursor:pointer;
+  font-size:.82rem;
+  font-weight:800;
+}
+.session-note-prompts>summary:hover{color:var(--ink)}
+.session-note-prompts ul{
+  display:grid;
+  gap:.35rem;
+  margin:.25rem 0 .35rem;
+  padding-left:1.3rem;
+  color:#4e5752;
+  font-size:.82rem;
+}
+.session-note-privacy{
+  margin:0;
+  border-top:1px solid rgba(53,105,91,.14);
+  padding-top:.75rem;
+  color:var(--muted);
+  font-size:.78rem;
+  line-height:1.5;
+}
 .optional-save-shortcut{
   display:flex;
   align-items:center;
@@ -1246,6 +1297,11 @@ input[type="range"]{accent-color:#9a6d27}
   flex-wrap:wrap;
 }
 .patient-record-summary-copy .status{width:max-content}
+.patient-record-summary-copy .status.session-note{
+  border:1px solid rgba(91,66,31,.12);
+  background:#f3eadc;
+  color:#5b421f;
+}
 .patient-view-summary{
   width:fit-content;
   max-width:100%;
