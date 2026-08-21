@@ -141,6 +141,11 @@ Pacientes e profissional podem encerrar todas as sessões da própria conta em c
 de aparelho perdido ou acesso esquecido. A ação exige a senha atual, exige também
 um novo código MFA no perfil profissional e não altera nem exclui registros.
 
+O código de recuperação da conta profissional redefine somente a senha; ele não
+substitui o autenticador. A prevenção para perda do celular e o desenho de uma
+futura rotação local, sem endpoint público, estão documentados em
+[`docs/recuperacao-acesso-profissional.md`](docs/recuperacao-acesso-profissional.md).
+
 O encerramento do vínculo desativa o acesso e encerra sessões, mas não apaga
 automaticamente a conta ou os registros. O aviso de privacidade orienta como
 pedir cópia, correção de identificação ou exclusão quando o acesso já estiver
