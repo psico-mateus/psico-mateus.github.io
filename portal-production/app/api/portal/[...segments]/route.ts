@@ -15,6 +15,14 @@ import {
   verifyTotp,
 } from "@/lib/crypto";
 import {
+  EntryThoughtReviewConflictError,
+  attachThoughtReviews,
+  deleteEntryThoughtReview,
+  entryThoughtReviewSelectColumns,
+  patchEntryThoughtReview,
+  type EntryThoughtReviewJoinedColumns,
+} from "@/lib/entry-thought-review";
+import {
   PRIVACY_VERSION,
   PortalError,
   audit,
@@ -58,6 +66,9 @@ import {
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
+type EntryQueryRow = Record<string, unknown> & EntryThoughtReviewJoinedColumns;
+type PatientExportEntryDatabaseRow = Omit<PatientExportEntryRow, "thought_review"> &
+  EntryThoughtReviewJoinedColumns;
 
 class PortalOperationError extends Error {
   operation: string;
@@ -119,6 +130,10 @@ function technicalRoute(path: string): string {
   ]);
   if (staticRoutes.has(path)) return path;
   const dynamicRoutes: Array<[RegExp, string]> = [
+    [
+      /^\/entries\/[A-Za-z0-9_-]+\/thought-review$/u,
+      "/entries/:entryId/thought-review",
+    ],
     [/^\/entries\/[A-Za-z0-9_-]+\/sharing$/u, "/entries/:entryId/sharing"],
     [/^\/entries\/[A-Za-z0-9_-]+$/u, "/entries/:entryId"],
     [/^\/invitations\/[A-Za-z0-9_-]+$/u, "/invitations/:invitationId"],
@@ -592,7 +607,8 @@ async function listEntries(session: Awaited<ReturnType<typeof requireSession>>) 
       `SELECT entries.id, entries.title, entries.happened, entries.body,
               entries.thoughts, entries.urge, entries.emotion, entries.intensity,
               entries.message, entries.created_at, entries.updated_at,
-              entries.shared_at, entries.revoked_at, entry_views.viewed_at
+              entries.shared_at, entries.revoked_at, entry_views.viewed_at,
+              ${entryThoughtReviewSelectColumns}
        FROM entries
        LEFT JOIN patient_links
          ON patient_links.patient_id = entries.patient_id
@@ -600,29 +616,34 @@ async function listEntries(session: Awaited<ReturnType<typeof requireSession>>) 
        LEFT JOIN entry_views
          ON entry_views.entry_id = entries.id
         AND entry_views.therapist_id = patient_links.therapist_id
+       LEFT JOIN entry_thought_reviews
+         ON entry_thought_reviews.entry_id = entries.id
        WHERE entries.patient_id = ?
        ORDER BY entries.created_at DESC`,
     )
       .bind(session.userId)
-      .all();
-    return result.results;
+      .all<EntryQueryRow>();
+    return attachThoughtReviews(result.results);
   }
   await audit(session.userId, "view_shared_entries", "entry_list");
   const result = await DB.prepare(
     `SELECT entries.id, entries.title, entries.happened, entries.body, entries.thoughts,
             entries.urge, entries.emotion, entries.intensity, entries.message,
             entries.created_at, entries.updated_at, entries.shared_at,
-            users.display_name AS patient_name
+            users.display_name AS patient_name,
+            ${entryThoughtReviewSelectColumns}
      FROM entries
      JOIN users ON users.id = entries.patient_id
      JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     LEFT JOIN entry_thought_reviews
+       ON entry_thought_reviews.entry_id = entries.id
      WHERE patient_links.therapist_id = ? AND patient_links.status = 'active'
        AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL
      ORDER BY entries.shared_at DESC`,
   )
     .bind(session.userId)
-    .all();
-  return result.results;
+    .all<EntryQueryRow>();
+  return attachThoughtReviews(result.results);
 }
 
 async function listSharedPatients(
@@ -802,6 +823,7 @@ async function listSharedEntriesForPatient(
             entries.thoughts, entries.urge, entries.emotion, entries.intensity,
             entries.message, entries.created_at, entries.updated_at, entries.shared_at,
             entry_views.viewed_at,
+            ${entryThoughtReviewSelectColumns},
             CASE
               WHEN entry_views.viewed_at IS NULL
                 OR entry_views.viewed_at < CASE
@@ -818,6 +840,8 @@ async function listSharedEntriesForPatient(
      LEFT JOIN entry_views
        ON entry_views.entry_id = entries.id
       AND entry_views.therapist_id = ?
+     LEFT JOIN entry_thought_reviews
+       ON entry_thought_reviews.entry_id = entries.id
      WHERE patient_links.therapist_id = ? AND patient_links.patient_id = ?
        AND patient_links.status = 'active' AND users.status = 'active'
        AND entries.patient_id = ?
@@ -825,9 +849,9 @@ async function listSharedEntriesForPatient(
      ORDER BY is_unread DESC, entries.shared_at DESC`,
   )
     .bind(session.userId, session.userId, patientId, patientId)
-    .all();
+    .all<EntryQueryRow>();
   await audit(session.userId, "view_shared_entries", "patient_entries", patientId);
-  return result.results;
+  return attachThoughtReviews(result.results);
 }
 
 async function handleGet(request: Request, path: string): Promise<Response> {
@@ -948,6 +972,7 @@ async function handleGet(request: Request, path: string): Promise<Response> {
                   entries.thoughts, entries.urge, entries.emotion, entries.intensity,
                   entries.message, entries.created_at, entries.updated_at,
                   entries.shared_at, entries.revoked_at,
+                  ${entryThoughtReviewSelectColumns},
                   (
                     SELECT MAX(entry_views.viewed_at)
                     FROM entry_views
@@ -958,11 +983,13 @@ async function handleGet(request: Request, path: string): Promise<Response> {
                       AND viewing_link.status = 'active'
                   ) AS viewed_at
            FROM entries
+           LEFT JOIN entry_thought_reviews
+             ON entry_thought_reviews.entry_id = entries.id
            WHERE entries.patient_id = ?
            ORDER BY entries.created_at DESC`,
         )
           .bind(session.userId)
-          .all<PatientExportEntryRow>(),
+          .all<PatientExportEntryDatabaseRow>(),
         readPatientMapDraft(DB, session.userId),
         listPatientMapShareCopies(DB, session.userId),
       ]);
@@ -972,7 +999,9 @@ async function handleGet(request: Request, path: string): Promise<Response> {
       exportedAt,
       account,
       careAccess: careAccess ?? null,
-      entries: entryResult.results,
+      entries: attachThoughtReviews<PatientExportEntryDatabaseRow>(
+        entryResult.results,
+      ),
       patientMapDraft,
       patientMapShares,
     });
@@ -1312,6 +1341,24 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
     return json({ ok: true });
   }
 
+  const thoughtReview = path.match(
+    /^\/entries\/([A-Za-z0-9_-]+)\/thought-review$/u,
+  );
+  if (thoughtReview) {
+    const session = await requireSession(request, "patient");
+    requireCsrf(request, session);
+    const result = await patchEntryThoughtReview(
+      DB,
+      session.userId,
+      thoughtReview[1],
+      input,
+    );
+    return json({
+      thought_review: result.thoughtReview,
+      updated_at: result.entryUpdatedAt,
+    });
+  }
+
   const patientAccess = path.match(
     /^\/professional\/patients\/([A-Za-z0-9_-]+)\/access$/u,
   );
@@ -1513,6 +1560,24 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
     await audit(session.userId, "revoke", "invitation", invitation[1]);
     return noContent();
   }
+  const thoughtReview = path.match(
+    /^\/entries\/([A-Za-z0-9_-]+)\/thought-review$/u,
+  );
+  if (thoughtReview) {
+    if (session.role !== "patient") throw new PortalError(403, "Ação não permitida.");
+    const input = await readJson(request);
+    const result = await deleteEntryThoughtReview(
+      DB,
+      session.userId,
+      thoughtReview[1],
+      input,
+    );
+    return json({
+      deleted: true,
+      entry_id: thoughtReview[1],
+      updated_at: result.updatedAt,
+    });
+  }
   const entry = path.match(/^\/entries\/([A-Za-z0-9_-]+)$/u);
   if (entry) {
     if (session.role !== "patient") throw new PortalError(403, "Ação não permitida.");
@@ -1568,6 +1633,16 @@ async function route(request: Request, context: RouteContext): Promise<Response>
     if (request.method === "DELETE") return await handleDelete(request, path);
     return json({ error: "Método não permitido." }, 405, { Allow: "GET, POST, PATCH, DELETE" });
   } catch (error) {
+    if (error instanceof EntryThoughtReviewConflictError) {
+      return json(
+        {
+          error: error.message,
+          code: "entry_thought_review_conflict",
+          current_review: error.currentReview,
+        },
+        error.status,
+      );
+    }
     if (error instanceof PortalError) return json({ error: error.message }, error.status);
     logTechnicalFailure(path, error, startedAt);
     return json({ error: "Não foi possível concluir a ação. Tente novamente." }, 500);

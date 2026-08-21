@@ -43,6 +43,13 @@
       "when": 1786634133133,
       "tag": "0005_patient_map_reset_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787276219144,
+      "tag": "0006_entry_thought_reviews",
+      "breakpoints": true
     }
   ]
 }

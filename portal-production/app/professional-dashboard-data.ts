@@ -1,3 +1,5 @@
+import { type ThoughtReview } from "./thought-review.ts";
+
 export type ProfessionalArea = "records" | "accesses" | "invitations";
 export type PatientSort = "unread" | "recent" | "alphabetical";
 export type EntryViewFilter = "all" | "unread" | "viewed";
@@ -50,6 +52,7 @@ export type SharedEntry = {
   shared_at: string;
   viewed_at: string | null;
   is_unread: number;
+  thought_review: ThoughtReview | null;
 };
 
 export type PatientAccess = {

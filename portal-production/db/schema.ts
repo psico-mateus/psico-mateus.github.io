@@ -95,6 +95,52 @@ export const entries = sqliteTable(
 );
 
 /**
+ * Continuação opcional e individual de um Registro.
+ *
+ * A revisão herda a propriedade e o compartilhamento do Registro por meio da
+ * chave estrangeira 1:1. Não há rota profissional direta para esta tabela.
+ */
+export const entryThoughtReviews = sqliteTable(
+  "entry_thought_reviews",
+  {
+    entryId: text("entry_id")
+      .primaryKey()
+      .references(() => entries.id, { onDelete: "cascade" }),
+    sourceThought: text("source_thought").notNull(),
+    supportingContext: text("supporting_context").notNull().default(""),
+    missingContext: text("missing_context").notNull().default(""),
+    alternativeView: text("alternative_view").notNull().default(""),
+    currentView: text("current_view").notNull().default(""),
+    revision: integer("revision").notNull().default(1),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    check(
+      "entry_thought_reviews_source_thought_check",
+      sql`length(${table.sourceThought}) BETWEEN 1 AND 1500`,
+    ),
+    check(
+      "entry_thought_reviews_supporting_context_check",
+      sql`length(${table.supportingContext}) <= 1500`,
+    ),
+    check(
+      "entry_thought_reviews_missing_context_check",
+      sql`length(${table.missingContext}) <= 1500`,
+    ),
+    check(
+      "entry_thought_reviews_alternative_view_check",
+      sql`length(${table.alternativeView}) <= 1500`,
+    ),
+    check(
+      "entry_thought_reviews_current_view_check",
+      sql`length(${table.currentView}) <= 1500`,
+    ),
+    check("entry_thought_reviews_revision_check", sql`${table.revision} >= 1`),
+  ],
+);
+
+/**
  * Rascunho privado e versionado do "Meu mapa".
  *
  * A linha `state/__state__` guarda a geração atual. As demais linhas guardam

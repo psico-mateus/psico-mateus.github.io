@@ -7,9 +7,10 @@ import {
 } from "@/content/patient-map-catalog";
 import type { PatientMapDraftPayload } from "@/lib/patient-map-draft";
 import type { PatientMapShareCopy } from "@/lib/patient-map-sharing";
+import type { EntryThoughtReview } from "@/lib/entry-thought-review";
 
 export const PATIENT_DATA_EXPORT_FORMAT = "area-do-paciente-export" as const;
-export const PATIENT_DATA_EXPORT_VERSION = 2 as const;
+export const PATIENT_DATA_EXPORT_VERSION = 3 as const;
 
 export type PatientExportAccountRow = {
   display_name: string;
@@ -42,6 +43,7 @@ export type PatientExportEntryRow = {
   shared_at: string | null;
   revoked_at: string | null;
   viewed_at: string | null;
+  thought_review: EntryThoughtReview | null;
 };
 
 const responseLabels = new Map(
@@ -93,6 +95,17 @@ function exportEntry(entry: PatientExportEntryRow) {
     emotion: entry.emotion,
     intensity: entry.intensity,
     message: entry.message,
+    thought_review: entry.thought_review
+      ? {
+          source_thought: entry.thought_review.source_thought,
+          supporting_context: entry.thought_review.supporting_context,
+          missing_context: entry.thought_review.missing_context,
+          alternative_view: entry.thought_review.alternative_view,
+          current_view: entry.thought_review.current_view,
+          created_at: entry.thought_review.created_at,
+          updated_at: entry.thought_review.updated_at,
+        }
+      : null,
     created_at: entry.created_at,
     updated_at: entry.updated_at,
     // Campos preservados no mesmo lugar das exportações anteriores.

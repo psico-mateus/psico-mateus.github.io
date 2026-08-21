@@ -30,6 +30,11 @@ import {
 } from "./patient-navigation";
 import { ProfessionalDashboard } from "./ProfessionalDashboard";
 import {
+  ThoughtReviewEditor,
+  type ThoughtReviewEditorSnapshot,
+} from "./ThoughtReview";
+import { type ThoughtReview } from "./thought-review";
+import {
   filterAndSortPatientEntries,
   patientEntryViewStatus,
   patientEntryViewSummary,
@@ -84,8 +89,18 @@ type Entry = {
   shared_at: string | null;
   revoked_at?: string | null;
   viewed_at?: string | null;
+  thought_review: ThoughtReview | null;
 };
-type EntryDraft = Omit<Entry, "id" | "created_at" | "updated_at" | "shared_at" | "revoked_at">;
+type EntryDraft = Omit<
+  Entry,
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "shared_at"
+  | "revoked_at"
+  | "viewed_at"
+  | "thought_review"
+>;
 type EntryReturn =
   | { kind: "reading"; id: string }
   | { kind: "tool"; id: string }
@@ -1089,6 +1104,9 @@ function PatientDashboard({
   const [entryActions, setEntryActions] = useState<
     Record<string, "sharing" | "removing">
   >({});
+  const [thoughtReviewSnapshots, setThoughtReviewSnapshots] = useState<
+    Record<string, ThoughtReviewEditorSnapshot>
+  >({});
   const entryActionLocks = useRef<Set<string>>(new Set());
   const entriesRequestSequence = useRef(0);
   const manualRefreshLock = useRef(false);
@@ -1239,7 +1257,9 @@ function PatientDashboard({
 
   useEffect(() => {
     const hasUnsavedChanges =
-      Boolean(editing && editorDirty) || patientMap.hasUnsavedChanges;
+      Boolean(editing && editorDirty) ||
+      patientMap.hasUnsavedChanges ||
+      Object.keys(thoughtReviewSnapshots).length > 0;
     onDraftStateChange(hasUnsavedChanges);
     if (!hasUnsavedChanges) return;
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
@@ -1248,7 +1268,13 @@ function PatientDashboard({
     }
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [editing, editorDirty, onDraftStateChange, patientMap.hasUnsavedChanges]);
+  }, [
+    editing,
+    editorDirty,
+    onDraftStateChange,
+    patientMap.hasUnsavedChanges,
+    thoughtReviewSnapshots,
+  ]);
 
   async function save(draft: EntryDraft) {
     const editedEntry = editing && editing !== "new" ? editing : null;
@@ -1331,6 +1357,12 @@ function PatientDashboard({
     setEntryActions((current) => ({ ...current, [entry.id]: "removing" }));
     try {
       await portalRequest(`/entries/${entry.id}`, { method: "DELETE" }, csrf);
+      setThoughtReviewSnapshots((current) => {
+        if (!current[entry.id]) return current;
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
       setMessageTone("success");
       setMessage("Registro excluído.");
       await load();
@@ -1358,6 +1390,61 @@ function PatientDashboard({
       });
     }
   }
+  function saveThoughtReview(
+    entryId: string,
+    review: ThoughtReview,
+    updatedAt: string,
+  ) {
+    setThoughtReviewSnapshots((current) => {
+      if (!current[entryId]) return current;
+      const next = { ...current };
+      delete next[entryId];
+      return next;
+    });
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.id === entryId
+          ? {
+              ...entry,
+              thought_review: review,
+              updated_at: updatedAt,
+            }
+          : entry,
+      ),
+    );
+  }
+  function deleteThoughtReview(entryId: string, updatedAt: string) {
+    setThoughtReviewSnapshots((current) => {
+      if (!current[entryId]) return current;
+      const next = { ...current };
+      delete next[entryId];
+      return next;
+    });
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.id === entryId
+          ? { ...entry, thought_review: null, updated_at: updatedAt }
+          : entry,
+      ),
+    );
+  }
+  const updateThoughtReviewSnapshot = useCallback(
+    (entryId: string, snapshot: ThoughtReviewEditorSnapshot | null) => {
+      setThoughtReviewSnapshots((current) => {
+        if (!snapshot) {
+          if (!current[entryId]) return current;
+          const next = { ...current };
+          delete next[entryId];
+          return next;
+        }
+        if (current[entryId] === snapshot) return current;
+        const next = { ...current };
+        next[entryId] = snapshot;
+        return next;
+      });
+    },
+    [],
+  );
   function openNewRecord() {
     if (editing) {
       setEditorVisible(true);
@@ -1955,6 +2042,7 @@ function PatientDashboard({
                   <span className="patient-record-statuses">
                     <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
                     {entry.message.trim() ? <span className="status session-note">Para a próxima sessão</span> : null}
+                    {entry.thought_review ? <span className="status thought-review-status">Pensamento revisto</span> : null}
                   </span>
                   <strong>{entry.title}</strong>
                   <small>{formatDate(entry.created_at)} · {entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</small>
@@ -1983,6 +2071,23 @@ function PatientDashboard({
                   </>
                 ) : null}
                 <EntryDetails entry={entry} />
+                {entry.thoughts.trim() ||
+                entry.thought_review ||
+                thoughtReviewSnapshots[entry.id] ? (
+                  <ThoughtReviewEditor
+                    entryId={entry.id}
+                    thoughts={entry.thoughts}
+                    review={entry.thought_review}
+                    shared={shared}
+                    csrf={csrf}
+                    onSaved={(review, updatedAt) =>
+                      saveThoughtReview(entry.id, review, updatedAt)
+                    }
+                    onDeleted={(updatedAt) => deleteThoughtReview(entry.id, updatedAt)}
+                    recovery={thoughtReviewSnapshots[entry.id] ?? null}
+                    onSnapshotChange={updateThoughtReviewSnapshot}
+                  />
+                ) : null}
                 <div className="record-actions">
                   <button
                     className={shared ? "secondary-button" : "share-button"}

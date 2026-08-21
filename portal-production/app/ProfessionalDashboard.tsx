@@ -29,6 +29,7 @@ import {
 } from "./professional-dashboard-data";
 import { copyText } from "./copy-text";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
+import { ThoughtReviewReadOnly } from "./ThoughtReview";
 
 type User = { id: string; name: string; role: "therapist" };
 type NoticeTone = "info" | "error" | "success";
@@ -424,6 +425,9 @@ function RecordDisclosure({
             </div>
           ))}
         </div>
+        {entry.thought_review ? (
+          <ThoughtReviewReadOnly review={entry.thought_review} />
+        ) : null}
         <p className="read-only">
           Somente leitura · o texto do paciente não pode ser editado aqui.
         </p>
