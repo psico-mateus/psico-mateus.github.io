@@ -442,16 +442,41 @@ expectStatus(
   401,
   "sessão profissional encerrada após sair",
 );
-const professionalRelogin = await api("/login", {
-  method: "POST",
-  body: {
-    email: synthetic.therapistEmail,
-    password: synthetic.therapistPassword,
-    totp: totp(setup.payload.totp_secret),
-  },
-  auth: therapist,
-});
-expectStatus(professionalRelogin, 200, "novo login profissional com MFA");
+const simultaneousProfessionalSessionA = session();
+const simultaneousProfessionalSessionB = session();
+const simultaneousProfessionalCode = totp(setup.payload.totp_secret);
+const simultaneousProfessionalLogins = await Promise.all([
+  api("/login", {
+    method: "POST",
+    body: {
+      email: synthetic.therapistEmail,
+      password: synthetic.therapistPassword,
+      totp: simultaneousProfessionalCode,
+    },
+    auth: simultaneousProfessionalSessionA,
+  }),
+  api("/login", {
+    method: "POST",
+    body: {
+      email: synthetic.therapistEmail,
+      password: synthetic.therapistPassword,
+      totp: simultaneousProfessionalCode,
+    },
+    auth: simultaneousProfessionalSessionB,
+  }),
+]);
+assert.deepEqual(
+  simultaneousProfessionalLogins
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [200, 401],
+  "duas tentativas simultâneas não podem reutilizar o mesmo código MFA",
+);
+const successfulProfessionalSession =
+  simultaneousProfessionalLogins[0].response.status === 200
+    ? simultaneousProfessionalSessionA
+    : simultaneousProfessionalSessionB;
+Object.assign(therapist, successfulProfessionalSession);
 assert.equal(therapist.user.role, "therapist");
 
 const invitationA = await createInvitation(therapist);
@@ -2221,7 +2246,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 151,
+    checks: 152,
     data: "synthetic-only",
     production_requests: 0,
   }),

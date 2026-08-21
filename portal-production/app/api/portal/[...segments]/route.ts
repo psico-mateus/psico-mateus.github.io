@@ -212,6 +212,21 @@ function pathOf(segments: string[] | undefined): string {
   return `/${(segments ?? []).join("/")}`;
 }
 
+async function consumeActiveTherapistTotpCounter(
+  user: Pick<UserRow, "id" | "last_totp_counter">,
+  counter: number,
+): Promise<boolean> {
+  const { DB } = getPortalEnv();
+  const result = await DB.prepare(
+    `UPDATE users SET last_totp_counter = ?
+     WHERE id = ? AND role = 'therapist' AND status = 'active'
+       AND totp_enabled = 1 AND last_totp_counter IS ?`,
+  )
+    .bind(counter, user.id, user.last_totp_counter)
+    .run();
+  return result.meta.changes === 1;
+}
+
 async function setupStatus() {
   const { DB } = getPortalEnv();
   const row = await DB.prepare(
@@ -295,11 +310,16 @@ async function confirmTherapistSetup(request: Request, input: Input): Promise<Re
   if (!verification.valid || verification.counter === null) {
     throw new PortalError(400, "O código do autenticador não confere.");
   }
-  await DB.prepare(
-    `UPDATE users SET status = 'active', totp_enabled = 1, last_totp_counter = ? WHERE id = ?`,
+  const activation = await DB.prepare(
+    `UPDATE users SET status = 'active', totp_enabled = 1, last_totp_counter = ?
+     WHERE id = ? AND role = 'therapist' AND status = 'pending_mfa'
+       AND totp_enabled = 0 AND last_totp_counter IS NULL`,
   )
     .bind(verification.counter, user.id)
     .run();
+  if (activation.meta.changes !== 1) {
+    throw new PortalError(400, "O código do autenticador não confere.");
+  }
   const activeUser = (await DB.prepare("SELECT * FROM users WHERE id = ?")
     .bind(user.id)
     .first<UserRow>()) as UserRow;
@@ -347,9 +367,9 @@ async function login(request: Request, input: Input): Promise<Response> {
       user.last_totp_counter,
     );
     if (!verification.valid || verification.counter === null) throw genericError;
-    await DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?")
-      .bind(verification.counter, user.id)
-      .run();
+    if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+      throw genericError;
+    }
   }
   const session = await createSession(request, user);
   await DB.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(now(), user.id).run();
@@ -1084,6 +1104,12 @@ async function handlePost(request: Request, path: string): Promise<Response> {
     );
     const createdAt = now();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString();
+    if (!(await consumeActiveTherapistTotpCounter(therapist, verification.counter))) {
+      throw new PortalError(
+        400,
+        "O código do autenticador não confere. Se acabou de entrar, aguarde o próximo código.",
+      );
+    }
     await DB.batch([
       DB.prepare(
         "UPDATE users SET recovery_salt = ?, recovery_hash = ? WHERE id = ?",
@@ -1097,10 +1123,6 @@ async function handlePost(request: Request, path: string): Promise<Response> {
            created_at = excluded.created_at`,
       ).bind(patient.id, session.userId, expiresAt, createdAt),
       DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(patient.id),
-      DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?").bind(
-        verification.counter,
-        therapist.id,
-      ),
     ]);
     await audit(
       session.userId,
@@ -1195,9 +1217,9 @@ async function handlePost(request: Request, path: string): Promise<Response> {
       if (!verification.valid || verification.counter === null) {
         throw new PortalError(400, "O código do autenticador não confere.");
       }
-      await DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?")
-        .bind(verification.counter, user.id)
-        .run();
+      if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+        throw new PortalError(400, "O código do autenticador não confere.");
+      }
     }
     const recoveryCode = createRecoveryCode();
     const record = await derivePassword(recoveryCode);
@@ -1272,9 +1294,9 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
       if (!verification.valid || verification.counter === null) {
         throw new PortalError(400, "O código do autenticador não confere.");
       }
-      await DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?")
-        .bind(verification.counter, user.id)
-        .run();
+      if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+        throw new PortalError(400, "O código do autenticador não confere.");
+      }
     }
     const record = await derivePassword(newPassword);
     await DB.batch([
@@ -1456,11 +1478,13 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
           "O código do autenticador não confere. Se acabou de entrar, aguarde o próximo código.",
         );
       }
+      if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+        throw new PortalError(
+          400,
+          "O código do autenticador não confere. Se acabou de entrar, aguarde o próximo código.",
+        );
+      }
       await DB.batch([
-        DB.prepare("UPDATE users SET last_totp_counter = ? WHERE id = ?").bind(
-          verification.counter,
-          user.id,
-        ),
         DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
         prepareAudit(user.id, "revoke_all_sessions", "account"),
       ]);

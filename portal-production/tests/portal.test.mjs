@@ -305,6 +305,28 @@ test("TOTP accepts an RFC vector once and blocks replay", async () => {
   assert.equal((await verifyTotp(secret, "287082", 1, 59_000)).valid, false);
 });
 
+test("professional MFA counters are consumed with compare-and-set", async () => {
+  const route = await readFile(
+    new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(route, /async function consumeActiveTherapistTotpCounter/u);
+  assert.match(
+    route,
+    /totp_enabled = 1 AND last_totp_counter IS \?/u,
+  );
+  assert.match(route, /return result\.meta\.changes === 1/u);
+  assert.match(
+    route,
+    /status = 'pending_mfa'[\s\S]*?last_totp_counter IS NULL[\s\S]*?activation\.meta\.changes !== 1/u,
+  );
+  assert.doesNotMatch(
+    route,
+    /UPDATE users SET last_totp_counter = \? WHERE id = \?/u,
+  );
+});
+
 test("protected values round-trip and one-time codes are well formed", async () => {
   const secret = "a".repeat(32);
   const encrypted = await encrypt(secret, "valor sensível");
