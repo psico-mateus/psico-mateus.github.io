@@ -751,18 +751,25 @@ function entryDraftFrom(initial?: Entry): EntryDraft {
 }
 
 function CharacterLimit({
+  id,
   value,
   maxLength,
 }: {
+  id: string;
   value: string;
   maxLength: number;
 }) {
   const remaining = remainingCharactersNearLimit(value, maxLength);
-  if (remaining === null) return null;
 
   return (
-    <small className={`character-limit${remaining === 0 ? " limit-reached" : ""}`}>
-      {remaining === 0
+    <small
+      id={id}
+      className={`character-limit${remaining === 0 ? " limit-reached" : ""}`}
+      hidden={remaining === null}
+    >
+      {remaining === null
+        ? ""
+        : remaining === 0
         ? "Limite de caracteres atingido."
         : `${remaining} ${remaining === 1 ? "caractere restante" : "caracteres restantes"}`}
     </small>
@@ -844,13 +851,13 @@ function EntryForm({
         </div>
         <label className="field">
           <span className="field-label-line"><span>Título breve</span><small>Necessário</small></span>
-          <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required disabled={busy} aria-describedby={guidance ? "education-entry-guidance" : undefined} />
-          <CharacterLimit value={draft.title} maxLength={120} />
+          <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required disabled={busy} aria-describedby={guidance ? "education-entry-guidance entry-title-character-limit" : "entry-title-character-limit"} />
+          <CharacterLimit id="entry-title-character-limit" value={draft.title} maxLength={120} />
         </label>
         <label className="field">
           <span className="field-label-line"><span>O que aconteceu?</span><small>Necessário</small></span>
-          <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required disabled={busy} />
-          <CharacterLimit value={draft.happened} maxLength={2000} />
+          <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required disabled={busy} aria-describedby="entry-happened-character-limit" />
+          <CharacterLimit id="entry-happened-character-limit" value={draft.happened} maxLength={2000} />
         </label>
       </section>
 
@@ -862,8 +869,8 @@ function EntryForm({
         <div className="emotion-row">
           <div className="field">
             <label htmlFor="entry-emotion"><span>Emoção principal, se souber</span></label>
-            <input id="entry-emotion" value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} disabled={busy} />
-            <CharacterLimit value={draft.emotion} maxLength={120} />
+            <input id="entry-emotion" value={draft.emotion} maxLength={120} placeholder="Ex.: ansiedade, tristeza, raiva" onChange={(e) => update("emotion", e.target.value)} disabled={busy} aria-describedby="entry-emotion-character-limit" />
+            <CharacterLimit id="entry-emotion-character-limit" value={draft.emotion} maxLength={120} />
             <a
               className="field-help-link"
               href={guideUrl}
@@ -921,12 +928,12 @@ function EntryForm({
               placeholder="Ex.: uma dúvida, um assunto difícil de começar ou algo que não quero esquecer."
               onChange={(event) => update("message", event.target.value)}
               disabled={busy}
-              aria-describedby="entry-session-note-help entry-session-note-privacy"
+              aria-describedby="entry-session-note-help entry-session-note-privacy entry-session-note-character-limit"
             />
             <small id="entry-session-note-help">
               Escreva só o que ajudar. Você pode deixar partes em aberto e conversar sobre elas depois.
             </small>
-            <CharacterLimit value={draft.message} maxLength={1500} />
+            <CharacterLimit id="entry-session-note-character-limit" value={draft.message} maxLength={1500} />
           </label>
           <details className="session-note-prompts">
             <summary>Se estiver difícil começar, veja algumas perguntas</summary>
@@ -978,18 +985,18 @@ function EntryForm({
           <div className="two-columns optional-fields">
             <label className="field">
               <span>O que percebeu no corpo?</span>
-              <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} />
-              <CharacterLimit value={draft.body} maxLength={1500} />
+              <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} aria-describedby="entry-body-character-limit" />
+              <CharacterLimit id="entry-body-character-limit" value={draft.body} maxLength={1500} />
             </label>
             <label className="field">
               <span>Quais pensamentos apareceram?</span>
-              <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} />
-              <CharacterLimit value={draft.thoughts} maxLength={1500} />
+              <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} aria-describedby="entry-thoughts-character-limit" />
+              <CharacterLimit id="entry-thoughts-character-limit" value={draft.thoughts} maxLength={1500} />
             </label>
             <label className="field">
               <span>O que teve vontade de fazer?</span>
-              <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} />
-              <CharacterLimit value={draft.urge} maxLength={1500} />
+              <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} aria-describedby="entry-urge-character-limit" />
+              <CharacterLimit id="entry-urge-character-limit" value={draft.urge} maxLength={1500} />
             </label>
           </div>
         </details>

@@ -992,10 +992,16 @@ export function PatientMapShell({
                   value={synthesisValue}
                   placeholder="Escreva somente se fizer sentido."
                   onChange={(event) => updateSynthesis(synthesisPrompt.id, event.target.value)}
+                  aria-describedby="patient-map-synthesis-character-limit"
                 />
-                {synthesisValue.length >= 850 ? (
-                  <small>{1000 - synthesisValue.length} caracteres disponíveis</small>
-                ) : null}
+                <small
+                  id="patient-map-synthesis-character-limit"
+                  hidden={synthesisValue.length < 850}
+                >
+                  {synthesisValue.length >= 850
+                    ? `${1000 - synthesisValue.length} caracteres disponíveis`
+                    : ""}
+                </small>
               </label>
             </article>
             <div className="patient-map-synthesis-navigation">
@@ -1378,10 +1384,16 @@ export function PatientMapShell({
               rows={4}
               placeholder="Ex.: depende do lugar, da companhia ou de como foi meu dia."
               onChange={(event) => updateNote(event.target.value)}
+              aria-describedby="patient-map-note-character-limit"
             />
-            {(currentAnswer?.note ?? "").length >= 500 ? (
-              <small>{600 - (currentAnswer?.note ?? "").length} caracteres disponíveis</small>
-            ) : null}
+            <small
+              id="patient-map-note-character-limit"
+              hidden={(currentAnswer?.note ?? "").length < 500}
+            >
+              {(currentAnswer?.note ?? "").length >= 500
+                ? `${600 - (currentAnswer?.note ?? "").length} caracteres disponíveis`
+                : ""}
+            </small>
           </label>
         </details>
 

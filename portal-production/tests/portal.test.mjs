@@ -981,11 +981,11 @@ test("patient history search stays local, ignores accents and supports ordering"
   );
 });
 
-test("record form shows character counts only near each field limit", async () => {
-  const app = await readFile(
-    new URL("../app/PortalApp.tsx", import.meta.url),
-    "utf8",
-  );
+test("record and map forms associate near-limit counts with their fields", async () => {
+  const [app, patientMap] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientMapShell.tsx", import.meta.url), "utf8"),
+  ]);
 
   assert.equal(remainingCharactersNearLimit("curto", 120), null);
   assert.equal(remainingCharactersNearLimit("a".repeat(100), 120), 20);
@@ -993,7 +993,14 @@ test("record form shows character counts only near each field limit", async () =
   assert.equal(remainingCharactersNearLimit("a".repeat(120), 120), 0);
   assert.equal(remainingCharactersNearLimit("a".repeat(121), 120), 0);
   assert.match(app, /Limite de caracteres atingido/);
-  assert.match(app, /CharacterLimit value=\{draft\.happened\} maxLength=\{2000\}/);
+  assert.match(app, /hidden=\{remaining === null\}/);
+  assert.match(app, /CharacterLimit id="entry-happened-character-limit" value=\{draft\.happened\} maxLength=\{2000\}/);
+  assert.match(app, /aria-describedby=\{guidance \? "education-entry-guidance entry-title-character-limit" : "entry-title-character-limit"\}/);
+  assert.match(app, /aria-describedby="entry-session-note-help entry-session-note-privacy entry-session-note-character-limit"/);
+  assert.match(patientMap, /aria-describedby="patient-map-synthesis-character-limit"/);
+  assert.match(patientMap, /id="patient-map-synthesis-character-limit"/);
+  assert.match(patientMap, /aria-describedby="patient-map-note-character-limit"/);
+  assert.match(patientMap, /id="patient-map-note-character-limit"/);
 });
 
 test("patient data copy explains its complete and device-bound contents", async () => {
