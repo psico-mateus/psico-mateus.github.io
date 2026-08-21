@@ -52,7 +52,7 @@ export default function PrivacyPage() {
         <p>
           As respostas, observações, síntese e posição de leitura do “Meu mapa”
           são salvas de forma privada na sua conta para você continuar depois.
-          Nada do mapa é compartilhado automaticamente. Você pode escolher uma
+          Nada do mapa é compartilhado automaticamente. Você pode escolher um
           tema específico e compartilhar uma cópia das respostas e observações
           daquele tema com Mateus. A síntese geral continua privada, assim como os
           demais temas. Alterações posteriores só aparecem quando você compartilha a
@@ -78,10 +78,17 @@ export default function PrivacyPage() {
         </p>
         <h2>Seus controles</h2>
         <p>
-          Na área “Conta e privacidade”, você pode baixar uma cópia dos registros,
+          Na área “Conta e privacidade”, você pode baixar uma cópia dos dados básicos
+          da conta, dos registros, do rascunho completo do “Meu mapa” e das partes do
+          mapa que estiverem compartilhadas. Ela também informa quando Mateus marcou
+          um conteúdo compartilhado como visualizado, com a explicação de que isso não
+          significa resposta nem acompanhamento em tempo real. A cópia não inclui senha,
+          códigos de recuperação, sessões ou credenciais. Você também pode
           alterar sua senha, gerar novo código de recuperação, encerrar a conta em
           todos os dispositivos, controlar os compartilhamentos e excluir
           permanentemente sua conta, seus registros e seu mapa.
+        </p>
+        <p>
           Se você perder a senha e o código de recuperação, pode pedir a Mateus uma
           recuperação assistida. O novo código temporário substitui o anterior e
           encerra as sessões abertas da conta.

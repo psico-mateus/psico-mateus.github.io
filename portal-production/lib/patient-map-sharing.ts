@@ -2,6 +2,9 @@ import {
   PATIENT_MAP_CATALOG,
   PATIENT_MAP_CONTENT_VERSION,
   PATIENT_MAP_RESPONSES,
+  type PatientMapDefinition,
+  type PatientMapItem,
+  type PatientMapSection,
   type PatientMapResponseKey,
 } from "@/content/patient-map-catalog";
 import type { PortalEnv } from "@/db/runtime";
@@ -35,12 +38,31 @@ export type SharedPatientMap = PatientMapShareStatus & {
   is_unread: number;
 };
 
+export type PatientMapShareCopy = {
+  content_version: string;
+  map_id: string;
+  map_title: string;
+  map_description: string;
+  answers: SharedPatientMapAnswer[];
+  shared_at: string;
+  viewed_at: string | null;
+  viewed_at_meaning: string;
+};
+
 type StoredShare = PatientMapShareStatus & {
   content_version: string;
   snapshot: string;
 };
 
-const mapsById = new Map(
+type StoredPatientMapShareCopy = {
+  map_id: string;
+  content_version: string;
+  snapshot: string;
+  shared_at: string;
+  viewed_at: string | null;
+};
+
+const mapsById = new Map<string, PatientMapDefinition>(
   PATIENT_MAP_CATALOG.maps.filter((map) => map.active).map((map) => [map.id, map]),
 );
 const responseLabels = new Map(
@@ -66,7 +88,7 @@ export async function listPatientMapShares(
     )
     .bind(patientId)
     .all<PatientMapShareStatus>();
-  return result.results.filter((share) => mapsById.has(share.map_id));
+  return result.results.filter((share: PatientMapShareStatus) => mapsById.has(share.map_id));
 }
 
 export async function sharePatientMap(
@@ -95,7 +117,10 @@ export async function sharePatientMap(
     );
   }
 
-  const itemDetails = new Map(
+  const itemDetails = new Map<
+    string,
+    { item: PatientMapItem; section: PatientMapSection }
+  >(
     map.sections.flatMap((section) =>
       section.items
         .filter((item) => item.active)
@@ -139,11 +164,27 @@ export async function sharePatientMap(
     throw new PortalError(400, "Esta parte do mapa ficou grande demais para compartilhar.");
   }
   const sharedAt = now();
-  await database
+  const writeResult = await database
     .prepare(
       `INSERT INTO patient_map_shares
         (patient_id, therapist_id, map_id, content_version, snapshot, shared_at, viewed_at)
-       VALUES (?, ?, ?, ?, ?, ?, NULL)
+       SELECT ?, ?, ?, ?, ?, ?, NULL
+       WHERE EXISTS (
+         SELECT 1 FROM patient_map_draft_fields AS state
+         WHERE state.patient_id = ? AND state.content_version = ?
+           AND state.field_type = 'state' AND state.field_id = '__state__'
+           AND state.generation = ?
+       )
+       AND EXISTS (
+         SELECT 1 FROM patient_links
+         JOIN users AS active_therapist
+           ON active_therapist.id = patient_links.therapist_id
+         WHERE patient_links.patient_id = ?
+           AND patient_links.therapist_id = ?
+           AND patient_links.status = 'active'
+           AND active_therapist.role = 'therapist'
+           AND active_therapist.status = 'active'
+       )
        ON CONFLICT(patient_id, map_id) DO UPDATE SET
          therapist_id = excluded.therapist_id,
          content_version = excluded.content_version,
@@ -158,8 +199,19 @@ export async function sharePatientMap(
       PATIENT_MAP_CONTENT_VERSION,
       snapshot,
       sharedAt,
+      patientId,
+      PATIENT_MAP_CONTENT_VERSION,
+      draft.generation,
+      patientId,
+      link.therapist_id,
     )
     .run();
+  if (!writeResult.meta.changes) {
+    throw new PortalError(
+      409,
+      "O Meu mapa ou seu acesso mudou antes de concluir. Confira esta parte; nada novo foi compartilhado.",
+    );
+  }
   return { map_id: map.id, shared_at: sharedAt, viewed_at: null };
 }
 
@@ -175,7 +227,9 @@ export async function revokePatientMapShare(
     .run();
 }
 
-function parseStoredShare(row: StoredShare): SharedPatientMap {
+function parseStoredShareSnapshot(
+  row: Pick<StoredShare, "map_id" | "content_version" | "snapshot">,
+) {
   if (row.content_version !== PATIENT_MAP_CONTENT_VERSION) {
     throw new Error("Stored patient map share uses an unsupported content version.");
   }
@@ -195,7 +249,10 @@ function parseStoredShare(row: StoredShare): SharedPatientMap {
   ) {
     throw new Error("Stored patient map share is invalid.");
   }
-  const itemDetails = new Map(
+  const itemDetails = new Map<
+    string,
+    { item: PatientMapItem; section: PatientMapSection }
+  >(
     map.sections.flatMap((section) =>
       section.items.map((item) => [item.id, { item, section }] as const),
     ),
@@ -228,13 +285,42 @@ function parseStoredShare(row: StoredShare): SharedPatientMap {
   }
   return {
     map_id: row.map_id,
-    map_title: parsed.map_title,
-    map_description: parsed.map_description,
+    map_title: map.navigationTitle,
+    map_description: map.description,
     answers,
+  };
+}
+
+function parseStoredShare(row: StoredShare): SharedPatientMap {
+  return {
+    ...parseStoredShareSnapshot(row),
     shared_at: row.shared_at,
     viewed_at: row.viewed_at,
     is_unread: !row.viewed_at || row.viewed_at < row.shared_at ? 1 : 0,
   };
+}
+
+export async function listPatientMapShareCopies(
+  database: MapDatabase,
+  patientId: string,
+): Promise<PatientMapShareCopy[]> {
+  const result = await database
+    .prepare(
+      `SELECT map_id, content_version, snapshot, shared_at, viewed_at
+       FROM patient_map_shares
+       WHERE patient_id = ?
+       ORDER BY shared_at DESC`,
+    )
+    .bind(patientId)
+    .all<StoredPatientMapShareCopy>();
+  return result.results.map((row: StoredPatientMapShareCopy) => ({
+    content_version: row.content_version,
+    ...parseStoredShareSnapshot(row),
+    shared_at: row.shared_at,
+    viewed_at: row.viewed_at,
+    viewed_at_meaning:
+      "Data em que Mateus marcou esta cópia compartilhada como visualizada; não significa resposta nem acompanhamento em tempo real.",
+  }));
 }
 
 export async function listSharedPatientMaps(

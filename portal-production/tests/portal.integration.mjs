@@ -195,6 +195,48 @@ async function patientMapDraftRowCount(patientId) {
   }
 }
 
+async function patientMapDraftRows(patientId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT content_version, field_type, field_id, generation, value,
+                revision, request_id
+         FROM patient_map_draft_fields
+         WHERE patient_id = ?
+         ORDER BY content_version, field_type, field_id`,
+      )
+      .all(patientId)
+      .map((row) => ({ ...row }));
+  } finally {
+    database.close();
+  }
+}
+
+async function insertSyntheticStaleMapField(patientId, contentVersion) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath);
+  try {
+    database
+      .prepare(
+        `INSERT INTO patient_map_draft_fields
+          (patient_id, content_version, field_type, field_id, generation, value,
+           revision, request_id, updated_at)
+         VALUES (?, ?, 'synthesis', 'want-more', 1, ?, 1, ?, ?)`,
+      )
+      .run(
+        patientId,
+        contentVersion,
+        JSON.stringify("Conteúdo sintético que uma limpeza antiga deveria ter removido."),
+        "request-map-stale-retained-01",
+        "2026-08-13T12:00:00.000Z",
+      );
+  } finally {
+    database.close();
+  }
+}
+
 async function patientMapShareRowCount(patientId) {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -959,6 +1001,12 @@ const clearedMap = await api("/map-draft", {
 expectStatus(clearedMap, 200, "limpeza integral do Meu mapa");
 assert.equal(clearedMap.payload.generation, 2);
 assert.equal(clearedMap.payload.idempotent, false);
+await insertSyntheticStaleMapField(patientA.user.id, mapContentVersion);
+assert.equal(
+  (await patientMapDraftRows(patientA.user.id)).length,
+  2,
+  "o cenário de regressão deve conter uma linha residual de geração antiga",
+);
 const idempotentMapClear = await api("/map-draft", {
   method: "DELETE",
   body: {
@@ -972,6 +1020,26 @@ expectStatus(idempotentMapClear, 200, "repetição idempotente da limpeza do Meu
 assert.equal(idempotentMapClear.payload.generation, 2);
 assert.equal(idempotentMapClear.payload.idempotent, true);
 assert.deepEqual((await api("/map-draft", { auth: patientA })).payload.fields, []);
+assert.deepEqual(
+  await patientMapDraftRows(patientA.user.id),
+  [
+    {
+      content_version: mapContentVersion,
+      field_type: "state",
+      field_id: "__state__",
+      generation: 2,
+      value: null,
+      revision: 1,
+      request_id: mapClearRequestId,
+    },
+  ],
+  "limpar deve remover fisicamente respostas, sínteses, posições e tombstones antigos",
+);
+assert.equal(
+  (await patientMapDraftRows(patientB.user.id)).length,
+  2,
+  "limpar o mapa de um paciente não pode remover o conteúdo de outro",
+);
 
 const staleGenerationMapPatch = await api("/map-draft", {
   method: "PATCH",
@@ -987,6 +1055,11 @@ const staleGenerationMapPatch = await api("/map-draft", {
 expectStatus(staleGenerationMapPatch, 409, "aba antiga depois de limpar o Meu mapa");
 assert.equal(staleGenerationMapPatch.payload.code, "map_draft_generation_conflict");
 assert.equal(staleGenerationMapPatch.payload.generation, 2);
+assert.equal(
+  (await patientMapDraftRows(patientA.user.id)).length,
+  1,
+  "uma aba antiga não pode ressuscitar conteúdo apagado",
+);
 
 const mapAfterGenerationReset = await api("/map-draft", {
   method: "PATCH",
@@ -1006,6 +1079,26 @@ const mapAfterGenerationReset = await api("/map-draft", {
 expectStatus(mapAfterGenerationReset, 200, "campo recriado depois da limpeza");
 assert.equal(mapAfterGenerationReset.payload.field.revision, 1);
 assert.equal((await api("/map-draft", { auth: patientA })).payload.fields.length, 1);
+const oldClearAfterNewContent = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 1,
+    request_id: mapClearRequestId,
+  },
+  auth: patientASecondSession,
+});
+expectStatus(
+  oldClearAfterNewContent,
+  200,
+  "repetição da limpeza depois de novo conteúdo",
+);
+assert.equal(oldClearAfterNewContent.payload.idempotent, true);
+assert.equal(
+  (await api("/map-draft", { auth: patientA })).payload.fields.length,
+  1,
+  "repetir uma limpeza antiga não pode apagar conteúdo da geração atual",
+);
 
 const therapistMapPatch = await api("/map-draft", {
   method: "PATCH",
@@ -1126,6 +1219,21 @@ const clearMapWithShare = await api("/map-draft", {
   auth: patientA,
 });
 expectStatus(clearMapWithShare, 200, "limpeza de mapa com cópia compartilhada");
+assert.deepEqual(
+  await patientMapDraftRows(patientA.user.id),
+  [
+    {
+      content_version: mapContentVersion,
+      field_type: "state",
+      field_id: "__state__",
+      generation: 3,
+      value: null,
+      revision: 2,
+      request_id: "request-map-clear-shared-0001",
+    },
+  ],
+  "uma nova limpeza também deve preservar somente o estado mínimo",
+);
 assert.equal(
   await patientMapShareRowCount(patientA.user.id),
   0,
@@ -1158,6 +1266,31 @@ expectStatus(
   }),
   200,
   "compartilhamento recriado para testar encerramento de acesso",
+);
+const delayedOldClearAfterNewShare = await api("/map-draft", {
+  method: "DELETE",
+  body: {
+    content_version: mapContentVersion,
+    generation: 2,
+    request_id: "request-map-clear-shared-0001",
+  },
+  auth: patientA,
+});
+expectStatus(
+  delayedOldClearAfterNewShare,
+  200,
+  "repetição antiga da limpeza depois de um novo compartilhamento",
+);
+assert.equal(delayedOldClearAfterNewShare.payload.idempotent, true);
+assert.equal(
+  await patientMapShareRowCount(patientA.user.id),
+  1,
+  "repetir uma limpeza antiga não pode revogar um compartilhamento novo",
+);
+assert.equal(
+  (await api("/map-draft", { auth: patientA })).payload.fields.length,
+  1,
+  "repetir uma limpeza antiga não pode remover conteúdo da geração atual",
 );
 
 const revokeSessionsWithoutCsrf = await api("/account/sessions", {
@@ -1603,17 +1736,180 @@ const afterSharingAgain = await api(
 assert.deepEqual(afterSharingAgain.payload.entries.map((entry) => entry.id), [sharedEntryA]);
 assert.equal(afterSharingAgain.payload.entries[0].is_unread, 1);
 
+const exportDeletedAnswer = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 3,
+    base_revision: 0,
+    request_id: "request-export-answer-create",
+    field: {
+      type: "answer",
+      id: "meu-jeito.01.2",
+      value: { response: "curious", note: "Será apagada antes da cópia." },
+    },
+  },
+  auth: patientA,
+});
+expectStatus(exportDeletedAnswer, 200, "resposta temporária antes da exportação");
+expectStatus(
+  await api("/map-draft", {
+    method: "PATCH",
+    body: {
+      content_version: mapContentVersion,
+      generation: 3,
+      base_revision: exportDeletedAnswer.payload.field.revision,
+      request_id: "request-export-answer-delete",
+      field: { type: "answer", id: "meu-jeito.01.2", value: null },
+    },
+    auth: patientA,
+  }),
+  200,
+  "resposta apagada antes da exportação",
+);
+const exportDeletedSynthesis = await api("/map-draft", {
+  method: "PATCH",
+  body: {
+    content_version: mapContentVersion,
+    generation: 3,
+    base_revision: 0,
+    request_id: "request-export-synth-create",
+    field: {
+      type: "synthesis",
+      id: "want-more",
+      value: "Síntese temporária que será apagada.",
+    },
+  },
+  auth: patientA,
+});
+expectStatus(exportDeletedSynthesis, 200, "síntese temporária antes da exportação");
+expectStatus(
+  await api("/map-draft", {
+    method: "PATCH",
+    body: {
+      content_version: mapContentVersion,
+      generation: 3,
+      base_revision: exportDeletedSynthesis.payload.field.revision,
+      request_id: "request-export-synth-delete",
+      field: { type: "synthesis", id: "want-more", value: null },
+    },
+    auth: patientA,
+  }),
+  200,
+  "síntese apagada antes da exportação",
+);
+
+const mapSharedForExport = await api("/map-sharing/meu-jeito", {
+  method: "PATCH",
+  body: { shared: true },
+  auth: patientA,
+});
+expectStatus(mapSharedForExport, 200, "mapa compartilhado para exportação");
+const mapViewedForExport = await api(
+  `/professional/patients/${patientA.user.id}/map-shares/meu-jeito/viewed`,
+  { method: "POST", body: {}, auth: therapist },
+);
+expectStatus(mapViewedForExport, 200, "visualização do mapa antes da exportação");
+expectStatus(
+  await api("/export"),
+  401,
+  "exportação sem sessão",
+);
+expectStatus(
+  await api("/export", { auth: therapist }),
+  403,
+  "exportação com sessão profissional",
+);
+
 const exportResult = await api("/export", { auth: patientA });
 expectStatus(exportResult, 200, "exportação do paciente");
 assert.match(
   exportResult.response.headers.get("content-disposition") ?? "",
-  /meus-registros\.json/u,
+  /meus-dados-area-do-paciente\.json/u,
 );
+assert.equal(exportResult.payload.format, "area-do-paciente-export");
+assert.equal(exportResult.payload.format_version, 2);
+assert.equal(exportResult.payload.account.display_name, synthetic.sharedName);
+assert.equal(exportResult.payload.account.account_type, "patient");
+assert.equal(exportResult.payload.account.account_status, "active");
+assert.equal(exportResult.payload.account.care_access.status, "active");
 assert.ok(
-  exportResult.payload.entries.every(
-    (entry) => !Object.hasOwn(entry, "viewed_at"),
-  ),
+  exportResult.payload.entries.some((entry) => entry.id === sharedEntryA),
+  "entries deve continuar no nível principal por compatibilidade",
 );
+const exportedSharedEntry = exportResult.payload.entries.find(
+  (entry) => entry.id === sharedEntryA,
+);
+assert.equal(exportedSharedEntry.sharing.status, "shared");
+assert.equal(
+  exportedSharedEntry.sharing.viewed_at,
+  markEntryAViewed.payload.viewed_at,
+);
+assert.match(exportedSharedEntry.sharing.viewed_at_meaning, /não significa resposta/iu);
+assert.equal(exportResult.payload.patient_map.draft.content_version, mapContentVersion);
+assert.equal(exportResult.payload.patient_map.draft.answers.length, 1);
+assert.equal(
+  exportResult.payload.patient_map.draft.answers[0].note,
+  "Nova resposta sintética.",
+);
+assert.equal(exportResult.payload.patient_map.draft.synthesis.length, 0);
+assert.equal(
+  exportResult.payload.patient_map.draft.answers.some(
+    (answer) => answer.item_id === "meu-jeito.01.2",
+  ),
+  false,
+  "conteúdo apagado do mapa não pode entrar na exportação",
+);
+assert.equal(exportResult.payload.patient_map.sharing.active_copies.length, 1);
+assert.equal(
+  exportResult.payload.patient_map.sharing.active_copies[0].viewed_at,
+  mapViewedForExport.payload.viewed_at,
+);
+assert.match(
+  exportResult.payload.patient_map.sharing.active_copies[0].viewed_at_meaning,
+  /não significa resposta/iu,
+);
+
+const exportedKeys = new Set();
+function collectExportedKeys(value) {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach(collectExportedKeys);
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    exportedKeys.add(key);
+    collectExportedKeys(child);
+  }
+}
+collectExportedKeys(exportResult.payload);
+for (const forbiddenKey of [
+  "email_hash",
+  "password_salt",
+  "password_hash",
+  "password_iterations",
+  "recovery_salt",
+  "recovery_hash",
+  "totp_secret",
+  "totp_enabled",
+  "last_totp_counter",
+  "therapist_id",
+  "patient_id",
+  "token_hash",
+  "csrf_token",
+  "request_id",
+  "generation",
+  "revision",
+  "snapshot",
+  "access_logs",
+  "sessions",
+]) {
+  assert.equal(
+    exportedKeys.has(forbiddenKey),
+    false,
+    `a exportação não pode conter ${forbiddenKey}`,
+  );
+}
 
 const invitations = await api("/invitations", { auth: therapist });
 expectStatus(invitations, 200, "lista de convites");

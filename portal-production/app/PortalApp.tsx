@@ -2018,6 +2018,11 @@ function AccountPanel({
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [endingSessions, setEndingSessions] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportMessage, setExportMessage] = useState<{
+    tone: "error" | "success";
+    text: string;
+  } | null>(null);
   const passwordRequestInFlight = useRef(false);
   const recoveryRequestInFlight = useRef(false);
   const endSessionsRequestInFlight = useRef(false);
@@ -2121,6 +2126,64 @@ function AccountPanel({
       setEndingSessions(false);
     }
   }
+  async function downloadPatientData() {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportMessage(null);
+    try {
+      let response: Response;
+      try {
+        response = await fetch("/api/portal/export", {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+      } catch {
+        throw new PortalRequestError(
+          0,
+          "Não foi possível preparar a cópia. Verifique sua internet e tente novamente.",
+        );
+      }
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
+        throw new PortalRequestError(
+          response.status,
+          typeof payload.error === "string"
+            ? payload.error
+            : "Não foi possível preparar a cópia agora.",
+          payload,
+        );
+      }
+      const downloadUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "meus-dados-area-do-paciente.json";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
+      setExportMessage({
+        tone: "success",
+        text: "Download iniciado. Procure o arquivo em Downloads.",
+      });
+    } catch (error) {
+      if (isSessionExpiredError(error)) {
+        onSessionsEnded();
+        return;
+      }
+      setExportMessage({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível preparar a cópia agora.",
+      });
+    } finally {
+      setExportBusy(false);
+    }
+  }
   return (
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
       <summary>
@@ -2191,15 +2254,34 @@ function AccountPanel({
       </section>
       {role === "patient" ? (
         <div className="patient-account-actions">
-          <section className="account-data-copy" aria-labelledby="account-data-copy-title">
+          <section
+            className="account-data-copy"
+            aria-labelledby="account-data-copy-title"
+            aria-busy={exportBusy}
+          >
             <div>
               <h3 id="account-data-copy-title">Baixar uma cópia</h3>
-              <p>Reúna seus registros em um arquivo para guardar com você.</p>
+              <p>Reúna seus registros, o Meu mapa e os dados básicos da conta em um arquivo para guardar com você.</p>
             </div>
-            <a className="secondary-button account-export-link" href="/api/portal/export" download>
-              Baixar cópia dos meus registros
-            </a>
-            <small>A cópia inclui também os registros privados e fica salva no seu dispositivo. Faça isso somente em um aparelho seguro.</small>
+            <p className="account-export-explanation">É uma cópia técnica para guardar ou encaminhar quando precisar. Para ler seus registros no dia a dia, use o Histórico.</p>
+            <button
+              className="secondary-button account-export-link"
+              type="button"
+              disabled={exportBusy}
+              onClick={() => void downloadPatientData()}
+            >
+              {exportBusy ? "Preparando cópia…" : "Baixar cópia dos meus dados"}
+            </button>
+            {exportMessage ? (
+              <div className="account-export-feedback">
+                <Notice
+                  tone={exportMessage.tone}
+                  message={exportMessage.text}
+                  focusOnMount={exportMessage.tone === "error"}
+                />
+              </div>
+            ) : null}
+            <small>A cópia inclui registros privados, o rascunho do Meu mapa e as partes que estão compartilhadas. Ela fica salva no seu dispositivo; faça isso somente em um aparelho seguro.</small>
           </section>
           <section className="account-delete" aria-labelledby="account-delete-title">
             <h3 id="account-delete-title">Excluir conta</h3>

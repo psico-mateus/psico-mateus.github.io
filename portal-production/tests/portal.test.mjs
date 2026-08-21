@@ -804,12 +804,14 @@ test("patient sees an honest view status only for currently shared entries", () 
   );
 });
 
-test("patient view state is server-derived and excluded from the data export", async () => {
-  const [route, app, privacy, updateManager, serviceWorker] = await Promise.all([
+test("patient view state is server-derived and the complete export uses explicit allowlists", async () => {
+  const [route, patientExport, mapSharing, app, privacy, updateManager, serviceWorker] = await Promise.all([
     readFile(
       new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
       "utf8",
     ),
+    readFile(new URL("../lib/patient-data-export.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/patient-map-sharing.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/privacidade/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/AppUpdateManager.tsx", import.meta.url), "utf8"),
@@ -838,7 +840,26 @@ test("patient view state is server-derived and excluded from the data export", a
   assert.match(app, /Abrir meus registros/);
   assert.match(app, /não é acompanhada em tempo real/);
   assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);
-  assert.match(exportHandler, /delete exportedEntry\.viewed_at/);
+  assert.match(exportHandler, /createPatientDataExport/);
+  assert.match(exportHandler, /SELECT display_name, role, status, privacy_version/);
+  assert.match(exportHandler, /readPatientMapDraft\(DB, session\.userId\)/);
+  assert.match(exportHandler, /listPatientMapShareCopies\(DB, session\.userId\)/);
+  assert.match(exportHandler, /viewing_link\.status = 'active'/);
+  assert.doesNotMatch(exportHandler, /SELECT \*/u);
+  assert.match(patientExport, /PATIENT_DATA_EXPORT_VERSION = 2/);
+  assert.match(patientExport, /entries: entries\.map\(exportEntry\)/);
+  assert.match(patientExport, /patient_map:/);
+  assert.match(patientExport, /viewed_at_meaning/);
+  assert.match(patientExport, /if \(field\.value === null\) continue/);
+  assert.doesNotMatch(patientExport, /password_hash|recovery_hash|totp_secret|therapist_id/u);
+  assert.match(mapSharing, /SELECT map_id, content_version, snapshot, shared_at, viewed_at/);
+  assert.doesNotMatch(
+    mapSharing.match(/export async function listPatientMapShareCopies[\s\S]*?\n\}/u)?.[0] ?? "",
+    /therapist_id/u,
+  );
+  assert.match(app, /Baixar cópia dos meus dados/);
+  assert.match(app, /rascunho do Meu mapa/);
+  assert.match(privacy, /A cópia não inclui senha/);
   assert.match(updateManager, /updateViaCache: "none"/);
   assert.match(updateManager, /hasUnsavedDraft/);
   assert.match(updateManager, /Atualizar agora/);
@@ -949,14 +970,20 @@ test("record form shows character counts only near each field limit", async () =
   assert.match(app, /CharacterLimit value=\{draft\.happened\} maxLength=\{2000\}/);
 });
 
-test("patient data copy explains private records and device responsibility", async () => {
+test("patient data copy explains its complete and device-bound contents", async () => {
   const app = await readFile(
     new URL("../app/PortalApp.tsx", import.meta.url),
     "utf8",
   );
 
-  assert.match(app, /Baixar cópia dos meus registros/);
-  assert.match(app, /inclui também os registros privados/);
+  assert.match(app, /Baixar cópia dos meus dados/);
+  assert.match(app, /É uma cópia técnica para guardar/);
+  assert.match(app, /fetch\("\/api\/portal\/export"/);
+  assert.match(app, /URL\.createObjectURL/);
+  assert.match(app, /URL\.revokeObjectURL/);
+  assert.doesNotMatch(app, /href="\/api\/portal\/export"/);
+  assert.match(app, /inclui registros privados/);
+  assert.match(app, /rascunho do Meu mapa/);
   assert.match(app, /somente em um aparelho seguro/);
   assert.match(app, /Esta ação apaga permanentemente sua conta/);
 });
@@ -1695,7 +1722,7 @@ test("registration errors do not confirm an existing account and request bodies 
 });
 
 test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", async () => {
-  const [route, backend, runtime, migration, restore] = await Promise.all([
+  const [route, backend, runtime, migration, cleanupMigration, restore] = await Promise.all([
     readFile(
       new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
       "utf8",
@@ -1704,6 +1731,10 @@ test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", 
     readFile(new URL("../db/runtime.ts", import.meta.url), "utf8"),
     readFile(
       new URL("../drizzle/0003_patient_map_drafts.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0005_patient_map_reset_cleanup.sql", import.meta.url),
       "utf8",
     ),
     readFile(
@@ -1730,6 +1761,27 @@ test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", 
   assert.match(backend, /assertExactKeys[\s\S]*?content_version/u);
   assert.match(backend, /field\.type[\s\S]*?field\.id/u);
   assert.match(backend, /patientId/u);
+  assert.match(
+    backend,
+    /database\.batch\(\[[\s\S]*?UPDATE patient_map_draft_fields[\s\S]*?DELETE FROM patient_map_draft_fields/u,
+  );
+  assert.match(
+    backend,
+    /DELETE FROM patient_map_shares[\s\S]*?changes\(\) = 1/u,
+  );
+  assert.match(
+    backend,
+    /DELETE FROM patient_map_draft_fields[\s\S]*?field_type <> \? AND generation <= \?/u,
+  );
+  assert.match(route, /result\.ok && !result\.payload\.idempotent/u);
+  assert.match(
+    backend,
+    /state\.generation = \?[\s\S]*?state\.revision = \?[\s\S]*?state\.request_id = \?/u,
+  );
+  assert.match(
+    backend,
+    /purgeFieldsFromClearedGeneration[\s\S]*?generation <= \?[\s\S]*?state\.request_id = \?/u,
+  );
   assert.doesNotMatch(
     backend,
     /\baudit\b|access_logs|patient_links|therapist|console\./u,
@@ -1741,9 +1793,16 @@ test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", 
   assert.match(migration, /length\(.*value.*\) <= 4096/u);
   assert.match(migration, /generation.*>= 1/u);
   assert.match(migration, /field_id.*BETWEEN 1 AND 80/u);
+  assert.match(cleanupMigration, /DELETE FROM `patient_map_draft_fields`/u);
+  assert.match(cleanupMigration, /`field_type` <> 'state'/u);
+  assert.match(
+    cleanupMigration,
+    /`state`\.`generation` <> `patient_map_draft_fields`\.`generation`/u,
+  );
   assert.doesNotMatch(runtime, /patient_map_draft_fields/u);
   assert.match(runtime, /Tabelas[\s\S]*?novas não entram aqui/u);
   assert.match(restore, /0003_patient_map_drafts\.sql/u);
+  assert.match(restore, /0005_patient_map_reset_cleanup\.sql/u);
   assert.match(restore, /patient_map_draft_fields/u);
 });
 
@@ -1778,6 +1837,14 @@ test("Meu mapa sharing is explicit, revocable and read-only for the professional
   assert.match(sharing, /readPatientMapDraft/u);
   assert.match(sharing, /parts|map\.sections/u);
   assert.match(sharing, /DELETE FROM patient_map_shares/u);
+  assert.match(
+    sharing,
+    /INSERT INTO patient_map_shares[\s\S]*?state\.generation = \?[\s\S]*?draft\.generation/u,
+  );
+  assert.match(
+    sharing,
+    /patient_links\.status = 'active'[\s\S]*?if \(!writeResult\.meta\.changes\)/u,
+  );
   assert.match(sharing, /patient_links\.status = 'active'/u);
   assert.match(sharing, /viewed_at = NULL/u);
   assert.doesNotMatch(sharing, /console\.|access_logs/u);

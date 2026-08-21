@@ -1386,7 +1386,9 @@ input[type="range"]{accent-color:#9a6d27}
 .patient-account-actions p{margin-bottom:.9rem;color:var(--muted);font-size:.88rem}
 .account-data-copy{display:grid;align-content:start;gap:.75rem}
 .account-data-copy p{margin-bottom:0}
-.account-data-copy small{color:var(--muted);font-size:.78rem}
+.account-data-copy small{color:var(--muted);font-size:.84rem;line-height:1.5}
+.account-export-explanation{color:var(--muted);font-size:.86rem;line-height:1.5}
+.account-export-feedback .notice{margin:0}
 .account-export-link{
   width:fit-content;
   min-height:44px;

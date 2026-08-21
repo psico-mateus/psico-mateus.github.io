@@ -43,11 +43,18 @@ import {
 } from "@/lib/patient-map-draft";
 import {
   listPatientMapShares,
+  listPatientMapShareCopies,
   listSharedPatientMaps,
   markPatientMapShareViewed,
   revokePatientMapShare,
   sharePatientMap,
 } from "@/lib/patient-map-sharing";
+import {
+  createPatientDataExport,
+  type PatientExportAccountRow,
+  type PatientExportCareAccessRow,
+  type PatientExportEntryRow,
+} from "@/lib/patient-data-export";
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
@@ -897,20 +904,66 @@ async function handleGet(request: Request, path: string): Promise<Response> {
   }
   if (path === "/export") {
     const session = await requireSession(request, "patient");
-    const entries = (await listEntries(session)).map((entry) => {
-      const exportedEntry = { ...(entry as Record<string, unknown>) };
-      delete exportedEntry.viewed_at;
-      return exportedEntry;
+    const [account, careAccess, entryResult, patientMapDraft, patientMapShares] =
+      await Promise.all([
+        DB.prepare(
+          `SELECT display_name, role, status, privacy_version,
+                  adult_confirmed_at, created_at, last_login_at
+           FROM users
+           WHERE id = ? AND role = 'patient'`,
+        )
+          .bind(session.userId)
+          .first<PatientExportAccountRow>(),
+        DB.prepare(
+          `SELECT status, created_at, closed_at
+           FROM patient_links
+           WHERE patient_id = ?
+           ORDER BY created_at DESC
+           LIMIT 1`,
+        )
+          .bind(session.userId)
+          .first<Exclude<PatientExportCareAccessRow, null>>(),
+        DB.prepare(
+          `SELECT entries.id, entries.title, entries.happened, entries.body,
+                  entries.thoughts, entries.urge, entries.emotion, entries.intensity,
+                  entries.message, entries.created_at, entries.updated_at,
+                  entries.shared_at, entries.revoked_at,
+                  (
+                    SELECT MAX(entry_views.viewed_at)
+                    FROM entry_views
+                    JOIN patient_links AS viewing_link
+                      ON viewing_link.therapist_id = entry_views.therapist_id
+                     AND viewing_link.patient_id = entries.patient_id
+                    WHERE entry_views.entry_id = entries.id
+                      AND viewing_link.status = 'active'
+                  ) AS viewed_at
+           FROM entries
+           WHERE entries.patient_id = ?
+           ORDER BY entries.created_at DESC`,
+        )
+          .bind(session.userId)
+          .all<PatientExportEntryRow>(),
+        readPatientMapDraft(DB, session.userId),
+        listPatientMapShareCopies(DB, session.userId),
+      ]);
+    if (!account) throw new PortalError(404, "Conta não encontrada.");
+    const exportedAt = now();
+    const payload = createPatientDataExport({
+      exportedAt,
+      account,
+      careAccess: careAccess ?? null,
+      entries: entryResult.results,
+      patientMapDraft,
+      patientMapShares,
     });
-    await audit(session.userId, "export", "entry_list");
+    await audit(session.userId, "export", "patient_data");
     return json(
-      {
-        exported_at: now(),
-        description: "Cópia dos registros da Área do paciente exportada pelo titular.",
-        entries,
-      },
+      payload,
       200,
-      { "Content-Disposition": 'attachment; filename="meus-registros.json"' },
+      {
+        "Content-Disposition":
+          'attachment; filename="meus-dados-area-do-paciente.json"',
+      },
     );
   }
   throw new PortalError(404, "Recurso não encontrado.");
