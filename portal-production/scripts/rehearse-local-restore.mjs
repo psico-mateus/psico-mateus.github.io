@@ -11,12 +11,14 @@ const migrationNames = [
   "0003_patient_map_drafts.sql",
   "0004_patient_map_sharing.sql",
   "0005_patient_map_reset_cleanup.sql",
+  "0006_entry_thought_reviews.sql",
 ];
 const tableNames = [
   "users",
   "patient_links",
   "invitations",
   "entries",
+  "entry_thought_reviews",
   "entry_views",
   "patient_map_draft_fields",
   "patient_map_shares",
@@ -31,6 +33,7 @@ const expectedCounts = {
   patient_links: 1,
   invitations: 1,
   entries: 1,
+  entry_thought_reviews: 1,
   entry_views: 1,
   patient_map_draft_fields: 2,
   patient_map_shares: 1,
@@ -183,6 +186,19 @@ function insertSyntheticState(database) {
   `);
 }
 
+function insertSyntheticThoughtReview(database) {
+  database.exec(`
+    INSERT INTO entry_thought_reviews (
+      entry_id, source_thought, supporting_context, missing_context,
+      alternative_view, current_view, revision, created_at, updated_at
+    ) VALUES (
+      'entry_synthetic', 'Pensamento sintético escolhido.',
+      'Contexto inteiramente sintético.', '', '', '', 1,
+      '2026-01-02T12:15:00.000Z', '2026-01-02T12:15:00.000Z'
+    );
+  `);
+}
+
 function readSnapshot(databasePath) {
   const database = new DatabaseSync(databasePath, { readOnly: true });
   try {
@@ -216,7 +232,7 @@ try {
   const source = new DatabaseSync(sourcePath);
   try {
     source.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = DELETE;");
-    await applyMigrations(source, migrationNames.slice(0, -1));
+    await applyMigrations(source, migrationNames.slice(0, 5));
     insertSyntheticState(source);
     assert.equal(
       source.prepare(
@@ -225,7 +241,7 @@ try {
       3,
       "o ensaio deve começar com um campo inacessível retido pela limpeza antiga",
     );
-    await applyMigration(source, migrationNames.at(-1));
+    await applyMigration(source, migrationNames[5]);
     assert.deepEqual(
       source
         .prepare(
@@ -241,6 +257,8 @@ try {
       ],
       "a migração deve remover somente campos fora da geração atual",
     );
+    await applyMigration(source, migrationNames[6]);
+    insertSyntheticThoughtReview(source);
   } finally {
     source.close();
   }
@@ -286,6 +304,7 @@ try {
 
   const changedSnapshot = readSnapshot(sourcePath);
   assert.equal(changedSnapshot.counts.entries, 0);
+  assert.equal(changedSnapshot.counts.entry_thought_reviews, 0);
   assert.equal(changedSnapshot.counts.entry_views, 0);
   assert.equal(changedSnapshot.counts.patient_map_draft_fields, 1);
   assert.equal(changedSnapshot.counts.patient_map_shares, 1);

@@ -845,7 +845,7 @@ test("patient view state is server-derived and the complete export uses explicit
   ]);
   const patientList =
     route.match(
-      /if \(session\.role === "patient"\)[\s\S]*?return result\.results;/u,
+      /if \(session\.role === "patient"\)[\s\S]*?return attachThoughtReviews\(result\.results\);/u,
     )?.[0] ?? "";
   const exportHandler =
     route.match(
@@ -872,7 +872,7 @@ test("patient view state is server-derived and the complete export uses explicit
   assert.match(exportHandler, /listPatientMapShareCopies\(DB, session\.userId\)/);
   assert.match(exportHandler, /viewing_link\.status = 'active'/);
   assert.doesNotMatch(exportHandler, /SELECT \*/u);
-  assert.match(patientExport, /PATIENT_DATA_EXPORT_VERSION = 2/);
+  assert.match(patientExport, /PATIENT_DATA_EXPORT_VERSION = 3/);
   assert.match(patientExport, /entries: entries\.map\(exportEntry\)/);
   assert.match(patientExport, /patient_map:/);
   assert.match(patientExport, /viewed_at_meaning/);
@@ -1053,8 +1053,8 @@ test("privacy notice explains account closure and data-rights requests", async (
 
   assert.match(app, /Código atual do autenticador/);
   assert.match(app, /aguarde o número exibido mudar/);
-  assert.match(portal, /PRIVACY_VERSION = "2026-08-08"/);
-  assert.match(privacy, /Versão de 8 de agosto de 2026/);
+  assert.match(portal, /PRIVACY_VERSION = "2026-08-20"/);
+  assert.match(privacy, /Versão de 20 de agosto de 2026/);
   assert.match(privacy, /não\s+apaga automaticamente a conta nem os registros/u);
   assert.match(privacy, /Mateus deixa de acessar também os registros/);
   assert.match(privacy, /Como exercer seus direitos/);

@@ -249,6 +249,30 @@ async function patientMapShareRowCount(patientId) {
   }
 }
 
+async function entryThoughtReviewRowCount(entryId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare(
+        "SELECT COUNT(*) AS total FROM entry_thought_reviews WHERE entry_id = ?",
+      )
+      .get(entryId).total;
+  } finally {
+    database.close();
+  }
+}
+
+async function serializedAccessLogs() {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return JSON.stringify(database.prepare("SELECT * FROM access_logs").all());
+  } finally {
+    database.close();
+  }
+}
+
 async function patientMapAuditCount() {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -544,7 +568,7 @@ const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
 assert.equal(
   await storedPrivacyVersion(patientA.user.id),
-  "2026-08-08",
+  "2026-08-20",
   "novo cadastro deve registrar a versão atual do aviso de privacidade",
 );
 
@@ -846,6 +870,271 @@ const sharedEntryB = await createEntry(patientB, {
   intensity: 0,
   message: "",
 });
+
+const initialEntriesWithReviewShape = await api("/entries", { auth: patientA });
+expectStatus(
+  initialEntriesWithReviewShape,
+  200,
+  "forma inicial da revisão de pensamento",
+);
+assert.ok(
+  initialEntriesWithReviewShape.payload.entries.every(
+    (entry) => entry.thought_review === null,
+  ),
+  "cada registro sem revisão deve expor thought_review nulo",
+);
+
+const thoughtReviewBody = {
+  source_thought: "  Pensamento sintético.\r\n  ",
+  supporting_context: "Um contexto sintético faz a interpretação parecer possível.",
+  missing_context: "",
+  alternative_view: "",
+  current_view: "",
+  expected_revision: 0,
+};
+expectStatus(
+  await api(`/entries/${sharedEntryA}/thought-review`, {
+    method: "PATCH",
+    body: thoughtReviewBody,
+  }),
+  401,
+  "revisão sem sessão",
+);
+expectStatus(
+  await api(`/entries/${sharedEntryA}/thought-review`, {
+    method: "PATCH",
+    body: thoughtReviewBody,
+    auth: therapist,
+  }),
+  403,
+  "profissional alterando revisão",
+);
+expectStatus(
+  await api(`/entries/${sharedEntryA}/thought-review`, {
+    method: "PATCH",
+    body: thoughtReviewBody,
+    auth: patientB,
+  }),
+  404,
+  "paciente B alterando revisão do paciente A",
+);
+expectStatus(
+  await api(`/entries/${sharedEntryA}/thought-review`, {
+    method: "PATCH",
+    body: thoughtReviewBody,
+    auth: patientA,
+    includeCsrf: false,
+  }),
+  403,
+  "revisão sem CSRF",
+);
+expectStatus(
+  await api(`/entries/${sharedEntryA}/thought-review`, {
+    method: "PATCH",
+    body: { ...thoughtReviewBody, patient_id: patientB.user.id },
+    auth: patientA,
+  }),
+  400,
+  "revisão com propriedade inesperada",
+);
+expectStatus(
+  await api(`/entries/${sharedEntryA}/thought-review`, {
+    method: "PATCH",
+    body: { ...thoughtReviewBody, source_thought: "x".repeat(1_501) },
+    auth: patientA,
+  }),
+  400,
+  "revisão acima do limite",
+);
+
+const createdThoughtReview = await api(
+  `/entries/${sharedEntryA}/thought-review`,
+  {
+    method: "PATCH",
+    body: thoughtReviewBody,
+    auth: patientA,
+  },
+);
+expectStatus(createdThoughtReview, 200, "criação da revisão de pensamento");
+assert.equal(createdThoughtReview.payload.thought_review.revision, 1);
+assert.equal(
+  createdThoughtReview.payload.thought_review.source_thought,
+  "Pensamento sintético.",
+);
+assert.equal(
+  createdThoughtReview.payload.thought_review.missing_context,
+  "",
+  "as respostas complementares continuam opcionais",
+);
+
+const entryBeforeCreateConflict = (
+  await api("/entries", { auth: patientA })
+).payload.entries.find((entry) => entry.id === sharedEntryA);
+const duplicateCreateReview = await api(
+  `/entries/${sharedEntryA}/thought-review`,
+  {
+    method: "PATCH",
+    body: thoughtReviewBody,
+    auth: patientA,
+  },
+);
+expectStatus(duplicateCreateReview, 409, "criação concorrente da revisão");
+assert.equal(
+  duplicateCreateReview.payload.code,
+  "entry_thought_review_conflict",
+);
+assert.equal(duplicateCreateReview.payload.current_review.revision, 1);
+const entryAfterCreateConflict = (
+  await api("/entries", { auth: patientA })
+).payload.entries.find((entry) => entry.id === sharedEntryA);
+assert.equal(
+  entryAfterCreateConflict.updated_at,
+  entryBeforeCreateConflict.updated_at,
+  "um conflito não pode marcar o registro como alterado",
+);
+
+const concurrentReviewBodies = [
+  {
+    ...thoughtReviewBody,
+    supporting_context: "Atualização sintética da primeira aba.",
+    expected_revision: 1,
+  },
+  {
+    ...thoughtReviewBody,
+    supporting_context: "Atualização sintética da segunda aba.",
+    expected_revision: 1,
+  },
+];
+const concurrentReviewResults = await Promise.all(
+  concurrentReviewBodies.map((body) =>
+    api(`/entries/${sharedEntryA}/thought-review`, {
+      method: "PATCH",
+      body,
+      auth: patientA,
+    }),
+  ),
+);
+assert.deepEqual(
+  concurrentReviewResults.map((result) => result.response.status).sort(),
+  [200, 409],
+  "somente uma aba pode vencer a mesma revisão",
+);
+const winningThoughtReview = concurrentReviewResults.find(
+  (result) => result.response.status === 200,
+).payload.thought_review;
+const losingThoughtReview = concurrentReviewResults.find(
+  (result) => result.response.status === 409,
+);
+assert.equal(winningThoughtReview.revision, 2);
+assert.equal(
+  losingThoughtReview.payload.code,
+  "entry_thought_review_conflict",
+);
+assert.deepEqual(
+  losingThoughtReview.payload.current_review,
+  winningThoughtReview,
+  "a aba perdedora recebe a versão realmente salva",
+);
+
+const staleDeleteReview = await api(
+  `/entries/${sharedEntryA}/thought-review`,
+  {
+    method: "DELETE",
+    body: { expected_revision: 1 },
+    auth: patientA,
+  },
+);
+expectStatus(staleDeleteReview, 409, "exclusão com revisão antiga");
+assert.equal(staleDeleteReview.payload.code, "entry_thought_review_conflict");
+assert.equal(staleDeleteReview.payload.current_review.revision, 2);
+
+const temporaryPrivateReview = await api(
+  `/entries/${privateEntryA}/thought-review`,
+  {
+    method: "PATCH",
+    body: {
+      ...thoughtReviewBody,
+      source_thought: "Pensamento privado sintético.",
+    },
+    auth: patientA,
+  },
+);
+expectStatus(temporaryPrivateReview, 200, "revisão de registro privado");
+expectStatus(
+  await api(`/entries/${privateEntryA}/thought-review`, {
+    method: "DELETE",
+    body: {
+      expected_revision: temporaryPrivateReview.payload.thought_review.revision,
+      shared: true,
+    },
+    auth: patientA,
+  }),
+  400,
+  "exclusão de revisão com propriedade inesperada",
+);
+expectStatus(
+  await api(`/entries/${privateEntryA}/thought-review`, {
+    method: "DELETE",
+    body: {
+      expected_revision: temporaryPrivateReview.payload.thought_review.revision,
+    },
+    auth: patientA,
+    includeCsrf: false,
+  }),
+  403,
+  "exclusão de revisão sem CSRF",
+);
+expectStatus(
+  await api(`/entries/${privateEntryA}/thought-review`, {
+    method: "DELETE",
+    body: {
+      expected_revision: temporaryPrivateReview.payload.thought_review.revision,
+    },
+    auth: patientA,
+    includeOrigin: false,
+  }),
+  403,
+  "exclusão de revisão sem origem confiável",
+);
+const deletedPrivateReview = await api(
+  `/entries/${privateEntryA}/thought-review`,
+  {
+    method: "DELETE",
+    body: {
+      expected_revision: temporaryPrivateReview.payload.thought_review.revision,
+    },
+    auth: patientA,
+  },
+);
+expectStatus(deletedPrivateReview, 200, "exclusão somente da revisão");
+assert.ok(deletedPrivateReview.payload.updated_at);
+assert.equal(await entryThoughtReviewRowCount(privateEntryA), 0);
+const entriesAfterPrivateReviewDeletion = await api("/entries", {
+  auth: patientA,
+});
+assert.equal(
+  entriesAfterPrivateReviewDeletion.payload.entries.find(
+    (entry) => entry.id === privateEntryA,
+  ).thought_review,
+  null,
+);
+const persistentPrivateReview = await api(
+  `/entries/${privateEntryA}/thought-review`,
+  {
+    method: "PATCH",
+    body: {
+      ...thoughtReviewBody,
+      source_thought: "Revisão que deve continuar inteiramente privada.",
+      supporting_context: "Conteúdo privado sintético e invisível ao profissional.",
+    },
+    auth: patientA,
+  },
+);
+expectStatus(
+  persistentPrivateReview,
+  200,
+  "revisão que permanece em registro privado",
+);
 
 const missingCsrf = await api(`/entries/${privateEntryA}/sharing`, {
   method: "PATCH",
@@ -1442,7 +1731,17 @@ assert.equal(entriesForA.payload.entries[0].emotion, "Ansiedade / Alívio");
 assert.match(entriesForA.payload.entries[0].happened, /<script>texto<\/script>/u);
 assert.equal(entriesForA.payload.entries[0].is_unread, 1);
 assert.equal(entriesForA.payload.entries[0].viewed_at, null);
+assert.deepEqual(
+  entriesForA.payload.entries[0].thought_review,
+  winningThoughtReview,
+  "o profissional recebe a revisão somente junto do registro compartilhado",
+);
 assert.ok(!entriesForA.payload.entries.some((entry) => entry.id === privateEntryA));
+assert.doesNotMatch(
+  JSON.stringify(entriesForA.payload),
+  /inteiramente privada|Conteúdo privado sintético e invisível/iu,
+  "o acesso profissional não pode receber a revisão de um registro privado",
+);
 
 const entriesForB = await api(
   `/professional/patients/${patientB.user.id}/entries`,
@@ -1451,6 +1750,7 @@ const entriesForB = await api(
 expectStatus(entriesForB, 200, "registros compartilhados do paciente B");
 assert.deepEqual(entriesForB.payload.entries.map((entry) => entry.id), [sharedEntryB]);
 assert.equal(entriesForB.payload.entries[0].is_unread, 1);
+assert.equal(entriesForB.payload.entries[0].thought_review, null);
 
 const patientCannotMarkViewed = await api(
   `/professional/entries/${sharedEntryB}/viewed`,
@@ -1654,6 +1954,26 @@ const restoredPatientLogin = await api("/login", {
   auth: patientA,
 });
 expectStatus(restoredPatientLogin, 200, "login após restauração");
+const patientReviewsAfterAccessRestore = await api("/entries", {
+  auth: patientA,
+});
+expectStatus(
+  patientReviewsAfterAccessRestore,
+  200,
+  "revisões preservadas durante o acesso encerrado",
+);
+assert.equal(
+  patientReviewsAfterAccessRestore.payload.entries.find(
+    (entry) => entry.id === sharedEntryA,
+  ).thought_review.revision,
+  2,
+);
+assert.equal(
+  patientReviewsAfterAccessRestore.payload.entries.find(
+    (entry) => entry.id === privateEntryA,
+  ).thought_review.source_thought,
+  "Revisão que deve continuar inteiramente privada.",
+);
 const professionalAfterRestore = await api(
   `/professional/patients/${patientA.user.id}/entries`,
   { auth: therapist },
@@ -1727,6 +2047,11 @@ const updatedProfessionalView = await api(
 );
 assert.equal(updatedProfessionalView.payload.entries[0].happened, updatedText);
 assert.equal(updatedProfessionalView.payload.entries[0].is_unread, 1);
+assert.equal(
+  updatedProfessionalView.payload.entries[0].thought_review.source_thought,
+  "Pensamento sintético.",
+  "editar o pensamento original não pode apagar nem sobrescrever a revisão",
+);
 
 const sharingRevoked = await api(`/entries/${sharedEntryA}/sharing`, {
   method: "PATCH",
@@ -1760,6 +2085,71 @@ const afterSharingAgain = await api(
 );
 assert.deepEqual(afterSharingAgain.payload.entries.map((entry) => entry.id), [sharedEntryA]);
 assert.equal(afterSharingAgain.payload.entries[0].is_unread, 1);
+
+const viewedBeforeThoughtReviewEdit = await api(
+  `/professional/entries/${sharedEntryA}/viewed`,
+  {
+    method: "POST",
+    body: {},
+    auth: therapist,
+  },
+);
+expectStatus(
+  viewedBeforeThoughtReviewEdit,
+  200,
+  "visualização antes de editar a revisão",
+);
+const editedThoughtReview = await api(
+  `/entries/${sharedEntryA}/thought-review`,
+  {
+    method: "PATCH",
+    body: {
+      source_thought: winningThoughtReview.source_thought,
+      supporting_context: winningThoughtReview.supporting_context,
+      missing_context: "Uma informação sintética que não combina totalmente.",
+      alternative_view: "Uma leitura alternativa sintética e não otimista.",
+      current_view: "A interpretação ficou um pouco mais incerta.",
+      expected_revision: winningThoughtReview.revision,
+    },
+    auth: patientA,
+  },
+);
+expectStatus(editedThoughtReview, 200, "edição da revisão compartilhada");
+assert.equal(editedThoughtReview.payload.thought_review.revision, 3);
+const professionalAfterThoughtReviewEdit = await api(
+  `/professional/patients/${patientA.user.id}/entries`,
+  { auth: therapist },
+);
+expectStatus(
+  professionalAfterThoughtReviewEdit,
+  200,
+  "leitura profissional após editar a revisão",
+);
+assert.equal(
+  professionalAfterThoughtReviewEdit.payload.entries[0].is_unread,
+  1,
+  "editar a revisão deve tornar o registro compartilhado não lido",
+);
+assert.equal(
+  professionalAfterThoughtReviewEdit.payload.entries[0].thought_review.current_view,
+  "A interpretação ficou um pouco mais incerta.",
+);
+const patientAfterThoughtReviewEdit = await api("/entries", { auth: patientA });
+assert.equal(
+  patientAfterThoughtReviewEdit.payload.entries.find(
+    (entry) => entry.id === sharedEntryA,
+  ).thought_review.revision,
+  3,
+);
+const finalEntryView = await api(
+  `/professional/entries/${sharedEntryA}/viewed`,
+  {
+    method: "POST",
+    body: {},
+    auth: therapist,
+  },
+);
+expectStatus(finalEntryView, 200, "visualização final da revisão");
 
 const exportDeletedAnswer = await api("/map-draft", {
   method: "PATCH",
@@ -1853,7 +2243,7 @@ assert.match(
   /meus-dados-area-do-paciente\.json/u,
 );
 assert.equal(exportResult.payload.format, "area-do-paciente-export");
-assert.equal(exportResult.payload.format_version, 2);
+assert.equal(exportResult.payload.format_version, 3);
 assert.equal(exportResult.payload.account.display_name, synthetic.sharedName);
 assert.equal(exportResult.payload.account.account_type, "patient");
 assert.equal(exportResult.payload.account.account_status, "active");
@@ -1865,10 +2255,28 @@ assert.ok(
 const exportedSharedEntry = exportResult.payload.entries.find(
   (entry) => entry.id === sharedEntryA,
 );
+const exportedPrivateEntry = exportResult.payload.entries.find(
+  (entry) => entry.id === privateEntryA,
+);
+assert.equal(exportedPrivateEntry.sharing.status, "private");
+assert.equal(
+  exportedPrivateEntry.thought_review.source_thought,
+  "Revisão que deve continuar inteiramente privada.",
+  "a cópia do titular inclui a própria revisão privada",
+);
 assert.equal(exportedSharedEntry.sharing.status, "shared");
 assert.equal(
   exportedSharedEntry.sharing.viewed_at,
-  markEntryAViewed.payload.viewed_at,
+  finalEntryView.payload.viewed_at,
+);
+assert.equal(
+  exportedSharedEntry.thought_review.current_view,
+  "A interpretação ficou um pouco mais incerta.",
+);
+assert.equal(
+  "revision" in exportedSharedEntry.thought_review,
+  false,
+  "a cópia do titular não deve expor metadado técnico de concorrência",
 );
 assert.match(exportedSharedEntry.sharing.viewed_at_meaning, /não significa resposta/iu);
 assert.equal(exportResult.payload.patient_map.draft.content_version, mapContentVersion);
@@ -1967,6 +2375,11 @@ const deletedSharedEntry = await api(`/entries/${sharedEntryA}`, {
   auth: patientA,
 });
 expectStatus(deletedSharedEntry, 204, "exclusão de registro pelo proprietário");
+assert.equal(
+  await entryThoughtReviewRowCount(sharedEntryA),
+  0,
+  "excluir o registro deve excluir a revisão anexada em cascata",
+);
 const afterEntryDeletion = await api(
   `/professional/patients/${patientA.user.id}/entries`,
   { auth: therapist },
@@ -2155,6 +2568,28 @@ const reusedAssistedRecovery = await api("/recover", {
 });
 expectStatus(reusedAssistedRecovery, 400, "reutilização da recuperação assistida");
 
+const patientBReviewBeforeAccountDeletion = await api(
+  `/entries/${sharedEntryB}/thought-review`,
+  {
+    method: "PATCH",
+    body: {
+      source_thought: "Pensamento sintético do paciente B.",
+      supporting_context: "",
+      missing_context: "",
+      alternative_view: "",
+      current_view: "",
+      expected_revision: 0,
+    },
+    auth: patientB,
+  },
+);
+expectStatus(
+  patientBReviewBeforeAccountDeletion,
+  200,
+  "revisão antes de excluir a conta",
+);
+assert.equal(await entryThoughtReviewRowCount(sharedEntryB), 1);
+
 assert.ok(
   (await patientMapDraftRowCount(patientB.user.id)) > 0,
   "o paciente B deve ter rascunho sintético antes de excluir a conta",
@@ -2179,6 +2614,16 @@ assert.equal(
   await patientMapShareRowCount(patientB.user.id),
   0,
   "a exclusão da conta deve remover compartilhamentos do mapa em cascata",
+);
+assert.equal(
+  await entryThoughtReviewRowCount(sharedEntryB),
+  0,
+  "a exclusão da conta deve remover revisões de pensamento em cascata",
+);
+assert.doesNotMatch(
+  await serializedAccessLogs(),
+  /Atualização sintética da (?:primeira|segunda) aba|interpretação ficou um pouco mais incerta/iu,
+  "a auditoria não pode conter o texto da revisão",
 );
 const afterAccountDeletion = await api("/professional/patients", { auth: therapist });
 expectStatus(afterAccountDeletion, 200, "lista após exclusão de conta");

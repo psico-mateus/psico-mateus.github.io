@@ -182,7 +182,7 @@ async function routePortal(page, sessionRole = "patient") {
           public_site_url: "https://psico-mateus.github.io/",
           guide_url: "https://psico-mateus.github.io/guia-emocoes/",
           care_url: "https://psico-mateus.github.io/cuidados/",
-          privacy_version: "2026-08-08",
+          privacy_version: "2026-08-20",
         }),
       });
       return;
