@@ -93,6 +93,9 @@ function PatientMapPersistenceStatus({
     <aside
       className={`patient-map-save-status ${state}${stable ? " is-stable" : ""}`}
       aria-label="Estado de salvamento do Meu mapa"
+      role={needsAttention ? undefined : "status"}
+      aria-live={needsAttention ? undefined : "polite"}
+      aria-atomic={needsAttention ? undefined : "true"}
     >
       <span className="patient-map-save-dot" aria-hidden="true" />
       <div>
@@ -617,7 +620,7 @@ export function PatientMapShell({
             <p>Carregando seu mapa…</p>
           </div>
         ) : (
-          <div className="empty-state patient-map-load-error">
+          <div className="empty-state patient-map-load-error" role="alert" aria-live="assertive">
             <h2>Seu mapa não pôde ser carregado agora.</h2>
             <p>{loadMessage} Para proteger o que já está salvo, a edição fica pausada até a conexão voltar.</p>
             <button className="primary-button" type="button" onClick={onRetryLoad}>

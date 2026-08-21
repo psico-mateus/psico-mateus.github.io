@@ -545,6 +545,12 @@ input:focus,textarea:focus,select:focus{
 }
 .modal-backdrop{background:rgba(36,36,35,.74)}
 .modal,.install-dialog{background:#fffdfa}
+.modal{
+  width:min(100%,560px);
+  max-height:calc(100dvh - 2rem);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
 .install-dialog::backdrop{background:rgba(36,36,35,.74)}
 .loader{border-color:#d6cec2;border-top-color:var(--gold)}
 input[type="range"]{accent-color:#9a6d27}

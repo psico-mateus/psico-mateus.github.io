@@ -294,6 +294,7 @@ export function PatientEducation({
   );
   const selectedArticle = findEducationArticle(selectedSlug);
   const libraryTitleRef = useRef<HTMLHeadingElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const restoreArticleSlug = useRef<string | null>(null);
   const previousArticleSlugRef = useRef<string | null>(
     selectedArticle?.slug ?? null,
@@ -316,6 +317,12 @@ export function PatientEducation({
         .filter((group) => group.articles.length > 0),
     [visibleArticles],
   );
+
+  function clearFiltersAndFocusSearch() {
+    setQuery("");
+    setCategory("all");
+    window.requestAnimationFrame(() => searchRef.current?.focus());
+  }
 
   useEffect(() => {
     const previousArticleSlug = previousArticleSlugRef.current;
@@ -388,6 +395,7 @@ export function PatientEducation({
         <label className="field education-search">
           <span>Buscar na Leitura complementar</span>
           <input
+            ref={searchRef}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -425,10 +433,7 @@ export function PatientEducation({
           <button
             className="filter-reset-button"
             type="button"
-            onClick={() => {
-              setQuery("");
-              setCategory("all");
-            }}
+            onClick={clearFiltersAndFocusSearch}
           >
             Limpar busca e filtros
           </button>
@@ -449,10 +454,7 @@ export function PatientEducation({
           <button
             className="secondary-button"
             type="button"
-            onClick={() => {
-              setQuery("");
-              setCategory("all");
-            }}
+            onClick={clearFiltersAndFocusSearch}
           >
             Limpar busca e filtros
           </button>

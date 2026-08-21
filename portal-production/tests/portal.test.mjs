@@ -1251,6 +1251,31 @@ test("record form keeps the session note visible and reveals other optional fiel
   );
 });
 
+test("patient dynamic states announce changes and restore focus after filters disappear", async () => {
+  const [portal, education, patientMap, styles] = await Promise.all([
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientEducation.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PatientMapShell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(portal, /const entrySearchRef = useRef<HTMLInputElement>\(null\)/u);
+  assert.match(portal, /ref=\{entrySearchRef\}/u);
+  assert.match(portal, /function focusEntrySearch\(\)[\s\S]*?entrySearchRef\.current\?\.focus\(\)/u);
+  assert.equal(portal.match(/focusEntrySearch\(\);/gu)?.length, 3);
+  assert.match(education, /const searchRef = useRef<HTMLInputElement>\(null\)/u);
+  assert.match(education, /ref=\{searchRef\}/u);
+  assert.match(education, /function clearFiltersAndFocusSearch\(\)[\s\S]*?searchRef\.current\?\.focus\(\)/u);
+  assert.equal(education.match(/onClick=\{clearFiltersAndFocusSearch\}/gu)?.length, 2);
+  assert.match(patientMap, /role=\{needsAttention \? undefined : "status"\}/u);
+  assert.match(patientMap, /aria-live=\{needsAttention \? undefined : "polite"\}/u);
+  assert.match(patientMap, /patient-map-load-error" role="alert" aria-live="assertive"/u);
+  assert.match(portal, /requisito atendido/u);
+  assert.match(portal, /ainda falta atender/u);
+  assert.match(portal, /requisitos da senha atendidos/u);
+  assert.match(styles, /\.modal\{[\s\S]*?max-height:calc\(100dvh - 2rem\)[\s\S]*?overflow-y:auto/u);
+});
+
 test("patient views keep one clear top-level heading", async () => {
   const [portal, education] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),

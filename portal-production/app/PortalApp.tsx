@@ -159,6 +159,7 @@ function Field({
         { label: "pelo menos um número", met: /\d/u.test(typedValue) },
       ]
     : [];
+  const metRequirementCount = requirements.filter((requirement) => requirement.met).length;
 
   useEffect(() => {
     if (!passwordRequirements) return;
@@ -210,14 +211,24 @@ function Field({
       </div>
       {hint ? <small id={hintId}>{hint}</small> : null}
       {passwordRequirements ? (
-        <ul className="password-requirements" id={requirementsId}>
-          {requirements.map((requirement) => (
-            <li className={requirement.met ? "met" : ""} key={requirement.label}>
-              <span aria-hidden="true">{requirement.met ? "✓" : "○"}</span>
-              {requirement.label}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="password-requirements" id={requirementsId}>
+            {requirements.map((requirement) => (
+              <li className={requirement.met ? "met" : ""} key={requirement.label}>
+                <span aria-hidden="true">{requirement.met ? "✓" : "○"}</span>
+                {requirement.label}
+                <span className="sr-status">
+                  {requirement.met ? " — requisito atendido" : " — ainda falta atender"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+            {typedValue
+              ? `${metRequirementCount} de ${requirements.length} requisitos da senha atendidos.`
+              : ""}
+          </p>
+        </>
       ) : null}
     </div>
   );
@@ -1067,6 +1078,7 @@ function PatientDashboard({
     useState<PatientEntrySharingFilter>("all");
   const [entryQuery, setEntryQuery] = useState("");
   const [entrySort, setEntrySort] = useState<PatientEntrySort>("newest");
+  const entrySearchRef = useRef<HTMLInputElement>(null);
   const [entryActions, setEntryActions] = useState<
     Record<string, "sharing" | "removing">
   >({});
@@ -1570,6 +1582,9 @@ function PatientDashboard({
       manualRefreshLock.current = false;
     });
   }
+  function focusEntrySearch() {
+    window.requestAnimationFrame(() => entrySearchRef.current?.focus());
+  }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
   const sharedViewCounts = entries.reduce(
@@ -1861,6 +1876,7 @@ function PatientDashboard({
             <label className="field patient-record-search">
               <span>Buscar nos meus registros</span>
               <input
+                ref={entrySearchRef}
                 type="search"
                 value={entryQuery}
                 onChange={(event) => setEntryQuery(event.target.value)}
@@ -1889,6 +1905,7 @@ function PatientDashboard({
                   setEntryQuery("");
                   setEntryFilter("all");
                   setEntrySort("newest");
+                  focusEntrySearch();
                 }}
               >
                 Limpar busca e filtros
@@ -1909,8 +1926,14 @@ function PatientDashboard({
               <h2>{hasEntryQuery ? "Nenhum registro encontrado." : entryFilter === "shared" ? "Nenhum registro compartilhado agora." : "Nenhum registro privado agora."}</h2>
               <p>{hasEntryQuery ? "Tente outra palavra ou limpe a busca para voltar ao histórico." : entryFilter === "shared" ? "Quando você decidir compartilhar um registro com Mateus, ele aparecerá aqui." : "Você pode deixar um registro privado novamente abrindo-o e retirando o compartilhamento."}</p>
               <div className="button-row">
-                {hasEntryQuery ? <button className="secondary-button" type="button" onClick={() => setEntryQuery("")}>Limpar busca</button> : null}
-                {entryFilter !== "all" ? <button className="secondary-button" type="button" onClick={() => setEntryFilter("all")}>Mostrar todos</button> : null}
+                {hasEntryQuery ? <button className="secondary-button" type="button" onClick={() => {
+                  setEntryQuery("");
+                  focusEntrySearch();
+                }}>Limpar busca</button> : null}
+                {entryFilter !== "all" ? <button className="secondary-button" type="button" onClick={() => {
+                  setEntryFilter("all");
+                  focusEntrySearch();
+                }}>Mostrar todos</button> : null}
               </div>
             </div>
           ) : <div className="record-list patient-record-list">{visibleEntries.map((entry) => {
