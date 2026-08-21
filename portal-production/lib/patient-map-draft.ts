@@ -404,6 +404,39 @@ async function rowForRequest(
   );
 }
 
+async function purgeFieldsFromClearedGeneration(
+  database: MapDatabase,
+  patientId: string,
+  clearedGeneration: number,
+  requestId: string,
+): Promise<void> {
+  await database
+    .prepare(
+      `DELETE FROM patient_map_draft_fields
+       WHERE patient_id = ? AND content_version = ?
+         AND field_type <> ? AND generation <= ?
+         AND EXISTS (
+           SELECT 1 FROM patient_map_draft_fields AS state
+           WHERE state.patient_id = ? AND state.content_version = ?
+             AND state.field_type = ? AND state.field_id = ?
+             AND state.generation = ? AND state.request_id = ?
+         )`,
+    )
+    .bind(
+      patientId,
+      PATIENT_MAP_CONTENT_VERSION,
+      STATE_TYPE,
+      clearedGeneration,
+      patientId,
+      PATIENT_MAP_CONTENT_VERSION,
+      STATE_TYPE,
+      STATE_ID,
+      clearedGeneration + 1,
+      requestId,
+    )
+    .run();
+}
+
 export async function readPatientMapDraft(
   database: MapDatabase,
   patientId: string,
@@ -671,6 +704,12 @@ export async function resetPatientMapDraft(
     state.request_id === requestId &&
     state.generation === expectedGeneration + 1
   ) {
+    await purgeFieldsFromClearedGeneration(
+      database,
+      patientId,
+      expectedGeneration,
+      requestId,
+    );
     return {
       ok: true,
       payload: {
@@ -690,33 +729,90 @@ export async function resetPatientMapDraft(
   const timestamp = now();
   let writeChanges = 0;
   try {
-    const result = await database
-      .prepare(
-        `UPDATE patient_map_draft_fields
-         SET generation = generation + 1, revision = revision + 1,
-             request_id = ?, updated_at = ?
-         WHERE patient_id = ? AND content_version = ?
-           AND field_type = ? AND field_id = ?
-           AND generation = ? AND revision = ?`,
-      )
-      .bind(
-        requestId,
-        timestamp,
-        patientId,
-        PATIENT_MAP_CONTENT_VERSION,
-        STATE_TYPE,
-        STATE_ID,
-        expectedGeneration,
-        state.revision,
-      )
-      .run();
-    writeChanges = result.meta.changes;
+    const nextGeneration = expectedGeneration + 1;
+    const nextRevision = state.revision + 1;
+    const [stateResult] = await database.batch([
+      database
+        .prepare(
+          `UPDATE patient_map_draft_fields
+           SET generation = generation + 1, revision = revision + 1,
+               request_id = ?, updated_at = ?
+           WHERE patient_id = ? AND content_version = ?
+             AND field_type = ? AND field_id = ?
+             AND generation = ? AND revision = ?`,
+        )
+        .bind(
+          requestId,
+          timestamp,
+          patientId,
+          PATIENT_MAP_CONTENT_VERSION,
+          STATE_TYPE,
+          STATE_ID,
+          expectedGeneration,
+          state.revision,
+        ),
+      database
+        .prepare(
+          `DELETE FROM patient_map_shares
+           WHERE patient_id = ? AND changes() = 1
+             AND EXISTS (
+               SELECT 1 FROM patient_map_draft_fields AS state
+               WHERE state.patient_id = ? AND state.content_version = ?
+                 AND state.field_type = ? AND state.field_id = ?
+                 AND state.generation = ? AND state.revision = ?
+                 AND state.request_id = ?
+             )`,
+        )
+        .bind(
+          patientId,
+          patientId,
+          PATIENT_MAP_CONTENT_VERSION,
+          STATE_TYPE,
+          STATE_ID,
+          nextGeneration,
+          nextRevision,
+          requestId,
+        ),
+      database
+        .prepare(
+          `DELETE FROM patient_map_draft_fields
+           WHERE patient_id = ? AND content_version = ?
+             AND field_type <> ? AND generation <= ?
+             AND EXISTS (
+               SELECT 1 FROM patient_map_draft_fields AS state
+               WHERE state.patient_id = ? AND state.content_version = ?
+                 AND state.field_type = ? AND state.field_id = ?
+                 AND state.generation = ? AND state.revision = ?
+                 AND state.request_id = ?
+             )`,
+        )
+        .bind(
+          patientId,
+          PATIENT_MAP_CONTENT_VERSION,
+          STATE_TYPE,
+          expectedGeneration,
+          patientId,
+          PATIENT_MAP_CONTENT_VERSION,
+          STATE_TYPE,
+          STATE_ID,
+          nextGeneration,
+          nextRevision,
+          requestId,
+        ),
+    ]);
+    writeChanges = stateResult.meta.changes;
   } catch (error) {
     state = (await stateRow(database, patientId)) ?? state;
     if (
       state.request_id === requestId &&
       state.generation === expectedGeneration + 1
     ) {
+      await purgeFieldsFromClearedGeneration(
+        database,
+        patientId,
+        expectedGeneration,
+        requestId,
+      );
       return {
         ok: true,
         payload: {
@@ -735,6 +831,12 @@ export async function resetPatientMapDraft(
       state.request_id === requestId &&
       state.generation === expectedGeneration + 1
     ) {
+      await purgeFieldsFromClearedGeneration(
+        database,
+        patientId,
+        expectedGeneration,
+        requestId,
+      );
       return {
         ok: true,
         payload: {

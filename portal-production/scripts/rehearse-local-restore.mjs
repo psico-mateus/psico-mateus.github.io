@@ -10,6 +10,7 @@ const migrationNames = [
   "0002_entry_views.sql",
   "0003_patient_map_drafts.sql",
   "0004_patient_map_sharing.sql",
+  "0005_patient_map_reset_cleanup.sql",
 ];
 const tableNames = [
   "users",
@@ -40,13 +41,17 @@ const expectedCounts = {
   system_config: 1,
 };
 
-async function applyMigrations(database) {
-  for (const migrationName of migrationNames) {
-    const migration = await readFile(
-      new URL(`../drizzle/${migrationName}`, import.meta.url),
-      "utf8",
-    );
-    database.exec(migration);
+async function applyMigration(database, migrationName) {
+  const migration = await readFile(
+    new URL(`../drizzle/${migrationName}`, import.meta.url),
+    "utf8",
+  );
+  database.exec(migration);
+}
+
+async function applyMigrations(database, names = migrationNames) {
+  for (const migrationName of names) {
+    await applyMigration(database, migrationName);
   }
 }
 
@@ -117,15 +122,23 @@ function insertSyntheticState(database) {
     ) VALUES
       (
         'patient_synthetic', 'mapa-pessoal-refinado-ouro-v1',
-        'state', '__state__', 1, NULL, 0, '',
+        'state', '__state__', 2, NULL, 1,
+        'map-clear-before-fix-0001',
         '2026-01-02T12:30:00.000Z'
       ),
       (
         'patient_synthetic', 'mapa-pessoal-refinado-ouro-v1',
-        'answer', 'meu-jeito.01.1', 1,
+        'answer', 'meu-jeito.01.1', 2,
         '{"response":"curious","note":"Conteúdo sintético."}',
         1, 'map-answer-synthetic-0001',
         '2026-01-02T12:31:00.000Z'
+      ),
+      (
+        'patient_synthetic', 'mapa-pessoal-refinado-ouro-v1',
+        'synthesis', 'already-fits', 1,
+        '"Conteúdo sintético retido por uma limpeza anterior."',
+        1, 'map-stale-before-fix-0001',
+        '2026-01-02T12:29:00.000Z'
       );
 
     INSERT INTO patient_map_shares (
@@ -203,8 +216,31 @@ try {
   const source = new DatabaseSync(sourcePath);
   try {
     source.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = DELETE;");
-    await applyMigrations(source);
+    await applyMigrations(source, migrationNames.slice(0, -1));
     insertSyntheticState(source);
+    assert.equal(
+      source.prepare(
+        "SELECT COUNT(*) AS total FROM patient_map_draft_fields",
+      ).get().total,
+      3,
+      "o ensaio deve começar com um campo inacessível retido pela limpeza antiga",
+    );
+    await applyMigration(source, migrationNames.at(-1));
+    assert.deepEqual(
+      source
+        .prepare(
+          `SELECT field_type, field_id, generation
+           FROM patient_map_draft_fields
+           ORDER BY field_type, field_id`,
+        )
+        .all()
+        .map((row) => ({ ...row })),
+      [
+        { field_type: "answer", field_id: "meu-jeito.01.1", generation: 2 },
+        { field_type: "state", field_id: "__state__", generation: 2 },
+      ],
+      "a migração deve remover somente campos fora da geração atual",
+    );
   } finally {
     source.close();
   }
@@ -218,6 +254,28 @@ try {
       PRAGMA foreign_keys = ON;
       DELETE FROM entries WHERE id = 'entry_synthetic';
       DELETE FROM sessions WHERE user_id = 'patient_synthetic';
+      BEGIN IMMEDIATE;
+      UPDATE patient_map_draft_fields
+      SET generation = 3, revision = revision + 1,
+          request_id = 'map-clear-synthetic-0001',
+          updated_at = '2026-01-05T10:00:00.000Z'
+      WHERE patient_id = 'patient_synthetic'
+        AND content_version = 'mapa-pessoal-refinado-ouro-v1'
+        AND field_type = 'state' AND field_id = '__state__'
+        AND generation = 2;
+      DELETE FROM patient_map_draft_fields
+      WHERE patient_id = 'patient_synthetic'
+        AND content_version = 'mapa-pessoal-refinado-ouro-v1'
+        AND field_type <> 'state'
+        AND EXISTS (
+          SELECT 1 FROM patient_map_draft_fields AS state
+          WHERE state.patient_id = 'patient_synthetic'
+            AND state.content_version = 'mapa-pessoal-refinado-ouro-v1'
+            AND state.field_type = 'state' AND state.field_id = '__state__'
+            AND state.generation = 3
+            AND state.request_id = 'map-clear-synthetic-0001'
+        );
+      COMMIT;
       UPDATE patient_links
       SET status = 'closed', closed_at = '2026-01-05T10:00:00.000Z'
       WHERE id = 'link_synthetic';
@@ -229,7 +287,7 @@ try {
   const changedSnapshot = readSnapshot(sourcePath);
   assert.equal(changedSnapshot.counts.entries, 0);
   assert.equal(changedSnapshot.counts.entry_views, 0);
-  assert.equal(changedSnapshot.counts.patient_map_draft_fields, 2);
+  assert.equal(changedSnapshot.counts.patient_map_draft_fields, 1);
   assert.equal(changedSnapshot.counts.patient_map_shares, 1);
   assert.equal(changedSnapshot.counts.sessions, 0);
 

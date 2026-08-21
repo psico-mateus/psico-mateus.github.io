@@ -1367,10 +1367,7 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
     }
     const input = await readJson(request);
     const result = await resetPatientMapDraft(DB, session.userId, input);
-    if (result.ok) {
-      await DB.prepare("DELETE FROM patient_map_shares WHERE patient_id = ?")
-        .bind(session.userId)
-        .run();
+    if (result.ok && !result.payload.idempotent) {
       await audit(session.userId, "clear_patient_map", "patient_map");
     }
     return result.ok ? json(result.payload) : json(result.payload, 409);
