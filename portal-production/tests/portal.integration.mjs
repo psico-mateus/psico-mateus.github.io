@@ -70,11 +70,13 @@ async function api(
     includeCsrf = true,
     includeOrigin = true,
     contentType = "application/json",
+    clientIp,
   } = {},
 ) {
   const headers = new Headers();
   if (body !== undefined) headers.set("content-type", contentType);
   if (includeOrigin) headers.set("origin", testUrl.origin);
+  if (clientIp) headers.set("cf-connecting-ip", clientIp);
   if (auth?.cookie) headers.set("cookie", auth.cookie);
   if (auth?.csrf && includeCsrf && method !== "GET") {
     headers.set("x-csrf-token", auth.csrf);
@@ -174,6 +176,19 @@ async function sessionRowCount() {
   const database = new DatabaseSync(databasePath, { readOnly: true });
   try {
     return database.prepare("SELECT COUNT(*) AS total FROM sessions").get().total;
+  } finally {
+    database.close();
+  }
+}
+
+async function authWindowKeys() {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare("SELECT key FROM auth_windows ORDER BY key")
+      .all()
+      .map((row) => row.key);
   } finally {
     database.close();
   }
@@ -347,6 +362,7 @@ async function registerPatient({
   password,
   adult = true,
   privacy = true,
+  clientIp,
 }) {
   const patient = session();
   const result = await api("/register", {
@@ -360,6 +376,7 @@ async function registerPatient({
       privacy_confirmation: privacy,
     },
     auth: patient,
+    clientIp,
   });
   return { patient, result };
 }
@@ -532,6 +549,182 @@ const successfulProfessionalSession =
     : simultaneousProfessionalSessionB;
 Object.assign(therapist, successfulProfessionalSession);
 assert.equal(therapist.user.role, "therapist");
+
+const concurrentUnknownLogins = await Promise.all(
+  Array.from({ length: 68 }, (_, index) =>
+    api("/login", {
+      method: "POST",
+      body: {
+        email: `conta-rotativa-${index}@example.test`,
+        password: "SenhaInexistente123",
+      },
+      clientIp: "198.51.100.60",
+    }),
+  ),
+);
+assert.deepEqual(
+  concurrentUnknownLogins
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [...Array(60).fill(401), ...Array(8).fill(429)],
+  "o teto por IP deve permanecer exato com e-mails variados e requisições simultâneas",
+);
+const blockedConcurrentLogin = concurrentUnknownLogins.find(
+  ({ response }) => response.status === 429,
+);
+assert.ok(blockedConcurrentLogin);
+assert.equal(
+  blockedConcurrentLogin.payload.error,
+  "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+);
+assert.equal(blockedConcurrentLogin.response.headers.get("set-cookie"), null);
+const independentLoginIp = await api("/login", {
+  method: "POST",
+  body: {
+    email: "conta-outra-origem@example.test",
+    password: "SenhaInexistente123",
+  },
+  clientIp: "198.51.100.61",
+});
+expectStatus(independentLoginIp, 401, "login de outra origem após saturar um IP");
+const sameAccountLogins = await Promise.all(
+  Array.from({ length: 10 }, () =>
+    api("/login", {
+      method: "POST",
+      body: {
+        email: "conta-repetida@example.test",
+        password: "SenhaInexistente123",
+      },
+      clientIp: "198.51.100.66",
+    }),
+  ),
+);
+assert.deepEqual(
+  sameAccountLogins
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [...Array(8).fill(401), ...Array(2).fill(429)],
+  "o limite anterior de oito tentativas por identidade deve ser preservado",
+);
+
+const concurrentRegistrations = await Promise.all(
+  Array.from({ length: 34 }, (_, index) =>
+    registerPatient({
+      invitationCode: "CODIGO-INVALIDO",
+      email: `cadastro-rotativo-${index}@example.test`,
+      password: "SenhaCadastroRotativo123",
+      clientIp: "198.51.100.62",
+    }).then(({ result }) => result),
+  ),
+);
+assert.deepEqual(
+  concurrentRegistrations
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [...Array(30).fill(400), ...Array(4).fill(429)],
+  "o cadastro deve limitar uma origem mesmo quando ela varia o e-mail",
+);
+const registrationOtherIp = await registerPatient({
+  invitationCode: "CODIGO-INVALIDO",
+  email: "cadastro-outra-origem@example.test",
+  password: "SenhaCadastroOutraOrigem123",
+  clientIp: "198.51.100.64",
+});
+expectStatus(
+  registrationOtherIp.result,
+  400,
+  "cadastro de outra origem após saturar um IP",
+);
+const loginFromRegistrationIp = await api("/login", {
+  method: "POST",
+  body: {
+    email: "login-escopo-independente@example.test",
+    password: "SenhaInexistente123",
+  },
+  clientIp: "198.51.100.62",
+});
+expectStatus(
+  loginFromRegistrationIp,
+  401,
+  "saturar cadastro não pode bloquear o escopo de login",
+);
+
+const concurrentRecoveries = await Promise.all(
+  Array.from({ length: 34 }, (_, index) =>
+    api("/recover", {
+      method: "POST",
+      body: {
+        email: `recuperacao-rotativa-${index}@example.test`,
+        recovery_code: "CODIGO-INVALIDO",
+        new_password: "SenhaRecuperacaoRotativa123",
+      },
+      clientIp: "198.51.100.63",
+    }),
+  ),
+);
+assert.deepEqual(
+  concurrentRecoveries
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [...Array(30).fill(400), ...Array(4).fill(429)],
+  "a recuperação deve limitar uma origem mesmo quando ela varia o e-mail",
+);
+const recoveryOtherIp = await api("/recover", {
+  method: "POST",
+  body: {
+    email: "recuperacao-outra-origem@example.test",
+    recovery_code: "CODIGO-INVALIDO",
+    new_password: "SenhaRecuperacaoOutraOrigem123",
+  },
+  clientIp: "198.51.100.65",
+});
+expectStatus(recoveryOtherIp, 400, "recuperação de outra origem após saturar um IP");
+const sameAccountRecoveries = await Promise.all(
+  Array.from({ length: 7 }, () =>
+    api("/recover", {
+      method: "POST",
+      body: {
+        email: "recuperacao-repetida@example.test",
+        recovery_code: "CODIGO-INVALIDO",
+        new_password: "SenhaRecuperacaoRepetida123",
+      },
+      clientIp: "198.51.100.67",
+    }),
+  ),
+);
+assert.deepEqual(
+  sameAccountRecoveries
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [...Array(5).fill(400), ...Array(2).fill(429)],
+  "o limite anterior de cinco tentativas por identidade deve ser preservado",
+);
+const recoveryFromRegistrationIp = await api("/recover", {
+  method: "POST",
+  body: {
+    email: "recuperacao-escopo-independente@example.test",
+    recovery_code: "CODIGO-INVALIDO",
+    new_password: "SenhaRecuperacaoIndependente123",
+  },
+  clientIp: "198.51.100.62",
+});
+expectStatus(
+  recoveryFromRegistrationIp,
+  400,
+  "saturar cadastro não pode bloquear o escopo de recuperação",
+);
+
+const storedRateKeys = await authWindowKeys();
+assert.ok(storedRateKeys.length > 0);
+assert.ok(
+  storedRateKeys.every((key) => /^[A-Za-z0-9_-]{43}$/u.test(key)),
+  "janelas de autenticação devem armazenar apenas chaves HMAC",
+);
+assert.doesNotMatch(
+  storedRateKeys.join("\n"),
+  /example\.test|198\.51\.100|conta|cadastro|recuperacao/iu,
+  "e-mails e endereços não podem aparecer nas chaves persistidas",
+);
 
 const invitationA = await createInvitation(therapist);
 const invitationB = await createInvitation(therapist);
@@ -2722,7 +2915,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 152,
+    checks: 168,
     data: "synthetic-only",
     production_requests: 0,
   }),

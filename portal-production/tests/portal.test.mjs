@@ -1828,6 +1828,32 @@ test("registration errors do not confirm an existing account and request bodies 
   assert.doesNotMatch(security, /senha real|token real|código real/iu);
 });
 
+test("authentication limits are atomic and include privacy-preserving IP ceilings", async () => {
+  const [portal, route] = await Promise.all([
+    readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+      "utf8",
+    ),
+  ]);
+  const limiter =
+    portal.match(
+      /async function consumeRateLimitWindow[\s\S]*?(?=\nexport async function userByEmail)/u,
+    )?.[0] ?? "";
+
+  assert.match(limiter, /INSERT INTO auth_windows/u);
+  assert.match(limiter, /ON CONFLICT\(key\) DO UPDATE/u);
+  assert.match(limiter, /auth_windows\.count < \?/u);
+  assert.match(limiter, /RETURNING count/u);
+  assert.doesNotMatch(limiter, /SELECT count|UPDATE auth_windows SET count/u);
+  assert.match(limiter, /request\.headers\.get\("cf-connecting-ip"\)/u);
+  assert.doesNotMatch(limiter, /x-forwarded-for/iu);
+  assert.match(limiter, /hmac\(APP_SECRET, `rate:ip:/u);
+  assert.match(route, /"login"[\s\S]*?ipLimit: 60/u);
+  assert.match(route, /"register"[\s\S]*?ipLimit: 30/u);
+  assert.match(route, /"recover"[\s\S]*?ipLimit: 30/u);
+});
+
 test("Meu mapa persistence is migration-gated, patient-only and conflict-safe", async () => {
   const [route, backend, runtime, migration, cleanupMigration, restore] = await Promise.all([
     readFile(

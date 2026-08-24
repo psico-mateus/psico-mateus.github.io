@@ -258,7 +258,10 @@ async function setupStatus() {
 
 async function createTherapistSetup(request: Request, input: Input): Promise<Response> {
   const { DB, APP_SECRET, SETUP_SECRET } = getPortalEnv();
-  await checkRateLimit(request, "setup", "professional", 5, 30 * 60);
+  await checkRateLimit(request, "setup", "professional", {
+    limit: 5,
+    windowSeconds: 30 * 60,
+  });
   if (String(input.setup_secret ?? "") !== SETUP_SECRET) {
     throw new PortalError(403, "Código de configuração inválido.");
   }
@@ -317,7 +320,10 @@ async function createTherapistSetup(request: Request, input: Input): Promise<Res
 
 async function confirmTherapistSetup(request: Request, input: Input): Promise<Response> {
   const { DB, APP_SECRET, SETUP_SECRET } = getPortalEnv();
-  await checkRateLimit(request, "setup-confirm", "professional", 8, 30 * 60);
+  await checkRateLimit(request, "setup-confirm", "professional", {
+    limit: 8,
+    windowSeconds: 30 * 60,
+  });
   if (String(input.setup_secret ?? "") !== SETUP_SECRET) {
     throw new PortalError(403, "Código de configuração inválido.");
   }
@@ -356,7 +362,7 @@ async function confirmTherapistSetup(request: Request, input: Input): Promise<Re
 async function login(request: Request, input: Input): Promise<Response> {
   const { DB, APP_SECRET } = getPortalEnv();
   const email = validateEmail(input.email);
-  await checkRateLimit(request, "login", normalizeEmail(email));
+  await checkRateLimit(request, "login", normalizeEmail(email), { ipLimit: 60 });
   const user = await userByEmail(email);
   const genericError = new PortalError(401, "E-mail, senha ou código inválidos.");
   const passwordValid = await passwordMatches(
@@ -402,7 +408,11 @@ async function register(request: Request, input: Input): Promise<Response> {
   const { DB, APP_SECRET } = getPortalEnv();
   const email = validateEmail(input.email);
   await portalOperation("register.rate_limit", () =>
-    checkRateLimit(request, "register", normalizeEmail(email), 6, 30 * 60),
+    checkRateLimit(request, "register", normalizeEmail(email), {
+      limit: 6,
+      windowSeconds: 30 * 60,
+      ipLimit: 30,
+    }),
   );
   const name = cleanText(input.name, 100).replace(/\s+/gu, " ");
   if (name.length < 2) throw new PortalError(400, "Informe como prefere ser chamado(a).");
@@ -559,7 +569,11 @@ async function register(request: Request, input: Input): Promise<Response> {
 async function recoverAccount(request: Request, input: Input): Promise<Response> {
   const { DB } = getPortalEnv();
   const email = validateEmail(input.email);
-  await checkRateLimit(request, "recover", normalizeEmail(email), 5, 60 * 60);
+  await checkRateLimit(request, "recover", normalizeEmail(email), {
+    limit: 5,
+    windowSeconds: 60 * 60,
+    ipLimit: 30,
+  });
   const user = await userByEmail(email);
   const genericError = new PortalError(400, "Não foi possível confirmar o código de recuperação.");
   if (!user || user.status !== "active") throw genericError;
@@ -1087,7 +1101,10 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (assistedRecovery) {
     const session = await requireSession(request, "therapist");
     requireCsrf(request, session);
-    await checkRateLimit(request, "assisted-recovery", session.userId, 8, 60 * 60);
+    await checkRateLimit(request, "assisted-recovery", session.userId, {
+      limit: 8,
+      windowSeconds: 60 * 60,
+    });
     const therapist = (await DB.prepare("SELECT * FROM users WHERE id = ?")
       .bind(session.userId)
       .first<UserRow>()) as UserRow;

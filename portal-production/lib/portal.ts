@@ -260,36 +260,65 @@ export function prepareAudit(
   ).bind(identifier("log"), userId, action, resourceType, resourceId, now());
 }
 
+interface RateLimitPolicy {
+  limit?: number;
+  windowSeconds?: number;
+  ipLimit?: number;
+}
+
+const RATE_LIMIT_MESSAGE = "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+
+async function consumeRateLimitWindow(
+  key: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<void> {
+  const { DB } = getPortalEnv();
+  const instant = Date.now();
+  const currentTime = new Date(instant).toISOString();
+  const cutoff = new Date(instant - windowSeconds * 1_000).toISOString();
+  const accepted = await DB.prepare(
+    `INSERT INTO auth_windows (key, count, window_started_at)
+     VALUES (?, 1, ?)
+     ON CONFLICT(key) DO UPDATE SET
+       count = CASE
+         WHEN auth_windows.window_started_at <= ? THEN 1
+         ELSE auth_windows.count + 1
+       END,
+       window_started_at = CASE
+         WHEN auth_windows.window_started_at <= ? THEN excluded.window_started_at
+         ELSE auth_windows.window_started_at
+       END
+     WHERE auth_windows.window_started_at <= ? OR auth_windows.count < ?
+     RETURNING count`,
+  )
+    .bind(key, currentTime, cutoff, cutoff, cutoff, limit)
+    .first<{ count: number }>();
+
+  if (!accepted) throw new PortalError(429, RATE_LIMIT_MESSAGE);
+}
+
 export async function checkRateLimit(
   request: Request,
   scope: string,
   subject: string,
-  limit = 8,
-  windowSeconds = 15 * 60,
+  { limit = 8, windowSeconds = 15 * 60, ipLimit }: RateLimitPolicy = {},
 ): Promise<void> {
-  const { DB, APP_SECRET } = getPortalEnv();
-  const client = request.headers.get("cf-connecting-ip") ?? "local";
-  const key = await hmac(APP_SECRET, `rate:${scope}:${subject}:${client}`);
-  const row = await DB.prepare(
-    "SELECT count, window_started_at FROM auth_windows WHERE key = ?",
-  )
-    .bind(key)
-    .first<{ count: number; window_started_at: string }>();
-  const started = row ? new Date(row.window_started_at).getTime() : 0;
-  const expired = !row || Date.now() - started >= windowSeconds * 1_000;
-  if (!expired && row.count >= limit) {
-    throw new PortalError(429, "Muitas tentativas. Aguarde alguns minutos e tente novamente.");
+  const { APP_SECRET } = getPortalEnv();
+  const clientAddress = request.headers.get("cf-connecting-ip")?.trim();
+  const client = clientAddress || "local";
+
+  // Fora da borda da Cloudflare esse cabeçalho pode não existir. Nesse caso,
+  // preserva o limite por identidade sem agrupar todos em um único balde de IP.
+  if (ipLimit !== undefined && clientAddress) {
+    const ipKey = await hmac(APP_SECRET, `rate:ip:${scope}:${client}`);
+    await consumeRateLimitWindow(ipKey, ipLimit, windowSeconds);
   }
-  if (expired) {
-    await DB.prepare(
-      `INSERT INTO auth_windows (key, count, window_started_at) VALUES (?, 1, ?)
-       ON CONFLICT(key) DO UPDATE SET count = 1, window_started_at = excluded.window_started_at`,
-    )
-      .bind(key, now())
-      .run();
-  } else {
-    await DB.prepare("UPDATE auth_windows SET count = count + 1 WHERE key = ?").bind(key).run();
-  }
+
+  // Mantém o formato anterior desta chave para que janelas ainda ativas
+  // continuem valendo depois da atualização.
+  const subjectKey = await hmac(APP_SECRET, `rate:${scope}:${subject}:${client}`);
+  await consumeRateLimitWindow(subjectKey, limit, windowSeconds);
 }
 
 export async function userByEmail(email: string): Promise<UserRow | null> {
