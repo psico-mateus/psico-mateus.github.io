@@ -2307,6 +2307,11 @@ input[type="range"]{accent-color:#9a6d27}
   gap:1.8rem;
   padding-top:1.8rem;
 }
+.education-article-footer{
+  border-top:1px solid var(--line);
+  padding-top:1rem;
+}
+.education-article-footer .back-button{margin:0}
 .education-article-body>section:not(.education-observe){
   max-width:760px;
 }
@@ -2747,6 +2752,14 @@ input[type="range"]{accent-color:#9a6d27}
 }
 .patient-start>header{max-width:700px;margin-bottom:1rem}
 .patient-start>header h2{margin:0;font-size:clamp(1.65rem,3vw,2.15rem)}
+.patient-start-guide{
+  max-width:700px;
+  margin:-.25rem 0 1.1rem;
+  color:var(--muted);
+  font-size:.9rem;
+  line-height:1.6;
+}
+.patient-start-guide strong{color:var(--ink);font-weight:750}
 .patient-start-actions{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));

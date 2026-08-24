@@ -1719,7 +1719,8 @@ function PatientDashboard({
   const sharedViewCounts = entries.reduce(
     (counts, entry) => {
       if (isEntryShared(entry)) {
-        counts[patientEntryViewStatus(entry).kind] += 1;
+        const status = patientEntryViewStatus(entry).kind;
+        if (status !== "private") counts[status] += 1;
       }
       return counts;
     },
@@ -1822,6 +1823,10 @@ function PatientDashboard({
               <p className="eyebrow">ESCOLHA UM CAMINHO</p>
               <h2 id="patient-start-title">O que pode ajudar você agora?</h2>
             </header>
+            <p className="patient-start-guide">
+              <strong>Registro</strong> guarda acontecimentos. <strong>Meu mapa</strong> ajuda a
+              observar padrões ao longo do tempo.
+            </p>
             <div className="patient-start-actions">
               <button className="patient-start-card primary" type="button" onClick={openNewRecord}>
                 <span className="patient-start-kicker">{editing ? "RASCUNHO NESTA SESSÃO" : "REGISTRO"}</span>

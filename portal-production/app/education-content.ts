@@ -448,11 +448,19 @@ export type EducationReferenceId = keyof typeof educationReferences;
 
 export type EducationContentBlock =
   | {
-      kind: "paragraph" | "quote";
+      kind: "paragraph";
       text: string;
     }
   | {
-      kind: "bullets" | "steps";
+      kind: "quote";
+      text: string;
+    }
+  | {
+      kind: "bullets";
+      items: string[];
+    }
+  | {
+      kind: "steps";
       items: string[];
     };
 

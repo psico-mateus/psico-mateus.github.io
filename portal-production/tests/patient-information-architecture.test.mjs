@@ -39,6 +39,9 @@ test("home separates the four patient uses without adding progress pressure", ()
     "Abrir Meu mapa",
     "Ver recursos",
     "Nada é compartilhado automaticamente",
+    "Registro</strong> guarda acontecimentos",
+    "Meu mapa</strong> ajuda a",
+    "observar padrões ao longo do tempo",
   ]) {
     assert.match(app, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
   }

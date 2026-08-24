@@ -134,15 +134,19 @@ function EducationBlocks({ blocks }: { blocks: EducationContentBlock[] }) {
         </ol>
       );
     }
-    return (
-      <ul key={key}>
-        {block.items.map((item, itemIndex) => (
-          <li key={`${item}-${itemIndex}`}>
-            <InlineEducationText text={item} />
-          </li>
-        ))}
-      </ul>
-    );
+    if (block.kind === "bullets") {
+      return (
+        <ul key={key}>
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>
+              <InlineEducationText text={item} />
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    block satisfies never;
+    return null;
   });
 }
 
@@ -274,6 +278,12 @@ function EducationArticleView({
           Reconhecer características não basta para confirmar um diagnóstico.
           Leve suas dúvidas para a sessão ou para uma avaliação adequada.
         </p>
+
+        <footer className="education-article-footer">
+          <button className="back-button" type="button" onClick={onBack}>
+            ← Voltar à Leitura complementar
+          </button>
+        </footer>
       </div>
     </article>
   );

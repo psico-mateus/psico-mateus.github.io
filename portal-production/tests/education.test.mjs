@@ -480,7 +480,8 @@ test("education uses Leitura complementar consistently", async () => {
   assert.match(resources, />\s*Leitura complementar\s*</);
   assert.match(app, /área “Leitura complementar”/);
   assert.match(education, />\s*Leitura complementar\s*</);
-  assert.match(education, /Voltar à Leitura complementar/);
+  assert.equal(education.match(/Voltar à Leitura complementar/gu)?.length, 2);
+  assert.match(education, /<footer className="education-article-footer">/u);
   assert.doesNotMatch(
     `${app}\n${resources}\n${education}`,
     /Entender melhor|Leituras de apoio|Temas para a terapia/,
