@@ -297,7 +297,7 @@ test("password derivation stays compatible with PBKDF2-HMAC-SHA256", async () =>
   assert.equal(record.hash, "Eg-2z_z4syxD5yJSVsT4N6hlSMkszDVICAWYfLcL4Xs");
 });
 
-test("login verifies a dummy password record before rejecting an unknown account", async () => {
+test("public credentials use a dummy password record before rejecting unknown accounts", async () => {
   const route = await readFile(
     new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
     "utf8",
@@ -305,12 +305,27 @@ test("login verifies a dummy password record before rejecting an unknown account
   const login =
     route.match(/async function login[\s\S]*?(?=\nasync function register)/u)?.[0] ?? "";
 
-  assert.match(login, /user\?\.password_salt \?\? DUMMY_LOGIN_PASSWORD_SALT/u);
-  assert.match(login, /user\?\.password_hash \?\? DUMMY_LOGIN_PASSWORD_HASH/u);
+  const recovery =
+    route.match(
+      /async function recoverAccount[\s\S]*?(?=\nasync function listEntries)/u,
+    )?.[0] ?? "";
+
+  assert.match(login, /user\?\.password_salt \?\? DUMMY_PASSWORD_SALT/u);
+  assert.match(login, /user\?\.password_hash \?\? DUMMY_PASSWORD_HASH/u);
   assert.match(login, /user\?\.password_iterations \?\? PASSWORD_ITERATIONS/u);
   assert.equal(login.match(/passwordMatches\(/gu)?.length, 1);
   assert.match(login, /if \(!user \|\| !passwordValid\) throw genericError/u);
   assert.doesNotMatch(login, /if \(!user\) throw genericError/u);
+
+  assert.match(recovery, /user\?\.recovery_salt \?\? DUMMY_PASSWORD_SALT/u);
+  assert.match(recovery, /user\?\.recovery_hash \?\? DUMMY_PASSWORD_HASH/u);
+  assert.match(recovery, /user\?\.password_iterations \?\? PASSWORD_ITERATIONS/u);
+  assert.equal(recovery.match(/passwordMatches\(/gu)?.length, 1);
+  assert.match(
+    recovery,
+    /if \(!user \|\| user\.status !== "active" \|\| !recoveryCodeValid\) throw genericError/u,
+  );
+  assert.doesNotMatch(recovery, /if \(!user \|\| user\.status !== "active"\) throw genericError/u);
 });
 
 test("TOTP accepts an RFC vector once and blocks replay", async () => {

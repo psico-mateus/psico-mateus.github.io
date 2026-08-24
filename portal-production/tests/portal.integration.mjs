@@ -194,6 +194,22 @@ async function authWindowKeys() {
   }
 }
 
+async function accountSecurityState(userId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT status, password_salt, password_hash, recovery_salt, recovery_hash,
+           (SELECT COUNT(*) FROM sessions WHERE sessions.user_id = users.id) AS session_count
+         FROM users WHERE id = ?`,
+      )
+      .get(userId);
+  } finally {
+    database.close();
+  }
+}
+
 async function storedPrivacyVersion(userId) {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -649,6 +665,7 @@ expectStatus(
   "saturar cadastro não pode bloquear o escopo de login",
 );
 
+const sessionsBeforeUnknownRecoveries = await sessionRowCount();
 const concurrentRecoveries = await Promise.all(
   Array.from({ length: 34 }, (_, index) =>
     api("/recover", {
@@ -668,6 +685,19 @@ assert.deepEqual(
     .sort((left, right) => left - right),
   [...Array(30).fill(400), ...Array(4).fill(429)],
   "a recuperação deve limitar uma origem mesmo quando ela varia o e-mail",
+);
+const genericUnknownRecovery = concurrentRecoveries.find(
+  ({ response }) => response.status === 400,
+);
+assert.ok(genericUnknownRecovery);
+assert.deepEqual(genericUnknownRecovery.payload, {
+  error: "Não foi possível confirmar o código de recuperação.",
+});
+assert.equal(genericUnknownRecovery.response.headers.get("set-cookie"), null);
+assert.equal(
+  await sessionRowCount(),
+  sessionsBeforeUnknownRecoveries,
+  "recuperações de contas inexistentes não podem alterar sessões",
 );
 const recoveryOtherIp = await api("/recover", {
   method: "POST",
@@ -2139,6 +2169,27 @@ assert.equal(
   "login revogado não deve criar sessão",
 );
 
+const disabledRecoveryState = await accountSecurityState(patientA.user.id);
+const disabledPatientRecovery = await api("/recover", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    recovery_code: recoveryA,
+    new_password: "SenhaPacienteDesativado123",
+  },
+  clientIp: "198.51.100.68",
+});
+expectStatus(disabledPatientRecovery, 400, "recuperação de paciente sem acesso ativo");
+assert.deepEqual(disabledPatientRecovery.payload, {
+  error: "Não foi possível confirmar o código de recuperação.",
+});
+assert.equal(disabledPatientRecovery.response.headers.get("set-cookie"), null);
+assert.deepEqual(
+  await accountSecurityState(patientA.user.id),
+  disabledRecoveryState,
+  "recuperação recusada não pode alterar credenciais nem sessões",
+);
+
 const accessesAfterRevocation = await api("/professional/accesses", {
   auth: therapist,
 });
@@ -2743,6 +2794,7 @@ expectStatus(
   "código assistido após mudança de acesso",
 );
 
+const invalidRecoveryState = await accountSecurityState(patientA.user.id);
 const previousRecoveryCode = await api("/recover", {
   method: "POST",
   body: {
@@ -2752,6 +2804,15 @@ const previousRecoveryCode = await api("/recover", {
   },
 });
 expectStatus(previousRecoveryCode, 400, "código anterior após recuperação assistida");
+assert.deepEqual(previousRecoveryCode.payload, {
+  error: "Não foi possível confirmar o código de recuperação.",
+});
+assert.equal(previousRecoveryCode.response.headers.get("set-cookie"), null);
+assert.deepEqual(
+  await accountSecurityState(patientA.user.id),
+  invalidRecoveryState,
+  "código incorreto não pode alterar credenciais nem sessões",
+);
 
 await setAssistedRecoveryExpiration(
   patientA.user.id,
@@ -2915,7 +2976,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 168,
+    checks: 179,
     data: "synthetic-only",
     production_requests: 0,
   }),

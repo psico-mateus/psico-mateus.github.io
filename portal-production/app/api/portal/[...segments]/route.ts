@@ -73,8 +73,8 @@ type PatientExportEntryDatabaseRow = Omit<PatientExportEntryRow, "thought_review
 
 // Valores públicos e sem relação com contas reais. Eles mantêm o mesmo custo de
 // PBKDF2 quando o e-mail não existe, reduzindo o risco de revelar cadastros pelo tempo de resposta.
-const DUMMY_LOGIN_PASSWORD_SALT = "AAAAAAAAAAAAAAAAAAAAAAAA";
-const DUMMY_LOGIN_PASSWORD_HASH = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const DUMMY_PASSWORD_SALT = "AAAAAAAAAAAAAAAAAAAAAAAA";
+const DUMMY_PASSWORD_HASH = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 class PortalOperationError extends Error {
   operation: string;
@@ -367,8 +367,8 @@ async function login(request: Request, input: Input): Promise<Response> {
   const genericError = new PortalError(401, "E-mail, senha ou código inválidos.");
   const passwordValid = await passwordMatches(
     String(input.password ?? ""),
-    user?.password_salt ?? DUMMY_LOGIN_PASSWORD_SALT,
-    user?.password_hash ?? DUMMY_LOGIN_PASSWORD_HASH,
+    user?.password_salt ?? DUMMY_PASSWORD_SALT,
+    user?.password_hash ?? DUMMY_PASSWORD_HASH,
     user?.password_iterations ?? PASSWORD_ITERATIONS,
   );
   if (!user || !passwordValid) throw genericError;
@@ -576,17 +576,13 @@ async function recoverAccount(request: Request, input: Input): Promise<Response>
   });
   const user = await userByEmail(email);
   const genericError = new PortalError(400, "Não foi possível confirmar o código de recuperação.");
-  if (!user || user.status !== "active") throw genericError;
-  if (
-    !(await passwordMatches(
-      String(input.recovery_code ?? ""),
-      user.recovery_salt,
-      user.recovery_hash,
-      user.password_iterations,
-    ))
-  ) {
-    throw genericError;
-  }
+  const recoveryCodeValid = await passwordMatches(
+    String(input.recovery_code ?? ""),
+    user?.recovery_salt ?? DUMMY_PASSWORD_SALT,
+    user?.recovery_hash ?? DUMMY_PASSWORD_HASH,
+    user?.password_iterations ?? PASSWORD_ITERATIONS,
+  );
+  if (!user || user.status !== "active" || !recoveryCodeValid) throw genericError;
   const assistedRecovery = await DB.prepare(
     "SELECT expires_at FROM assisted_recovery_grants WHERE user_id = ?",
   )
