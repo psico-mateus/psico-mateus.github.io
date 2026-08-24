@@ -321,6 +321,17 @@ export async function checkRateLimit(
   await consumeRateLimitWindow(subjectKey, limit, windowSeconds);
 }
 
+export async function checkReauthenticationRateLimit(
+  session: Pick<SessionUser, "tokenHash">,
+): Promise<void> {
+  const { APP_SECRET } = getPortalEnv();
+  const key = await hmac(
+    APP_SECRET,
+    `rate:session-reauthentication:${session.tokenHash}`,
+  );
+  await consumeRateLimitWindow(key, 8, 15 * 60);
+}
+
 export async function userByEmail(email: string): Promise<UserRow | null> {
   const { DB, APP_SECRET } = getPortalEnv();
   const hashed = await hmac(APP_SECRET, `email:${normalizeEmail(email)}`);

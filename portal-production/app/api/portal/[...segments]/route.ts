@@ -28,6 +28,7 @@ import {
   PortalError,
   audit,
   checkRateLimit,
+  checkReauthenticationRateLimit,
   cleanText,
   clearSessionCookie,
   createSession,
@@ -1238,6 +1239,7 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (path === "/account/recovery-code") {
     const session = await requireSession(request);
     requireCsrf(request, session);
+    await checkReauthenticationRateLimit(session);
     const user = (await DB.prepare("SELECT * FROM users WHERE id = ?")
       .bind(session.userId)
       .first<UserRow>()) as UserRow;
@@ -1311,6 +1313,7 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
   if (path === "/account/password") {
     const session = await requireSession(request);
     requireCsrf(request, session);
+    await checkReauthenticationRateLimit(session);
     const user = (await DB.prepare("SELECT * FROM users WHERE id = ?")
       .bind(session.userId)
       .first<UserRow>()) as UserRow;
@@ -1511,6 +1514,7 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
   }
   if (path === "/account/sessions") {
     const input = await readJson(request);
+    await checkReauthenticationRateLimit(session);
     const user = (await DB.prepare("SELECT * FROM users WHERE id = ?")
       .bind(session.userId)
       .first<UserRow>()) as UserRow;
@@ -1606,6 +1610,7 @@ async function handleDelete(request: Request, path: string): Promise<Response> {
   if (path === "/account") {
     if (session.role !== "patient") throw new PortalError(403, "A conta profissional não pode ser excluída aqui.");
     const input = await readJson(request);
+    await checkReauthenticationRateLimit(session);
     const user = (await DB.prepare("SELECT * FROM users WHERE id = ?")
       .bind(session.userId)
       .first<UserRow>()) as UserRow;

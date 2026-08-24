@@ -210,6 +210,18 @@ async function accountSecurityState(userId) {
   }
 }
 
+async function accountAuditCount(userId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database
+      .prepare("SELECT COUNT(*) AS total FROM access_logs WHERE user_id = ?")
+      .get(userId).total;
+  } finally {
+    database.close();
+  }
+}
+
 async function storedPrivacyVersion(userId) {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -856,6 +868,177 @@ const registeredB = await registerPatient({
 });
 expectStatus(registeredB.result, 201, "cadastro do paciente B");
 const patientB = registeredB.patient;
+
+const reauthenticationInvitation = await createInvitation(therapist);
+const reauthenticationPassword = "SenhaReautenticacao123";
+const reauthenticationRegistration = await registerPatient({
+  invitationCode: reauthenticationInvitation.code,
+  email: "paciente-reauth@example.test",
+  password: reauthenticationPassword,
+});
+expectStatus(
+  reauthenticationRegistration.result,
+  201,
+  "cadastro isolado para limitar reautenticação",
+);
+const reauthenticationSession = reauthenticationRegistration.patient;
+const reauthenticationSecondSession = session();
+expectStatus(
+  await api("/login", {
+    method: "POST",
+    body: {
+      email: "paciente-reauth@example.test",
+      password: reauthenticationPassword,
+    },
+    auth: reauthenticationSecondSession,
+  }),
+  200,
+  "segunda sessão isolada para limitar reautenticação",
+);
+
+const reauthenticationActions = [
+  {
+    path: "/account/recovery-code",
+    method: "POST",
+    body: { current_password: "SenhaIncorreta123" },
+  },
+  {
+    path: "/account/password",
+    method: "PATCH",
+    body: {
+      current_password: "SenhaIncorreta123",
+      new_password: "OutraSenhaReautenticacao123",
+    },
+  },
+  {
+    path: "/account/sessions",
+    method: "DELETE",
+    body: { current_password: "SenhaIncorreta123" },
+  },
+  {
+    path: "/account",
+    method: "DELETE",
+    body: { current_password: "SenhaIncorreta123" },
+  },
+];
+
+const rateKeysBeforeRejectedCsrf = await authWindowKeys();
+for (let attempt = 0; attempt < 8; attempt += 1) {
+  const action = reauthenticationActions[attempt % reauthenticationActions.length];
+  const result = await api(action.path, {
+    method: action.method,
+    body: action.body,
+    auth: reauthenticationSession,
+    includeCsrf: false,
+    clientIp: attempt % 2 === 0 ? "203.0.113.81" : "203.0.113.82",
+  });
+  expectStatus(
+    result,
+    403,
+    `reautenticação sem CSRF na tentativa ${attempt + 1}`,
+  );
+  assert.equal(result.response.headers.get("set-cookie"), null);
+}
+assert.deepEqual(
+  await authWindowKeys(),
+  rateKeysBeforeRejectedCsrf,
+  "oito requisições rejeitadas pelo CSRF não devem abrir janela de reautenticação",
+);
+
+for (let attempt = 0; attempt < 8; attempt += 1) {
+  const action = reauthenticationActions[attempt % reauthenticationActions.length];
+  const result = await api(action.path, {
+    method: action.method,
+    body: action.body,
+    auth: reauthenticationSession,
+    clientIp: attempt % 2 === 0 ? "203.0.113.81" : "203.0.113.82",
+  });
+  expectStatus(result, 400, `reautenticação compartilhada na tentativa ${attempt + 1}`);
+  assert.equal(result.payload.error, "A senha atual não confere.");
+  assert.equal(result.response.headers.get("set-cookie"), null);
+}
+
+const securityStateBeforeReauthenticationLimit = await accountSecurityState(
+  reauthenticationSession.user.id,
+);
+const auditsBeforeReauthenticationLimit = await accountAuditCount(
+  reauthenticationSession.user.id,
+);
+const cookieBeforeReauthenticationLimit = reauthenticationSession.cookie;
+const blockedReauthentication = await api("/account/password", {
+  method: "PATCH",
+  body: {
+    current_password: reauthenticationPassword,
+    new_password: "SenhaQueNaoPodeSerAplicada123",
+  },
+  auth: reauthenticationSession,
+  clientIp: "203.0.113.83",
+});
+expectStatus(
+  blockedReauthentication,
+  429,
+  "limite compartilhado entre ações e endereços de reautenticação",
+);
+assert.deepEqual(blockedReauthentication.payload, {
+  error: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+});
+assert.equal(blockedReauthentication.response.headers.get("set-cookie"), null);
+assert.equal(reauthenticationSession.cookie, cookieBeforeReauthenticationLimit);
+assert.deepEqual(
+  await accountSecurityState(reauthenticationSession.user.id),
+  securityStateBeforeReauthenticationLimit,
+  "o bloqueio não pode alterar credenciais nem sessões",
+);
+assert.equal(
+  await accountAuditCount(reauthenticationSession.user.id),
+  auditsBeforeReauthenticationLimit,
+  "o bloqueio não pode registrar uma ação que não ocorreu",
+);
+
+const reauthenticationKeys = (await authWindowKeys()).filter(
+  (key) => !rateKeysBeforeRejectedCsrf.includes(key),
+);
+assert.equal(
+  reauthenticationKeys.length,
+  1,
+  "os quatro endpoints devem compartilhar uma única janela por sessão",
+);
+assert.match(reauthenticationKeys[0], /^[A-Za-z0-9_-]{43}$/u);
+assert.doesNotMatch(
+  reauthenticationKeys[0],
+  /patient|session|reauth|203\.0\.113|paciente-reauth/iu,
+  "a janela de reautenticação deve persistir somente uma chave HMAC opaca",
+);
+
+const independentSecondSession = await api("/account/recovery-code", {
+  method: "POST",
+  body: { current_password: "SenhaIncorreta123" },
+  auth: reauthenticationSecondSession,
+  clientIp: "203.0.113.83",
+});
+expectStatus(
+  independentSecondSession,
+  400,
+  "uma segunda sessão não é bloqueada pela primeira",
+);
+assert.equal(independentSecondSession.payload.error, "A senha atual não confere.");
+assert.equal(
+  (await authWindowKeys()).filter(
+    (key) => !rateKeysBeforeRejectedCsrf.includes(key),
+  ).length,
+  2,
+  "cada sessão deve manter sua própria janela opaca",
+);
+
+expectStatus(
+  await api("/account", {
+    method: "DELETE",
+    body: { current_password: reauthenticationPassword },
+    auth: reauthenticationSecondSession,
+  }),
+  204,
+  "limpeza da conta sintética de reautenticação pela segunda sessão",
+);
 
 const mapContentVersion = "mapa-pessoal-refinado-ouro-v1";
 const mapItemId = "meu-jeito.01.1";
@@ -2976,7 +3159,7 @@ for (const [target, suffix] of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 179,
+    checks: 237,
     data: "synthetic-only",
     production_requests: 0,
   }),
