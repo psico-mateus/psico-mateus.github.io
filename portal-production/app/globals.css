@@ -2730,8 +2730,8 @@ input[type="range"]{accent-color:#9a6d27}
 @media(max-width:360px){
   .site-header{position:relative}
   .brand{padding-right:3.35rem}
-  .top-links{gap:.3rem .25rem;font-size:.78rem}
-  .top-links a{padding-right:0;padding-left:0;white-space:nowrap}
+  .top-links{gap:.3rem .65rem;font-size:.78rem}
+  .top-links a{padding-right:.15rem;padding-left:.15rem;white-space:nowrap}
   .top-links .install-app-button{padding-right:.55rem;padding-left:.55rem}
   .top-links .logout-link{
     position:absolute;

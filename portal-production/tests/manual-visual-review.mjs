@@ -97,6 +97,34 @@ async function assertViewportFits(page, label) {
   return dimensions;
 }
 
+async function assertTopLinksAreDistinct(page, label) {
+  const boxes = await page.locator(".top-links > a").evaluateAll((links) =>
+    links.slice(0, 2).map((link) => {
+      const rect = link.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+      };
+    }),
+  );
+  if (boxes.length !== 2) {
+    throw new Error(`${label}: os dois links externos do cabeçalho não foram encontrados`);
+  }
+  const [first, second] = boxes;
+  const verticalOverlap = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
+  if (verticalOverlap <= 0) return;
+  const horizontalGap = second.left >= first.right
+    ? second.left - first.right
+    : first.left >= second.right
+      ? first.left - second.right
+      : -1;
+  if (horizontalGap < 8) {
+    throw new Error(`${label}: links externos separados por apenas ${horizontalGap}px`);
+  }
+}
+
 async function patientMapScrollState(page) {
   return page.evaluate(() => {
     const card = document.getElementById("patient-map-question-card");
@@ -333,6 +361,7 @@ async function reviewGuest(browserType, label, viewport) {
   await routePortal(page, "guest");
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: /Acompanhe seu processo/ }).waitFor();
+  if (viewport.width <= 360) await assertTopLinksAreDistinct(page, label);
   await reviewScreen(page, `${label}-acesso`, `${label}-acesso.png`);
 
   if (viewport.width <= 850) {
@@ -368,6 +397,7 @@ async function review(browserType, label, viewport) {
   const portalRoute = await routePortal(page);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Olá, Paciente." }).waitFor();
+  if (viewport.width <= 360) await assertTopLinksAreDistinct(page, label);
   await page.waitForFunction(() => {
     const button = document.querySelector(".patient-overview-refresh");
     return button instanceof HTMLButtonElement && !button.disabled;
