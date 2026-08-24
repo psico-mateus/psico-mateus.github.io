@@ -67,12 +67,12 @@ fluxo automático no portal para substituir o MFA de uma conta profissional ativ
 3. Preserve o banco e interrompa qualquer publicação não relacionada.
 4. Se o aparelho perdido ainda puder ter uma sessão aberta, trate a revogação das
    sessões profissionais como a primeira ação da manutenção controlada.
-5. Antes de qualquer escrita remota, obtenha um bookmark do D1 Time Travel e
-   confirme a identidade da única conta profissional.
-6. Use somente o futuro procedimento local descrito adiante, depois de ele ter sido
-   implementado, revisado e ensaiado com dados sintéticos.
+5. Não tente alterar o D1 manualmente. O procedimento de escrita remota continua
+   indisponível nesta versão.
+6. Preserve o estado e aguarde a conclusão do ensaio remoto descartável descrito
+   adiante.
 
-Enquanto esse procedimento local ainda não existir, a prevenção com um segundo
+Enquanto o procedimento remoto não for habilitado, a prevenção com um segundo
 autenticador é a proteção operacional indispensável.
 
 ## O que não fazer
@@ -120,70 +120,104 @@ autenticador é a proteção operacional indispensável.
 - [ ] Se a chave TOTP puder ter sido exposta, rotacioná-la pelo procedimento local
       revisado.
 
-## Desenho do futuro script local
+## Estado atual do procedimento técnico
 
-Um eventual `scripts/rotate-professional-mfa.mjs` deve ser uma ferramenta de
-manutenção executada localmente. Ele não deve criar rota, botão ou bypass no portal.
+Existe um núcleo isolado em
+`scripts/professional-mfa-rotation-core.mjs` e um ensaio inteiramente sintético em
+`tests/professional-mfa-rotation.test.mjs`. O núcleo não importa Wrangler, não lê
+variáveis de ambiente, não processa argumentos, não escreve arquivos, não imprime
+segredos e não cria rota, botão ou bypass no portal.
 
-### Pré-condições
+**Ainda não existe CLI remoto nem opção `--apply`. Portanto, a escrita no D1 remoto
+está fisicamente indisponível pelo procedimento suportado.** O núcleo não deve ser
+importado manualmente em um script improvisado contra produção. Ele só será
+considerado operacional depois de o caminho completo ser ensaiado em um D1 remoto
+descartável, com dados exclusivamente sintéticos e falha deliberada dentro do lote.
 
-- Wrangler autenticado na conta correta da Cloudflare;
-- `APP_SECRET` fornecido por entrada oculta, nunca por argumento de linha de comando;
-- banco e Worker selecionados explicitamente;
-- testes locais aprovados com banco inteiramente sintético;
-- operador diante do novo autenticador para confirmar o código gerado.
+### Ensaio local disponível
 
-### Fluxo obrigatório
+No diretório `portal-production`, execute:
 
-1. Ler somente `id`, `role`, `status` e `totp_secret` da conta profissional.
-2. Exigir exatamente uma conta com `role = 'therapist'` e abortar em qualquer
-   divergência.
-3. Validar o `APP_SECRET` tentando decifrar o TOTP existente. Um segredo incorreto
-   deve causar aborto antes de qualquer escrita.
-4. Obter e apresentar o bookmark atual do D1 Time Travel.
-5. Gerar uma nova chave TOTP com Web Crypto.
-6. Exibir a chave ou QR apenas na execução local e exigir um código válido do novo
-   autenticador antes de continuar.
-7. Mostrar um resumo sem segredos: identificador profissional, banco selecionado e
-   operações que serão executadas.
-8. Após confirmação explícita, limitar a escrita a:
-   - substituir o `totp_secret` pelo novo valor cifrado;
-   - manter `totp_enabled = 1`;
-   - definir `last_totp_counter = NULL`;
-   - excluir somente as sessões da conta profissional;
-   - inserir um evento técnico de auditoria, sem material secreto.
-9. Exigir que exatamente uma conta tenha sido alterada. Qualquer outra contagem é
-   falha.
-10. Confirmar que não restaram sessões profissionais e que nenhuma sessão de
-    paciente foi removida.
-11. Validar login com senha e novo TOTP; confirmar também que o TOTP anterior e a
-    reutilização de um código já aceito são rejeitados.
-12. Limpar valores e arquivos temporários, sem registrar a chave, URI, QR ou códigos.
+```sh
+pnpm test:mfa-rotation-local
+```
 
-O script deve abortar com segurança em qualquer etapa anterior à escrita. A forma
-de executar as operações remotas e sua atomicidade precisam ser comprovadas em um
-ensaio antes de serem consideradas prontas.
+O ensaio usa SQLite apenas em memória e executa o SQL real do núcleo por meio de um
+adaptador D1 sintético. Ele confirma:
 
-### Testes necessários
+- aborto antes da escrita para `APP_SECRET` ou código TOTP inválidos;
+- aborto com zero ou duas contas profissionais;
+- validação de formato e troca efetiva da chave cifrada;
+- um único lote com `UPDATE`, auditoria guardada e exclusão somente das sessões do
+  profissional;
+- rollback de todas as três operações após uma falha deliberada no meio do lote;
+- rollback quando o ciphertext esperado já mudou;
+- preservação linha a linha das sessões de paciente e das tabelas sintéticas de
+  registros, vínculos, convites, mapa e compartilhamento;
+- auditoria técnica sem `APP_SECRET`, chave TOTP ou código;
+- ausência de sentinelas na saída capturada, nos argumentos e no código do núcleo,
+  que também não usa APIs de arquivo.
 
-- `APP_SECRET` incorreto: nenhuma escrita;
-- código de confirmação TOTP incorreto: nenhuma escrita;
-- ausência, duplicidade ou perfil inesperado da conta profissional: nenhuma escrita;
-- caminho válido: somente os três campos de MFA da conta profissional mudam;
-- somente sessões profissionais são excluídas;
-- pacientes, vínculos, convites, registros, mapas e compartilhamentos conservam as
-  mesmas contagens e conteúdos;
-- novo TOTP aceito, antigo rejeitado, repetição do mesmo contador rejeitada;
-- login profissional sem MFA continua rejeitado;
-- recuperação de senha continua sem remover a exigência de MFA;
-- auditoria existe e não contém segredo;
-- saída, processos, arquivos temporários e logs não contêm `APP_SECRET`, TOTP ou
-  códigos.
+Esse ensaio prova as invariantes do núcleo e do SQL em SQLite local. Ele **não prova**
+sozinho o transporte, a autenticação, o binding nem o comportamento de uma conexão
+remota Cloudflare.
+
+### Atomicidade do núcleo
+
+O núcleo prepara três statements e os envia em uma única chamada `DB.batch()`:
+
+1. atualiza somente a conta profissional ativa que ainda possui o ciphertext
+   esperado e exige que exista exatamente um profissional;
+2. insere a auditoria somente se o novo ciphertext estiver presente; se não estiver,
+   uma restrição `NOT NULL` falha e força rollback;
+3. exclui sessões somente com `WHERE user_id = <id profissional>`.
+
+A documentação do binding D1 garante que os statements de `batch()` são executados
+sequencialmente como uma transação e que uma falha reverte a sequência inteira. O
+teste local reproduz essa semântica, mas a integração remota ainda precisa do ensaio
+descartável obrigatório.
+
+A comparação das contagens de sessões antes e depois é uma verificação operacional,
+não uma prova sob concorrência: sessões podem expirar ou ser criadas ao mesmo tempo.
+A proteção contra atingir pacientes vem do predicado da exclusão dentro do lote e
+dos testes de não alteração; a conferência externa serve para detectar divergências.
+
+### Condições para uma futura CLI remota
+
+A ferramenta remota só poderá ser adicionada depois do ensaio descartável e deverá:
+
+- iniciar sempre em dry-run; o dry-run apenas inspeciona e não gera nem exibe uma
+  chave que não será aplicada;
+- exigir conta Cloudflare, nome e ID do banco e nome do binding explicitamente;
+- usar `getPlatformProxy` com configuração temporária sem segredos,
+  `remoteBindings` e `envFiles: []`;
+- receber `APP_SECRET` e código TOTP somente em terminal interativo sem eco, nunca
+  por ambiente, argumento, arquivo ou log;
+- exibir a nova chave somente no terminal confiável e validar um código dela antes
+  de qualquer escrita;
+- exigir `--apply` e uma frase de confirmação explícita;
+- obter um bookmark do D1 Time Travel imediatamente antes do único `DB.batch()`;
+- usar apenas prepared statements e o lote atômico fornecido pelo núcleo;
+- reutilizar as primitivas de `lib/crypto.ts`, sem criar uma segunda implementação
+  criptográfica, depois de validar a compatibilidade do carregamento com o menor
+  Node declarado pelo projeto;
+- escolher antecipadamente um `auditId` e o ciphertext novo; se a resposta do lote
+  for perdida ou ambígua, consultar esses mesmos valores antes de orientar qualquer
+  repetição;
+- pós-verificar a conta, a auditoria e as sessões e limpar configuração e valores
+  temporários;
+- nunca oferecer endpoint público ou enfraquecer o MFA obrigatório do portal.
+
+O ensaio remoto descartável precisa verificar sucesso, falha injetada com rollback,
+resposta ambígua e pós-verificação pelo mesmo `auditId`. Até isso ocorrer, não há
+comando de produção documentado de propósito.
 
 ## Referências operacionais
 
 - [Segredos em Cloudflare Workers](https://developers.cloudflare.com/workers/configuration/secrets/)
+- [D1: execução em lote com `batch()`](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)
 - [D1 Time Travel e restauração](https://developers.cloudflare.com/d1/reference/time-travel/)
+- [APIs locais do Wrangler e `getPlatformProxy`](https://developers.cloudflare.com/workers/wrangler/api/)
 
-Revisado em 13/08/2026. Revalidar os comandos oficiais e o comportamento do D1
-antes de implementar ou executar qualquer procedimento de recuperação.
+Revisado em 24/08/2026. Revalidar a documentação oficial e ensaiar o caminho remoto
+descartável antes de implementar ou executar qualquer procedimento de recuperação.

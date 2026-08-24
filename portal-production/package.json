@@ -14,6 +14,7 @@
     "typecheck": "node -e \"require('node:fs').mkdirSync('.wrangler/types',{recursive:true})\" && wrangler types .wrangler/types/worker-runtime.d.ts --include-env=false --include-runtime=true && tsc -p tsconfig.app.json --pretty false && tsc -p tsconfig.worker.json --pretty false",
     "test": "pnpm typecheck && pnpm build && node --test tests/*.test.mjs",
     "test:integration": "node tests/portal.integration.mjs",
+    "test:mfa-rotation-local": "node --test tests/professional-mfa-rotation.test.mjs",
     "test:restore-local": "node scripts/rehearse-local-restore.mjs",
     "test:smoke-public": "node scripts/smoke-public.mjs",
     "test:visual": "node tests/manual-visual-review.mjs",
