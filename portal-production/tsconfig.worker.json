@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "incremental": false,
+    "lib": ["ES2022"],
+    "plugins": []
+  },
+  "include": [
+    ".wrangler/types/worker-runtime.d.ts",
+    "worker/**/*.ts",
+    "db/**/*.ts",
+    "lib/**/*.ts",
+    "app/api/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
