@@ -1,5 +1,6 @@
 import { cleanupExpired, ensureSchema, getPortalEnv } from "@/db/runtime";
 import {
+  PASSWORD_ITERATIONS,
   codeHash,
   createInvitationCode,
   createRecoveryCode,
@@ -69,6 +70,11 @@ type Input = Record<string, unknown>;
 type EntryQueryRow = Record<string, unknown> & EntryThoughtReviewJoinedColumns;
 type PatientExportEntryDatabaseRow = Omit<PatientExportEntryRow, "thought_review"> &
   EntryThoughtReviewJoinedColumns;
+
+// Valores públicos e sem relação com contas reais. Eles mantêm o mesmo custo de
+// PBKDF2 quando o e-mail não existe, reduzindo o risco de revelar cadastros pelo tempo de resposta.
+const DUMMY_LOGIN_PASSWORD_SALT = "AAAAAAAAAAAAAAAAAAAAAAAA";
+const DUMMY_LOGIN_PASSWORD_HASH = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 class PortalOperationError extends Error {
   operation: string;
@@ -353,17 +359,13 @@ async function login(request: Request, input: Input): Promise<Response> {
   await checkRateLimit(request, "login", normalizeEmail(email));
   const user = await userByEmail(email);
   const genericError = new PortalError(401, "E-mail, senha ou código inválidos.");
-  if (!user) throw genericError;
-  if (
-    !(await passwordMatches(
-      String(input.password ?? ""),
-      user.password_salt,
-      user.password_hash,
-      user.password_iterations,
-    ))
-  ) {
-    throw genericError;
-  }
+  const passwordValid = await passwordMatches(
+    String(input.password ?? ""),
+    user?.password_salt ?? DUMMY_LOGIN_PASSWORD_SALT,
+    user?.password_hash ?? DUMMY_LOGIN_PASSWORD_HASH,
+    user?.password_iterations ?? PASSWORD_ITERATIONS,
+  );
+  if (!user || !passwordValid) throw genericError;
   if (user.status !== "active") {
     if (user.role === "patient" && user.status === "disabled") {
       throw new PortalError(

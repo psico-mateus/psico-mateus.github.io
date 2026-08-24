@@ -297,6 +297,22 @@ test("password derivation stays compatible with PBKDF2-HMAC-SHA256", async () =>
   assert.equal(record.hash, "Eg-2z_z4syxD5yJSVsT4N6hlSMkszDVICAWYfLcL4Xs");
 });
 
+test("login verifies a dummy password record before rejecting an unknown account", async () => {
+  const route = await readFile(
+    new URL("../app/api/portal/[...segments]/route.ts", import.meta.url),
+    "utf8",
+  );
+  const login =
+    route.match(/async function login[\s\S]*?(?=\nasync function register)/u)?.[0] ?? "";
+
+  assert.match(login, /user\?\.password_salt \?\? DUMMY_LOGIN_PASSWORD_SALT/u);
+  assert.match(login, /user\?\.password_hash \?\? DUMMY_LOGIN_PASSWORD_HASH/u);
+  assert.match(login, /user\?\.password_iterations \?\? PASSWORD_ITERATIONS/u);
+  assert.equal(login.match(/passwordMatches\(/gu)?.length, 1);
+  assert.match(login, /if \(!user \|\| !passwordValid\) throw genericError/u);
+  assert.doesNotMatch(login, /if \(!user\) throw genericError/u);
+});
+
 test("TOTP accepts an RFC vector once and blocks replay", async () => {
   const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
   const first = await verifyTotp(secret, "287082", null, 59_000);

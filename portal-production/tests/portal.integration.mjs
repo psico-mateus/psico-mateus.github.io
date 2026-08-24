@@ -169,6 +169,16 @@ async function registrationState(invitationId) {
   }
 }
 
+async function sessionRowCount() {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    return database.prepare("SELECT COUNT(*) AS total FROM sessions").get().total;
+  } finally {
+    database.close();
+  }
+}
+
 async function storedPrivacyVersion(userId) {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -441,6 +451,26 @@ assert.doesNotMatch(
   professionalSessionCookie,
   /;\s*Secure(?:;|$)/u,
   "o cookie local HTTP não deve simular o atributo Secure de produção HTTPS",
+);
+
+const sessionsBeforeUnknownLogin = await sessionRowCount();
+const unknownAccountLogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: "conta-inexistente-integracao@example.test",
+    password: "SenhaInexistente123",
+  },
+});
+expectStatus(unknownAccountLogin, 401, "login de conta inexistente");
+assert.equal(
+  unknownAccountLogin.payload.error,
+  "E-mail, senha ou código inválidos.",
+);
+assert.equal(unknownAccountLogin.response.headers.get("set-cookie"), null);
+assert.equal(
+  await sessionRowCount(),
+  sessionsBeforeUnknownLogin,
+  "login inexistente não pode criar sessão",
 );
 
 const professionalLoginWithoutMfa = await api("/login", {
@@ -1894,8 +1924,9 @@ expectStatus(
 );
 assert.equal(
   revokedPatientWrongPassword.payload.error,
-  "E-mail, senha ou código inválidos.",
+  unknownAccountLogin.payload.error,
 );
+assert.equal(revokedPatientWrongPassword.response.headers.get("set-cookie"), null);
 
 const revokedPatientLogin = await api("/login", {
   method: "POST",
