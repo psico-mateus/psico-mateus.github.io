@@ -122,6 +122,8 @@ const blankEntry: EntryDraft = {
   message: "",
 };
 
+const PATIENT_ENTRIES_AUTO_REFRESH_INTERVAL_MS = 60_000;
+
 function Field({
   label,
   name,
@@ -1109,7 +1111,9 @@ function PatientDashboard({
   >({});
   const entryActionLocks = useRef<Set<string>>(new Set());
   const entriesRequestSequence = useRef(0);
-  const manualRefreshLock = useRef(false);
+  const entriesRequestsInFlight = useRef(0);
+  const lastEntriesRequestAt = useRef(0);
+  const entriesRefreshLock = useRef(false);
   const editorOriginRef = useRef<{
     entryId: string;
     scrollY: number;
@@ -1126,6 +1130,8 @@ function PatientDashboard({
   const load = useCallback(async (showRefreshing = false) => {
     const sequence = entriesRequestSequence.current + 1;
     entriesRequestSequence.current = sequence;
+    entriesRequestsInFlight.current += 1;
+    lastEntriesRequestAt.current = Date.now();
     if (showRefreshing) setRefreshing(true);
     setEntriesError("");
     try {
@@ -1142,6 +1148,10 @@ function PatientDashboard({
       }
     }
     finally {
+      entriesRequestsInFlight.current = Math.max(
+        0,
+        entriesRequestsInFlight.current - 1,
+      );
       if (sequence === entriesRequestSequence.current) {
         setLoading(false);
         setRefreshing(false);
@@ -1150,6 +1160,31 @@ function PatientDashboard({
   }, [onSessionLost]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    function refreshEntriesAfterReturn() {
+      if (document.visibilityState !== "visible") return;
+      if (entriesRefreshLock.current || entriesRequestsInFlight.current > 0) return;
+      if (
+        Date.now() - lastEntriesRequestAt.current <
+        PATIENT_ENTRIES_AUTO_REFRESH_INTERVAL_MS
+      ) return;
+
+      entriesRefreshLock.current = true;
+      void load().finally(() => {
+        entriesRefreshLock.current = false;
+      });
+    }
+
+    window.addEventListener("focus", refreshEntriesAfterReturn);
+    window.addEventListener("pageshow", refreshEntriesAfterReturn);
+    document.addEventListener("visibilitychange", refreshEntriesAfterReturn);
+    return () => {
+      window.removeEventListener("focus", refreshEntriesAfterReturn);
+      window.removeEventListener("pageshow", refreshEntriesAfterReturn);
+      document.removeEventListener("visibilitychange", refreshEntriesAfterReturn);
+    };
+  }, [load]);
 
   const applyPatientRoute = useCallback((route: PatientRoute) => {
     setArea(route.area);
@@ -1669,11 +1704,11 @@ function PatientDashboard({
     else navigatePatient(route, mode === "replace");
   }
   function refreshEntries(retryAfterError = false) {
-    if (manualRefreshLock.current) return;
-    manualRefreshLock.current = true;
+    if (entriesRefreshLock.current || entriesRequestsInFlight.current > 0) return;
+    entriesRefreshLock.current = true;
     if (retryAfterError) setLoading(true);
     void load(!retryAfterError).finally(() => {
-      manualRefreshLock.current = false;
+      entriesRefreshLock.current = false;
     });
   }
   function focusEntrySearch() {

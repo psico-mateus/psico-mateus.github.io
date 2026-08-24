@@ -513,7 +513,10 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /const \[refreshing, setRefreshing\] = useState\(false\)/);
   assert.match(app, /entriesRequestSequence\.current = sequence/);
   assert.match(app, /if \(sequence !== entriesRequestSequence\.current\) return/);
-  assert.match(app, /if \(manualRefreshLock\.current\) return/);
+  assert.match(
+    app,
+    /if \(entriesRefreshLock\.current \|\| entriesRequestsInFlight\.current > 0\) return/,
+  );
   assert.match(app, /Atualizando…/);
   assert.match(app, /Atualizando seus registros/);
   assert.match(styles, /\.patient-overview-footer\{/);
@@ -865,6 +868,19 @@ test("patient view state is server-derived and the complete export uses explicit
   assert.match(app, /patient-sharing-states/);
   assert.match(app, /Abrir meus registros/);
   assert.match(app, /não é acompanhada em tempo real/);
+  assert.match(app, /PATIENT_ENTRIES_AUTO_REFRESH_INTERVAL_MS = 60_000/u);
+  assert.match(
+    app,
+    /window\.addEventListener\("focus", refreshEntriesAfterReturn\)[\s\S]*?window\.addEventListener\("pageshow", refreshEntriesAfterReturn\)[\s\S]*?document\.addEventListener\("visibilitychange", refreshEntriesAfterReturn\)/u,
+  );
+  assert.match(
+    app,
+    /entriesRefreshLock\.current \|\| entriesRequestsInFlight\.current > 0/u,
+  );
+  assert.match(
+    app,
+    /Date\.now\(\) - lastEntriesRequestAt\.current <[\s\S]*?PATIENT_ENTRIES_AUTO_REFRESH_INTERVAL_MS/u,
+  );
   assert.match(privacy, /Essa informação também aparece[\s\S]*?para você/u);
   assert.match(exportHandler, /createPatientDataExport/);
   assert.match(exportHandler, /SELECT display_name, role, status, privacy_version/);

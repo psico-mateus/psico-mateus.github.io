@@ -168,6 +168,8 @@ function trackRuntimeErrors(page, label) {
 async function routePortal(page, sessionRole = "patient") {
   let mapGeneration = 1;
   let mapSharingReadsEnabled = false;
+  let entriesReadCount = 0;
+  const patientEntries = entries.map((entry) => ({ ...entry }));
   const mapFields = new Map();
   const mapShares = new Map();
   await page.route("**/api/portal/**", async (route) => {
@@ -208,9 +210,10 @@ async function routePortal(page, sessionRole = "patient") {
         });
         return;
       }
+      entriesReadCount += 1;
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ entries }),
+        body: JSON.stringify({ entries: patientEntries }),
       });
       return;
     }
@@ -307,6 +310,14 @@ async function routePortal(page, sessionRole = "patient") {
     enableMapSharingReads() {
       mapSharingReadsEnabled = true;
     },
+    entriesReadCount() {
+      return entriesReadCount;
+    },
+    markEntryViewed(entryId, viewedAt) {
+      const entry = patientEntries.find((candidate) => candidate.id === entryId);
+      if (!entry) throw new Error(`Registro sintético não encontrado: ${entryId}`);
+      entry.viewed_at = viewedAt;
+    },
   };
 }
 
@@ -363,10 +374,62 @@ async function review(browserType, label, viewport) {
   });
   await reviewScreen(page, `${label}-inicio`, `${label}-inicio.png`);
 
+  const readsBeforeReturn = portalRoute.entriesReadCount();
+  portalRoute.markEntryViewed("synthetic-unseen", "2026-08-01T19:00:00.000Z");
+  const refreshAfterReturn = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/api/portal/entries",
+  );
+  await page.evaluate(() => {
+    const afterThrottle = Date.now() + 61_000;
+    Object.defineProperty(Date, "now", {
+      configurable: true,
+      value: () => afterThrottle,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("pageshow"));
+  });
+  await refreshAfterReturn;
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".patient-sharing-states")
+      ?.textContent?.includes("Mateus visualizou 2 registros."),
+  );
+  if (portalRoute.entriesReadCount() !== readsBeforeReturn + 1) {
+    throw new Error(`${label}: voltar ao app iniciou mais de uma atualização dos registros`);
+  }
+
   await page.getByRole("button", { name: /Registrar algo/ }).click();
   await page.getByRole("heading", { name: "O que você quer guardar?", exact: true }).waitFor();
   await page.getByLabel("Título breve").fill("Rascunho preservado");
   await page.getByLabel("O que aconteceu?").fill("Texto sintético que deve continuar na tela.");
+  const readsBeforeDraftRefresh = portalRoute.entriesReadCount();
+  const refreshWithDraft = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/api/portal/entries",
+  );
+  await page.evaluate(() => {
+    const afterThrottle = Date.now() + 61_000;
+    Object.defineProperty(Date, "now", {
+      configurable: true,
+      value: () => afterThrottle,
+    });
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await refreshWithDraft;
+  if (portalRoute.entriesReadCount() !== readsBeforeDraftRefresh + 1) {
+    throw new Error(`${label}: o retorno com rascunho iniciou atualizações concorrentes`);
+  }
+  if (
+    (await page.getByLabel("Título breve").inputValue()) !== "Rascunho preservado" ||
+    (await page.getByLabel("O que aconteceu?").inputValue()) !==
+      "Texto sintético que deve continuar na tela."
+  ) {
+    throw new Error(`${label}: a atualização automática alterou o rascunho aberto`);
+  }
   await page.getByRole("button", { name: "Recursos", exact: true }).click();
   await page.getByRole("heading", { name: "Recursos", exact: true }).waitFor();
   await page.getByRole("button", { name: "Meus registros", exact: true }).click();
