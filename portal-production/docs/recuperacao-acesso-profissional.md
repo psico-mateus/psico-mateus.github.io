@@ -16,16 +16,46 @@ O acesso profissional combina três elementos diferentes:
    anterior foi esquecida. Ele **não substitui o autenticador e não recupera o
    MFA**.
 
-A chave TOTP apareceu durante a configuração inicial. Depois da confirmação, o
-portal não oferece uma tela para exibi-la novamente. No banco ela permanece
-cifrada com `APP_SECRET`.
+A chave TOTP aparece durante a configuração inicial e permanece cifrada no banco
+com `APP_SECRET`. Em uma sessão profissional já autenticada, a opção **Preparar
+troca de celular** pode reexibi-la temporariamente depois de confirmar a senha e
+um código MFA atual. Isso não desativa nem substitui o MFA.
+
+## Troca planejada de celular
+
+Faça esta preparação antes de entregar ou apagar o iPhone antigo. Não é necessário
+estar com os dois celulares ao mesmo tempo:
+
+1. No painel profissional, abra **Segurança e conta**.
+2. Em **Vai trocar de celular?**, escolha **Preparar troca de celular**.
+3. Confirme a senha e um código atual do autenticador do iPhone antigo.
+4. No Mac, abra o app **Senhas**, localize ou crie a entrada da Área do paciente e
+   use **Editar → Configurar código → Chave de configuração**.
+5. Cole a chave exibida pelo portal.
+6. Espere o código do Mac mudar e confirme esse novo número no portal.
+7. Antes de entregar o iPhone, saia e entre novamente usando um código gerado pelo
+   Mac. Só considere a preparação concluída depois desse teste.
+8. Se quiser uma segunda contingência, use a opção de cópia em papel apenas em uma
+   impressora particular. A folha permite gerar os códigos: não a salve em PDF
+   compartilhado e mantenha-a separada da senha.
+
+A chave fica visível por no máximo 15 minutos, somente na memória da página. O
+ticket que liga as duas etapas é cifrado, expira, vale apenas para a mesma sessão e
+deixa de ser válido se a chave TOTP for alterada. O fluxo não altera contas,
+sessões, pacientes ou registros.
+
+Se **Senhas e Chaves do iCloud** estiver habilitado na mesma Conta Apple, o código
+de verificação pode sincronizar com o iPhone novo. Mesmo que isso não aconteça, o
+Mac já confirmado permite entrar e repetir a preparação no aparelho novo: abra
+novamente **Segurança e conta → Preparar troca de celular** usando um código do Mac
+e cadastre a chave no novo iPhone.
 
 ## Prevenção imediata
 
 Faça esta preparação enquanto o autenticador atual ainda está disponível:
 
-- mantenha o TOTP em um segundo autenticador confiável, por exportação ou
-  sincronização segura oferecida pelo próprio aplicativo;
+- use **Preparar troca de celular** para manter o TOTP no app Senhas do Mac ou em
+  outro autenticador confiável;
 - teste o segundo autenticador com um código novo, sem reutilizar o mesmo código
   que acabou de ser aceito;
 - se guardar a chave TOTP em papel ou arquivo cifrado, mantenha-a em local físico
@@ -72,8 +102,9 @@ fluxo automático no portal para substituir o MFA de uma conta profissional ativ
 6. Preserve o estado e aguarde a conclusão do ensaio remoto descartável descrito
    adiante.
 
-Enquanto o procedimento remoto não for habilitado, a prevenção com um segundo
-autenticador é a proteção operacional indispensável.
+Sem um autenticador secundário já testado ou uma cópia segura da chave, não existe
+um bypass público do MFA. A preparação guiada reduz esse risco sem enfraquecer o
+login profissional.
 
 ## O que não fazer
 
@@ -100,7 +131,8 @@ autenticador é a proteção operacional indispensável.
 ## Checklist preventivo
 
 - [ ] O autenticador principal funciona.
-- [ ] Um segundo autenticador foi configurado e testado.
+- [ ] O Mac foi configurado pela opção **Preparar troca de celular** e testado com
+      um código novo.
 - [ ] A chave TOTP, se mantida, está protegida e separada do código de recuperação.
 - [ ] O código de recuperação da conta está guardado em local seguro.
 - [ ] Existe uma cópia offline e segura do `APP_SECRET`.
@@ -214,6 +246,8 @@ comando de produção documentado de propósito.
 
 ## Referências operacionais
 
+- [Configurar códigos de verificação no app Senhas do Mac](https://support.apple.com/pt-br/guide/passwords/mchl873a6e72/mac)
+- [Sincronizar senhas e códigos de verificação com o iCloud](https://support.apple.com/pt-br/guide/passwords/mchl901b1b95/mac)
 - [Segredos em Cloudflare Workers](https://developers.cloudflare.com/workers/configuration/secrets/)
 - [D1: execução em lote com `batch()`](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)
 - [D1 Time Travel e restauração](https://developers.cloudflare.com/d1/reference/time-travel/)

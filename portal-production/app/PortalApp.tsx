@@ -413,6 +413,230 @@ function RecoveryCard({ code, onClose }: { code: string; onClose: () => void }) 
   );
 }
 
+type MfaTransferDetails = {
+  secret: string;
+  ticket: string;
+  expiresAt: string;
+};
+
+function MfaTransferCard({
+  details,
+  csrf,
+  onClose,
+  onExpired,
+  onConfirmed,
+  onSessionEnded,
+}: {
+  details: MfaTransferDetails;
+  csrf: string;
+  onClose: () => void;
+  onExpired: () => void;
+  onConfirmed: () => void;
+  onSessionEnded: () => void;
+}) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const requestInFlight = useRef(false);
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    }
+    function restoreDialogFocus(event: FocusEvent) {
+      if (
+        event.target instanceof Node &&
+        !dialogRef.current?.contains(event.target)
+      ) {
+        titleRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("focusin", restoreDialogFocus);
+    document.body.classList.add("mfa-transfer-open");
+    titleRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("focusin", restoreDialogFocus);
+      document.body.classList.remove("mfa-transfer-open");
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    const remaining = Date.parse(details.expiresAt) - Date.now();
+    const timeout = window.setTimeout(onExpired, Math.max(0, remaining));
+    return () => window.clearTimeout(timeout);
+  }, [details.expiresAt, onExpired]);
+
+  function keepFocusInside(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        "a[href], button:not([disabled]), input:not([disabled])",
+      ) ?? [],
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (
+      event.shiftKey &&
+      (document.activeElement === first || document.activeElement === titleRef.current)
+    ) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  async function copySecret() {
+    try {
+      await copyText(details.secret);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  }
+
+  function printEmergencyCopy() {
+    const confirmed = window.confirm(
+      "Esta folha permitirá gerar os códigos do seu acesso profissional. Imprima somente em uma impressora particular, não salve como PDF compartilhado e guarde a folha separada da sua senha. Continuar?",
+    );
+    if (confirmed) window.print();
+  }
+
+  async function confirmMacCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (requestInFlight.current) return;
+    const form = new FormData(event.currentTarget);
+    requestInFlight.current = true;
+    setBusy(true);
+    setMessage("");
+    try {
+      await portalRequest(
+        "/account/mfa-transfer/confirm",
+        {
+          method: "POST",
+          body: JSON.stringify({ ticket: details.ticket, totp: form.get("totp") }),
+        },
+        csrf,
+      );
+      onConfirmed();
+    } catch (error) {
+      if (isSessionExpiredError(error)) {
+        onClose();
+        onSessionEnded();
+        return;
+      }
+      setMessage((error as Error).message);
+    } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop mfa-transfer-backdrop" role="presentation">
+      <section
+        ref={dialogRef}
+        className="modal mfa-transfer-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mfa-transfer-title"
+        aria-describedby="mfa-transfer-description"
+        onKeyDown={keepFocusInside}
+      >
+        <header className="mfa-transfer-heading">
+          <div>
+            <p className="eyebrow">PREPARAR TROCA DE CELULAR</p>
+            <h2 id="mfa-transfer-title" ref={titleRef} tabIndex={-1}>
+              Guarde o acesso também no Mac
+            </h2>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Fechar preparação">
+            ×
+          </button>
+        </header>
+        <p id="mfa-transfer-description" className="mfa-transfer-intro">
+          Você não precisa estar com os dois celulares ao mesmo tempo. Cadastre esta
+          chave no app Senhas do Mac e confirme abaixo que ele já gera os códigos.
+        </p>
+        <Notice
+          tone="info"
+          message="Esta chave protege seu acesso profissional. Ela ficará visível por até 15 minutos. Não envie, não fotografe e não guarde junto da sua senha."
+        />
+        <div className="mfa-transfer-secret">
+          <span>Chave de configuração</span>
+          <code className="secret-code">{details.secret}</code>
+          <div className="button-row mfa-transfer-copy-actions">
+            <button className="secondary-button" type="button" onClick={() => void copySecret()}>
+              {copyStatus === "copied" ? "Chave copiada" : "Copiar chave"}
+            </button>
+            <button className="quiet-button" type="button" onClick={printEmergencyCopy}>
+              Criar cópia de emergência em papel
+            </button>
+          </div>
+          <p
+            className={copyStatus === "error" ? "copy-error" : "sr-status"}
+            role={copyStatus === "error" ? "alert" : "status"}
+            aria-live="polite"
+          >
+            {copyStatus === "copied"
+              ? "Chave copiada."
+              : copyStatus === "error"
+                ? "O navegador bloqueou a cópia. Selecione a chave e copie manualmente."
+                : ""}
+          </p>
+        </div>
+        <ol className="mfa-transfer-steps">
+          <li><span>1</span><div><strong>Abra o app Senhas no Mac.</strong><p>Procure a Área do paciente pelo endereço do site e pelo seu e-mail profissional. Se não encontrar, crie uma entrada nova.</p></div></li>
+          <li><span>2</span><div><strong>Escolha Editar e depois Configurar código.</strong><p>Selecione “Chave de configuração” e cole a chave acima.</p></div></li>
+          <li><span>3</span><div><strong>Teste antes de entregar o iPhone antigo.</strong><p>Espere aparecer um código novo no Mac e digite-o abaixo.</p></div></li>
+        </ol>
+        <div className="mfa-transfer-new-phone">
+          <strong>Quando o iPhone novo chegar</strong>
+          <p>
+            O código pode aparecer no app Senhas pela mesma Conta Apple. Se não aparecer,
+            entre usando o código do Mac, abra novamente esta preparação e cadastre a chave
+            no aparelho novo.
+          </p>
+        </div>
+        <form className="stack mfa-transfer-confirm" onSubmit={confirmMacCode} aria-busy={busy}>
+          <Field
+            label="Código de 6 dígitos mostrado no Mac"
+            name="totp"
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={12}
+            hint="Se for igual ao código usado para abrir esta tela, espere o número mudar."
+            required
+          />
+          {message ? <Notice tone="error" message={message} focusOnMount /> : null}
+          <div className="button-row">
+            <button className="quiet-button" type="button" onClick={onClose}>Fazer depois</button>
+            <button className="primary-button" disabled={busy}>
+              {busy ? "Confirmando…" : "Confirmar código do Mac"}
+            </button>
+          </div>
+        </form>
+        <p className="mfa-transfer-print-note">
+          A cópia em papel é opcional. Se fizer uma, guarde-a em local privado e separado da sua senha.
+        </p>
+      </section>
+    </div>
+  );
+}
+
 function SetupPanel({ onAuthenticated }: { onAuthenticated: (user: User, csrf: string, recovery?: string) => void }) {
   const [step, setStep] = useState<"start" | "confirm">("start");
   const [setupSecret, setSetupSecret] = useState("");
@@ -2222,6 +2446,29 @@ function AccountPanel({
   >(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [mfaTransferBusy, setMfaTransferBusy] = useState(false);
+  const [mfaTransfer, setMfaTransfer] = useState<MfaTransferDetails | null>(null);
+  const [mfaTransferFeedback, setMfaTransferFeedback] = useState<{
+    tone: "error" | "success" | "info";
+    text: string;
+  } | null>(null);
+  const closeMfaTransfer = useCallback(() => {
+    setMfaTransfer(null);
+  }, []);
+  const expireMfaTransfer = useCallback(() => {
+    setMfaTransfer(null);
+    setMfaTransferFeedback({
+      tone: "info",
+      text: "O tempo para copiar a chave terminou. Nada foi alterado. Quando quiser, comece novamente.",
+    });
+  }, []);
+  const confirmMfaTransfer = useCallback(() => {
+    setMfaTransfer(null);
+    setMfaTransferFeedback({
+      tone: "success",
+      text: "Pronto. O Mac já gera os códigos do seu acesso profissional. Antes de entregar o iPhone antigo, saia e entre uma vez usando um código do Mac.",
+    });
+  }, []);
   const [endingSessions, setEndingSessions] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
@@ -2231,6 +2478,7 @@ function AccountPanel({
   } | null>(null);
   const passwordRequestInFlight = useRef(false);
   const recoveryRequestInFlight = useRef(false);
+  const mfaTransferRequestInFlight = useRef(false);
   const endSessionsRequestInFlight = useRef(false);
   const deleteAccountRequestInFlight = useRef(false);
   function handleAccountError(error: unknown) {
@@ -2279,6 +2527,50 @@ function AccountPanel({
     finally {
       recoveryRequestInFlight.current = false;
       setRecoveryBusy(false);
+    }
+  }
+  async function prepareMfaTransfer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (mfaTransferRequestInFlight.current) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    mfaTransferRequestInFlight.current = true;
+    setMfaTransferBusy(true);
+    setMfaTransferFeedback(null);
+    try {
+      const result = await portalRequest<{
+        totp_secret: string;
+        ticket: string;
+        expires_at: string;
+      }>(
+        "/account/mfa-transfer",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            current_password: form.get("current_password"),
+            totp: form.get("totp"),
+          }),
+        },
+        csrf,
+      );
+      formElement.reset();
+      setMfaTransfer({
+        secret: result.totp_secret,
+        ticket: result.ticket,
+        expiresAt: result.expires_at,
+      });
+    } catch (error) {
+      if (isSessionExpiredError(error)) {
+        onSessionsEnded();
+        return;
+      }
+      setMfaTransferFeedback({
+        tone: "error",
+        text: (error as Error).message,
+      });
+    } finally {
+      mfaTransferRequestInFlight.current = false;
+      setMfaTransferBusy(false);
     }
   }
   async function deleteAccount(event: FormEvent<HTMLFormElement>) {
@@ -2391,6 +2683,7 @@ function AccountPanel({
     }
   }
   return (
+    <>
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
       <summary>
         <span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>
@@ -2425,15 +2718,60 @@ function AccountPanel({
           </button>
         </form>
         <form className="stack panel" onSubmit={rotate} aria-busy={recoveryBusy}>
-          <h3>Novo código de recuperação</h3>
-          <p>O código atual deixará de funcionar.</p>
+          <h3>Código para recuperar a senha</h3>
+          <p>
+            O código atual deixará de funcionar.
+            {role === "therapist" ? " Ele recupera a senha, mas não substitui o aplicativo autenticador." : ""}
+          </p>
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
           <button className="secondary-button" disabled={recoveryBusy}>
-            {recoveryBusy ? "Gerando código…" : "Gerar novo código"}
+            {recoveryBusy ? "Gerando código…" : "Criar novo código"}
           </button>
         </form>
       </div>
+      {role === "therapist" ? (
+        <section className="professional-mfa-transfer" aria-labelledby="professional-mfa-transfer-title">
+          <div className="professional-mfa-transfer-copy">
+            <p className="mfa-status-line"><span aria-hidden="true" /> Aplicativo autenticador · proteção ativa</p>
+            <h3 id="professional-mfa-transfer-title">Vai trocar de celular?</h3>
+            <p>
+              Prepare o acesso antes de entregar o iPhone antigo. Seu Mac pode guardar
+              os códigos e servir de ponte até o aparelho novo chegar — sem precisar
+              estar com os dois celulares ao mesmo tempo.
+            </p>
+            <p className="professional-mfa-transfer-safety">
+              Isso não muda sua conta, não encerra sessões e não toca em pacientes ou registros.
+            </p>
+          </div>
+          <form className="stack" onSubmit={prepareMfaTransfer} aria-busy={mfaTransferBusy}>
+            <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
+            <Field
+              label="Código atual do autenticador"
+              name="totp"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={12}
+              hint="Use os 6 números do iPhone antigo ou do Mac já preparado. Se acabou de entrar, espere o número mudar."
+              required
+            />
+            <button className="primary-button" disabled={mfaTransferBusy}>
+              {mfaTransferBusy ? "Preparando…" : "Preparar troca de celular"}
+            </button>
+          </form>
+          {mfaTransferFeedback ? (
+            <div className="professional-mfa-transfer-feedback">
+              <Notice
+                tone={mfaTransferFeedback.tone}
+                message={mfaTransferFeedback.text}
+                focusOnMount={mfaTransferFeedback.tone === "error"}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
       {message ? (
         <Notice
           id="account-form-message"
@@ -2506,6 +2844,17 @@ function AccountPanel({
         <a href={config.public_site_url}>Voltar ao site profissional</a>
       </nav>
     </details>
+    {mfaTransfer ? (
+      <MfaTransferCard
+        details={mfaTransfer}
+        csrf={csrf}
+        onClose={closeMfaTransfer}
+        onExpired={expireMfaTransfer}
+        onConfirmed={confirmMfaTransfer}
+        onSessionEnded={onSessionsEnded}
+      />
+    ) : null}
+    </>
   );
 }
 

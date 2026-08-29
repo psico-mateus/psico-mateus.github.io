@@ -3866,3 +3866,139 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-privacy-chip>span,.patient-module-privacy>span,
   .patient-map-save-dot{border:1px solid ButtonText}
 }
+
+/* Preparação segura do acesso profissional para uma troca de celular. */
+body.mfa-transfer-open{overflow:hidden}
+.professional-mfa-transfer{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(300px,.82fr);
+  gap:clamp(1.2rem,3vw,2rem);
+  margin:1rem 0;
+  border:1px solid rgba(53,105,91,.22);
+  border-radius:18px;
+  background:linear-gradient(135deg,#eef3ef 0%,#f8f4ed 100%);
+  padding:clamp(1.15rem,3vw,1.6rem);
+}
+.professional-mfa-transfer-copy h3{margin:.5rem 0 .45rem;font-size:1.45rem}
+.professional-mfa-transfer-copy>p:not(.mfa-status-line){margin:0;color:#514d47;font-size:.9rem;line-height:1.62}
+.professional-mfa-transfer-copy .professional-mfa-transfer-safety{margin-top:.75rem!important;color:var(--muted)!important;font-size:.8rem!important}
+.professional-mfa-transfer form{align-content:start;min-width:0}
+.professional-mfa-transfer form .primary-button{width:100%;min-height:46px}
+.professional-mfa-transfer-feedback{grid-column:1/-1}
+.professional-mfa-transfer-feedback .notice{margin:0}
+.mfa-status-line{
+  display:inline-flex;
+  align-items:center;
+  gap:.45rem;
+  margin:0;
+  color:#27594c;
+  font-size:.75rem;
+  font-weight:820;
+  letter-spacing:.02em;
+}
+.mfa-status-line>span{
+  width:.58rem;
+  height:.58rem;
+  flex:0 0 auto;
+  border-radius:50%;
+  background:#498874;
+  box-shadow:0 0 0 4px rgba(73,136,116,.12);
+}
+.mfa-transfer-dialog{
+  width:min(760px,calc(100vw - 2rem));
+  max-width:760px;
+  max-height:calc(100vh - 2rem);
+  max-height:calc(100dvh - 2rem);
+  overflow:auto;
+  padding:clamp(1.25rem,4vw,2rem);
+}
+.mfa-transfer-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.mfa-transfer-heading h2{margin:0;font-size:clamp(1.9rem,5vw,3rem)}
+.mfa-transfer-heading h2:focus{outline:2px solid rgba(140,106,51,.72);outline-offset:4px;border-radius:5px}
+.mfa-transfer-heading .eyebrow{margin-bottom:.35rem}
+.mfa-transfer-heading .icon-button{
+  width:44px;
+  height:44px;
+  display:grid;
+  flex:0 0 auto;
+  place-items:center;
+  border:1px solid var(--line);
+  background:#fffefa;
+  line-height:1;
+}
+.mfa-transfer-intro{max-width:640px;margin:1rem 0;color:#514d47}
+.mfa-transfer-secret{
+  margin:1rem 0;
+  border:1px solid rgba(36,36,35,.12);
+  border-radius:16px;
+  background:#f7f2eb;
+  padding:1rem;
+}
+.mfa-transfer-secret>span{display:block;margin-bottom:.45rem;color:var(--muted);font-size:.76rem;font-weight:800}
+.mfa-transfer-secret .secret-code{user-select:all;-webkit-user-select:all}
+.mfa-transfer-copy-actions{justify-content:flex-start;margin-top:.75rem}
+.mfa-transfer-copy-actions .quiet-button{min-height:44px;color:var(--green-2)}
+.mfa-transfer-steps{display:grid;gap:.75rem;margin:1rem 0 1.25rem;padding:0;list-style:none}
+.mfa-transfer-steps li{display:grid;grid-template-columns:2rem minmax(0,1fr);gap:.75rem;align-items:start}
+.mfa-transfer-steps li>span{
+  width:2rem;
+  height:2rem;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#eadcc6;
+  color:#604820;
+  font-size:.8rem;
+  font-weight:850;
+}
+.mfa-transfer-steps strong{display:block;margin-top:.12rem;font-size:.9rem}
+.mfa-transfer-steps p{margin:.18rem 0 0;color:var(--muted);font-size:.82rem;line-height:1.55}
+.mfa-transfer-new-phone{
+  margin:0 0 1.1rem;
+  border-left:3px solid rgba(73,136,116,.55);
+  border-radius:0 10px 10px 0;
+  background:rgba(238,243,239,.7);
+  padding:.8rem .9rem;
+}
+.mfa-transfer-new-phone strong{display:block;color:#27594c;font-size:.86rem}
+.mfa-transfer-new-phone p{margin:.25rem 0 0;color:#514d47;font-size:.82rem;line-height:1.55}
+.mfa-transfer-confirm{
+  border-top:1px solid var(--line);
+  padding-top:1rem;
+}
+.mfa-transfer-print-note{margin:1rem 0 0;color:var(--muted);font-size:.75rem;text-align:center}
+
+@media(max-width:760px){
+  .professional-mfa-transfer{grid-template-columns:1fr}
+  .professional-mfa-transfer-feedback{grid-column:auto}
+}
+
+@media(max-width:560px){
+  .mfa-transfer-dialog{
+    width:calc(100vw - 1rem);
+    max-height:calc(100vh - 1rem);
+    max-height:calc(100dvh - 1rem);
+    padding:1.1rem;
+  }
+  .mfa-transfer-heading h2{font-size:2rem}
+  .mfa-transfer-copy-actions,.mfa-transfer-confirm .button-row{display:grid;grid-template-columns:1fr}
+  .mfa-transfer-copy-actions>*,.mfa-transfer-confirm .button-row>*{width:100%}
+}
+
+@media print{
+  body.mfa-transfer-open{overflow:visible}
+  body.mfa-transfer-open *{visibility:hidden!important}
+  body.mfa-transfer-open .mfa-transfer-backdrop,
+  body.mfa-transfer-open .mfa-transfer-backdrop *{visibility:visible!important}
+  body.mfa-transfer-open .mfa-transfer-backdrop{position:absolute;inset:0;display:block;background:#fff;padding:0}
+  body.mfa-transfer-open .mfa-transfer-dialog{width:100%;max-width:none;max-height:none;border:0;box-shadow:none;overflow:visible}
+  body.mfa-transfer-open .mfa-transfer-heading .icon-button,
+  body.mfa-transfer-open .mfa-transfer-copy-actions,
+  body.mfa-transfer-open .mfa-transfer-confirm{display:none!important}
+  body.mfa-transfer-open .mfa-transfer-secret .secret-code{
+    border:1px solid #000!important;
+    background:#fff!important;
+    color:#000!important;
+  }
+  body.mfa-transfer-open .mfa-transfer-print-note{text-align:left}
+}

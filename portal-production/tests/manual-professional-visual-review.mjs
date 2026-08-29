@@ -182,6 +182,7 @@ async function routeProfessionalPortal(page) {
     failNextEntryRequest: false,
     failNextMapRequest: false,
     delayNextMapRequestMs: 0,
+    mfaTransferExpiryMs: 15 * 60_000,
   };
   const mapSharesByPatient = new Map([
     [mapOnlyPatient.patient_id, [structuredClone(mapOnlyShare)]],
@@ -252,6 +253,16 @@ async function routeProfessionalPortal(page) {
           code: "CONVITE-LOCAL-2026",
           expires_at: ahead(7),
         }, 201),
+      );
+      return;
+    }
+    if (path === "/account/mfa-transfer" && method === "POST") {
+      await route.fulfill(
+        jsonResponse({
+          totp_secret: "JBSWY3DPEHPK3PXP",
+          ticket: "ticket-sintetico-cifrado-para-revisao-visual-local".repeat(3),
+          expires_at: new Date(Date.now() + controls.mfaTransferExpiryMs).toISOString(),
+        }),
       );
       return;
     }
@@ -645,6 +656,97 @@ async function reviewProfessional(browserType, label, viewport) {
   );
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await invitationRefreshAfterVisibility;
+
+  await page.getByText("Segurança e conta", { exact: true }).click();
+  await page.getByRole("heading", { name: "Vai trocar de celular?", exact: true }).waitFor();
+  await reviewScreen(page, `${label}-seguranca`, `${label}-seguranca.png`);
+  const mfaTransfer = page.getByRole("region", {
+    name: "Vai trocar de celular?",
+    exact: true,
+  });
+  await mfaTransfer.getByLabel("Senha atual", { exact: true }).fill("senha-sintetica-local");
+  await mfaTransfer
+    .getByLabel("Código atual do autenticador", { exact: true })
+    .fill("123456");
+  await mfaTransfer
+    .getByRole("button", { name: "Preparar troca de celular", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .waitFor();
+  await reviewScreen(page, `${label}-troca-celular`, `${label}-troca-celular.png`);
+  const transferDialog = page.getByRole("dialog", {
+    name: "Guarde o acesso também no Mac",
+    exact: true,
+  });
+  const macCodeField = transferDialog.getByLabel(
+    "Código de 6 dígitos mostrado no Mac",
+    { exact: true },
+  );
+  const confirmMacButton = transferDialog.getByRole("button", {
+    name: "Confirmar código do Mac",
+    exact: true,
+  });
+  await macCodeField.scrollIntoViewIfNeeded();
+  await macCodeField.focus();
+  await page.waitForFunction(() =>
+    document.querySelector(".mfa-transfer-dialog")?.contains(document.activeElement),
+  );
+  await confirmMacButton.focus();
+  await page.keyboard.press("Tab");
+  await page.waitForFunction(
+    () => document.activeElement?.getAttribute("aria-label") === "Fechar preparação",
+  );
+  await page.keyboard.press("Shift+Tab");
+  await page.waitForFunction(
+    () => document.activeElement?.textContent?.includes("Confirmar código do Mac"),
+  );
+  await page.emulateMedia({ media: "print" });
+  const printState = await page.evaluate(() => ({
+    secretVisibility: getComputedStyle(
+      document.querySelector(".mfa-transfer-secret"),
+    ).visibility,
+    formDisplay: getComputedStyle(
+      document.querySelector(".mfa-transfer-confirm"),
+    ).display,
+    copyActionsDisplay: getComputedStyle(
+      document.querySelector(".mfa-transfer-copy-actions"),
+    ).display,
+  }));
+  if (
+    printState.secretVisibility !== "visible" ||
+    printState.formDisplay !== "none" ||
+    printState.copyActionsDisplay !== "none"
+  ) {
+    throw new Error(`${label}: a cópia impressa não preservou apenas chave e instruções`);
+  }
+  await page.emulateMedia({ media: "screen" });
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .waitFor({ state: "detached" });
+  await page.waitForFunction(() =>
+    document.activeElement?.textContent?.includes("Preparar troca de celular"),
+  );
+
+  routeControls.mfaTransferExpiryMs = 80;
+  await mfaTransfer.getByLabel("Senha atual", { exact: true }).fill("senha-sintetica-local");
+  await mfaTransfer
+    .getByLabel("Código atual do autenticador", { exact: true })
+    .fill("123456");
+  await mfaTransfer
+    .getByRole("button", { name: "Preparar troca de celular", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .waitFor();
+  await page.getByText(
+    "O tempo para copiar a chave terminou. Nada foi alterado. Quando quiser, comece novamente.",
+    { exact: true },
+  ).waitFor();
+  await page
+    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .waitFor({ state: "detached" });
 
   const dimensions = await assertViewportFits(page, `${label}-final`);
   assertNoRuntimeErrors();
