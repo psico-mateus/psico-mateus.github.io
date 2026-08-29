@@ -326,6 +326,55 @@ async function serializedAccessLogs() {
   }
 }
 
+async function setProfessionalTotpCounter(userId, counter) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath);
+  try {
+    const result = database
+      .prepare(
+        "UPDATE users SET last_totp_counter = ? WHERE id = ? AND role = 'therapist'",
+      )
+      .run(counter, userId);
+    assert.equal(result.changes, 1, "o profissional sintético deve existir");
+  } finally {
+    database.close();
+  }
+}
+
+async function clearSyntheticAuthWindows() {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath);
+  try {
+    database.prepare("DELETE FROM auth_windows").run();
+  } finally {
+    database.close();
+  }
+}
+
+async function clinicalTableCounts() {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const tables = [
+      "entries",
+      "entry_thought_reviews",
+      "invitations",
+      "patient_links",
+      "patient_map_draft_fields",
+      "patient_map_shares",
+      "users",
+    ];
+    return Object.fromEntries(
+      tables.map((table) => [
+        table,
+        database.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get().total,
+      ]),
+    );
+  } finally {
+    database.close();
+  }
+}
+
 async function patientMapAuditCount() {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -3156,10 +3205,174 @@ for (const [target, suffix] of [
   expectStatus(cleanupPatient, 204, `limpeza do paciente sintético de ${target}`);
 }
 
+await clearSyntheticAuthWindows();
+const anonymousMfaTransfer = await api("/account/mfa-transfer", {
+  method: "POST",
+  body: { current_password: synthetic.therapistPassword, totp: "000000" },
+});
+expectStatus(anonymousMfaTransfer, 401, "preparação do MFA sem sessão");
+assert.equal(anonymousMfaTransfer.response.headers.get("set-cookie"), null);
+
+const mfaTransferWithoutCsrf = await api("/account/mfa-transfer", {
+  method: "POST",
+  body: { current_password: synthetic.therapistPassword, totp: "000000" },
+  auth: therapist,
+  includeCsrf: false,
+});
+expectStatus(mfaTransferWithoutCsrf, 403, "preparação do MFA sem CSRF");
+
+const activePatientForMfa = session();
+const activePatientForMfaLogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.patientEmailA,
+    password: "SenhaPacienteNova123",
+  },
+  auth: activePatientForMfa,
+  clientIp: "203.0.113.90",
+});
+expectStatus(activePatientForMfaLogin, 200, "sessão de paciente para negar preparação profissional");
+const patientMfaTransfer = await api("/account/mfa-transfer", {
+  method: "POST",
+  body: { current_password: "SenhaPacienteA123", totp: "000000" },
+  auth: activePatientForMfa,
+});
+expectStatus(patientMfaTransfer, 403, "paciente tentando preparar MFA profissional");
+assert.equal("totp_secret" in patientMfaTransfer.payload, false);
+
+const transferPreparationTime = Date.now();
+const transferCounter = Math.floor(transferPreparationTime / 30_000);
+await setProfessionalTotpCounter(therapist.user.id, transferCounter - 2);
+const secondProfessionalSession = session();
+const secondProfessionalLogin = await api("/login", {
+  method: "POST",
+  body: {
+    email: synthetic.therapistEmail,
+    password: synthetic.therapistPassword,
+    totp: totp(setup.payload.totp_secret, transferPreparationTime - 30_000),
+  },
+  auth: secondProfessionalSession,
+  clientIp: "203.0.113.91",
+});
+expectStatus(secondProfessionalLogin, 200, "segunda sessão profissional para vínculo do ticket");
+const clinicalCountsBeforeMfaTransfer = await clinicalTableCounts();
+const wrongPasswordMfaTransfer = await api("/account/mfa-transfer", {
+  method: "POST",
+  body: {
+    current_password: "SenhaProfissionalIncorreta123",
+    totp: totp(setup.payload.totp_secret, transferPreparationTime),
+  },
+  auth: therapist,
+});
+expectStatus(wrongPasswordMfaTransfer, 400, "preparação do MFA com senha incorreta");
+assert.equal("totp_secret" in wrongPasswordMfaTransfer.payload, false);
+
+const preparedMfaTransfer = await api("/account/mfa-transfer", {
+  method: "POST",
+  body: {
+    current_password: synthetic.therapistPassword,
+    totp: totp(setup.payload.totp_secret, transferPreparationTime),
+  },
+  auth: therapist,
+});
+expectStatus(preparedMfaTransfer, 200, "preparação autenticada do MFA");
+assert.equal(preparedMfaTransfer.payload.totp_secret, setup.payload.totp_secret);
+assert.ok(preparedMfaTransfer.payload.ticket.length >= 80);
+assert.equal(
+  preparedMfaTransfer.payload.ticket.includes(setup.payload.totp_secret),
+  false,
+  "a chave TOTP não pode aparecer dentro do ticket cifrado",
+);
+assert.ok(Date.parse(preparedMfaTransfer.payload.expires_at) > Date.now());
+assert.match(
+  preparedMfaTransfer.response.headers.get("cache-control") ?? "",
+  /no-store/iu,
+);
+assert.equal(preparedMfaTransfer.response.headers.get("set-cookie"), null);
+
+const mfaTicketTamperIndex = Math.floor(preparedMfaTransfer.payload.ticket.length / 2);
+const mfaTicketTamperedCharacter =
+  preparedMfaTransfer.payload.ticket[mfaTicketTamperIndex] === "A" ? "B" : "A";
+const tamperedMfaTicket = `${preparedMfaTransfer.payload.ticket.slice(0, mfaTicketTamperIndex)}${mfaTicketTamperedCharacter}${preparedMfaTransfer.payload.ticket.slice(mfaTicketTamperIndex + 1)}`;
+const macConfirmationCode = totp(setup.payload.totp_secret, Date.now() + 30_000);
+const rejectedOtherSessionMfaTransfer = await api("/account/mfa-transfer/confirm", {
+  method: "POST",
+  body: {
+    ticket: preparedMfaTransfer.payload.ticket,
+    totp: macConfirmationCode,
+  },
+  auth: secondProfessionalSession,
+});
+expectStatus(
+  rejectedOtherSessionMfaTransfer,
+  400,
+  "ticket de MFA usado por outra sessão profissional",
+);
+assert.equal(
+  rejectedOtherSessionMfaTransfer.payload.error,
+  "A preparação expirou. Comece novamente.",
+);
+
+const rejectedTamperedMfaTransfer = await api("/account/mfa-transfer/confirm", {
+  method: "POST",
+  body: {
+    ticket: tamperedMfaTicket,
+    totp: macConfirmationCode,
+  },
+  auth: therapist,
+});
+expectStatus(rejectedTamperedMfaTransfer, 400, "ticket de MFA adulterado");
+assert.equal(
+  rejectedTamperedMfaTransfer.payload.error,
+  "A preparação expirou. Comece novamente.",
+);
+
+const confirmedMfaTransfer = await api("/account/mfa-transfer/confirm", {
+  method: "POST",
+  body: {
+    ticket: preparedMfaTransfer.payload.ticket,
+    totp: macConfirmationCode,
+  },
+  auth: therapist,
+});
+expectStatus(confirmedMfaTransfer, 200, "confirmação do código copiado para o Mac");
+assert.deepEqual(confirmedMfaTransfer.payload, { ok: true });
+assert.equal(confirmedMfaTransfer.response.headers.get("set-cookie"), null);
+
+const replayedMfaConfirmation = await api("/account/mfa-transfer/confirm", {
+  method: "POST",
+  body: {
+    ticket: preparedMfaTransfer.payload.ticket,
+    totp: macConfirmationCode,
+  },
+  auth: therapist,
+});
+expectStatus(replayedMfaConfirmation, 400, "reutilização do código confirmado no Mac");
+assert.deepEqual(
+  await clinicalTableCounts(),
+  clinicalCountsBeforeMfaTransfer,
+  "preparar e confirmar o MFA não pode alterar dados clínicos ou identidades",
+);
+const logsAfterMfaTransfer = await serializedAccessLogs();
+for (const secretValue of [
+  setup.payload.totp_secret,
+  preparedMfaTransfer.payload.ticket,
+  macConfirmationCode,
+]) {
+  assert.equal(
+    logsAfterMfaTransfer.includes(secretValue),
+    false,
+    "auditoria não pode conter chave, ticket ou código MFA",
+  );
+}
+const sessionAfterMfaTransfer = await api("/session", { auth: therapist });
+expectStatus(sessionAfterMfaTransfer, 200, "sessão preservada depois da preparação do Mac");
+assert.equal(sessionAfterMfaTransfer.payload.user.role, "therapist");
+
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 237,
+    checks: 255,
     data: "synthetic-only",
     production_requests: 0,
   }),

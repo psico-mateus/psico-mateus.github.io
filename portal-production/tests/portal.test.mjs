@@ -499,7 +499,7 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Excluindo conta…/);
   assert.equal(
     app.match(/if \(requestInFlight\.current\) return/g)?.length,
-    3,
+    4,
   );
   assert.match(app, /if \(submissionInFlight\.current\) return/);
   assert.equal(

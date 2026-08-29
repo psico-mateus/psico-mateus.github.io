@@ -65,6 +65,10 @@ import {
   type PatientExportCareAccessRow,
   type PatientExportEntryRow,
 } from "@/lib/patient-data-export";
+import {
+  createMfaTransferTicket,
+  isValidMfaTransferTicket,
+} from "@/lib/mfa-transfer";
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
@@ -131,6 +135,8 @@ function technicalRoute(path: string): string {
     "/account",
     "/account/password",
     "/account/recovery-code",
+    "/account/mfa-transfer",
+    "/account/mfa-transfer/confirm",
     "/account/sessions",
     "/professional/patients",
     "/professional/accesses",
@@ -1039,6 +1045,88 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (path === "/login") return login(request, input);
   if (path === "/register") return register(request, input);
   if (path === "/recover") return recoverAccount(request, input);
+  if (path === "/account/mfa-transfer") {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    await checkReauthenticationRateLimit(session);
+    const user = await DB.prepare("SELECT * FROM users WHERE id = ?")
+      .bind(session.userId)
+      .first<UserRow>();
+    if (!user) throw new PortalError(401, "Faça login para continuar.");
+    if (
+      !(await passwordMatches(
+        String(input.current_password ?? ""),
+        user.password_salt,
+        user.password_hash,
+        user.password_iterations,
+      ))
+    ) {
+      throw new PortalError(400, "A senha atual não confere.");
+    }
+    if (!user.totp_secret || !user.totp_enabled) {
+      throw new PortalError(400, "O MFA profissional não está configurado.");
+    }
+    const totpSecret = await decrypt(APP_SECRET, user.totp_secret);
+    const verification = await verifyTotp(
+      totpSecret,
+      String(input.totp ?? ""),
+      user.last_totp_counter,
+    );
+    if (!verification.valid || verification.counter === null) {
+      throw new PortalError(400, "O código do autenticador não confere.");
+    }
+    if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+      throw new PortalError(400, "O código do autenticador não confere.");
+    }
+    const transfer = await createMfaTransferTicket(APP_SECRET, {
+      userId: user.id,
+      sessionTokenHash: session.tokenHash,
+      expectedTotpCiphertext: user.totp_secret,
+    });
+    await audit(user.id, "prepare_professional_mfa_transfer", "account");
+    return json({
+      totp_secret: totpSecret,
+      ticket: transfer.ticket,
+      expires_at: transfer.expiresAt,
+    });
+  }
+  if (path === "/account/mfa-transfer/confirm") {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    await checkReauthenticationRateLimit(session);
+    const user = await DB.prepare("SELECT * FROM users WHERE id = ?")
+      .bind(session.userId)
+      .first<UserRow>();
+    if (!user) throw new PortalError(401, "Faça login para continuar.");
+    if (!user.totp_secret || !user.totp_enabled) {
+      throw new PortalError(400, "O MFA profissional não está configurado.");
+    }
+    const ticketValid = await isValidMfaTransferTicket(
+      APP_SECRET,
+      input.ticket,
+      {
+        userId: user.id,
+        sessionTokenHash: session.tokenHash,
+        expectedTotpCiphertext: user.totp_secret,
+      },
+    );
+    if (!ticketValid) {
+      throw new PortalError(400, "A preparação expirou. Comece novamente.");
+    }
+    const verification = await verifyTotp(
+      await decrypt(APP_SECRET, user.totp_secret),
+      String(input.totp ?? ""),
+      user.last_totp_counter,
+    );
+    if (!verification.valid || verification.counter === null) {
+      throw new PortalError(400, "O código do Mac não confere. Use o número que aparece agora.");
+    }
+    if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+      throw new PortalError(400, "O código do Mac não confere. Use o número que aparece agora.");
+    }
+    await audit(user.id, "confirm_professional_mfa_transfer", "account");
+    return json({ ok: true });
+  }
   const viewedEntry = path.match(
     /^\/professional\/entries\/([A-Za-z0-9_-]+)\/viewed$/u,
   );
