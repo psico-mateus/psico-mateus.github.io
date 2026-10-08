@@ -1571,6 +1571,14 @@ function EntryForm({
           <span aria-hidden="true">×</span>
         </button>
       </div>
+      <p className="entry-privacy-note">
+        <strong>{remainsShared ? "Compartilhado com Mateus." : initial ? "Registro privado." : "Começa privado."}</strong>{" "}
+        {remainsShared
+          ? "As alterações salvas também ficarão visíveis para ele."
+          : initial
+            ? "Salvar as alterações não compartilha o registro."
+            : "Você decide depois se quer compartilhar."}
+      </p>
       <p className="form-requirements-note">
         <strong>Para salvar:</strong> preencha somente “Título breve” e “O que aconteceu?”. As outras perguntas podem ficar em branco.
       </p>
@@ -2071,6 +2079,8 @@ function PatientDashboard({
       ? "Mateus deixará de ver este registro. Retirar o compartilhamento?"
       : "Compartilhar este registro com Mateus? Ele poderá lê-lo no painel profissional, mas não editá-lo.";
     if (!window.confirm(question)) return;
+    const card = document.getElementById(`record-${entry.id}`);
+    const restoreFocus = Boolean(card?.contains(document.activeElement));
     entryActionLocks.current.add(entry.id);
     setEntryActions((current) => ({ ...current, [entry.id]: "sharing" }));
     try {
@@ -2078,6 +2088,20 @@ function PatientDashboard({
       setMessageTone("success");
       setMessage(shared ? "Compartilhamento retirado." : "Registro compartilhado com Mateus.");
       await load();
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          // Disabling the action or filtering its card can drop focus to body.
+          // Keep a useful target without interrupting a move elsewhere.
+          const focused = document.activeElement;
+          if (restoreFocus &&
+            (!focused || focused === document.body || focused === document.documentElement)) {
+            const currentCard = document.getElementById(`record-${entry.id}`);
+            const focusTarget = currentCard?.querySelector<HTMLElement>("summary") ??
+              document.getElementById("records-title");
+            focusTarget?.focus();
+          }
+        });
+      });
     } catch (error) {
       if (isSessionExpiredError(error)) {
         onSessionLost();
@@ -2631,9 +2655,13 @@ function PatientDashboard({
           </div>
           <div className="patient-records-heading-actions">
             <span className="count">
-              {hasEntryQuery || entryFilter !== "all"
-                ? `${visibleEntries.length} de ${entries.length}`
-                : `${entries.length} ${entries.length === 1 ? "registro" : "registros"}`}
+              {loading
+                ? "Carregando…"
+                : entriesError && entries.length === 0
+                  ? "Contagem indisponível"
+                  : hasEntryQuery || entryFilter !== "all"
+                    ? `${visibleEntries.length} de ${entries.length}`
+                    : `${entries.length} ${entries.length === 1 ? "registro" : "registros"}`}
             </span>
             <button
               className="secondary-button compact-button"
