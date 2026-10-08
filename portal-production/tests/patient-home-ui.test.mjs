@@ -178,6 +178,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     await expect(visible).toHaveCount(1);
     if (width <= 900) {
       await expect(visible).toHaveClass(/patient-mobile-record/u);
+      await expect(page.locator("#patient-start-title")).toHaveAccessibleName("Outras opções");
       const notices = page.locator(".patient-notices");
       await expect(notices).toBeVisible();
       const recordBounds = await visible.boundingBox();
@@ -192,6 +193,26 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     } else {
       await expect(visible).toHaveClass(/patient-start-card/u);
       await expect(page.locator(".patient-mobile-record")).not.toBeVisible();
+      await expect(page.locator("#patient-start-title")).toHaveAccessibleName("O que você quer fazer?");
+    }
+  }
+
+  async function assertHomeReadability(page) {
+    if (await page.locator(".patient-home").count() === 0) return;
+    const texts = await page.locator([
+      ".patient-hero-copy > p", ".patient-home-privacy", ".patient-action-copy > strong",
+      ".patient-action-copy > span", ".patient-overview-metrics strong",
+      ".patient-overview-metrics small", ".patient-sharing-states li", ".overview-number",
+    ].join(", ")).evaluateAll((elements) => elements.filter((element) =>
+      element.getClientRects().length > 0 && window.getComputedStyle(element).visibility !== "hidden",
+    ).map((element) => ({ text: element.textContent.trim(), fontSize: Number.parseFloat(window.getComputedStyle(element).fontSize) })));
+    assert.ok(texts.length > 0, "Main home text remains rendered.");
+    for (const item of texts) assert.ok(item.fontSize >= 16, `${item.text}: main home text must remain at least 16px.`);
+    for (const number of await page.locator(".patient-overview .overview-number").all()) {
+      await expect(number).toBeVisible();
+    }
+    for (const state of await page.locator(".patient-overview-metrics small, .patient-sharing-states li").all()) {
+      await expect(state).toBeVisible();
     }
   }
 
@@ -202,6 +223,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     assert.deepEqual(controls.mutations, [], "Home browsing and keyboard navigation must be read-only.");
     assert.deepEqual(controls.runtimeErrors, [], "No unexpected browser error or warning.");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "No horizontal overflow.");
+    await assertHomeReadability(page);
     await page.addScriptTag({ content: axe.source });
     const violations = await page.evaluate(async () => {
       const result = await window.axe.run(document, {
@@ -292,6 +314,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     const { page } = fixture;
     await expect(page.locator(".patient-overview .overview-number")).toHaveText(["3", "2"]);
     await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await expect(page.locator("#patient-start-title")).toHaveAccessibleName("Outras opções");
     await expect.poll(() => page.locator(".patient-home-workspace").evaluate((workspace) =>
       window.getComputedStyle(workspace).gridTemplateColumns.trim().split(/\s+/u).length,
     )).toBe(1);

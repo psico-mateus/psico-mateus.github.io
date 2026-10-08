@@ -24,6 +24,13 @@ export type PatientNoticesProps = {
   onSessionLost: () => void;
 };
 
+const previewDateFormatter = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" });
+
+function formatPreviewDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Data indisponível" : previewDateFormatter.format(date);
+}
+
 /** A new identity/session gets a fresh subtree; notice text is never persisted. */
 export function PatientNotices(props: PatientNoticesProps) {
   return <PatientNoticesContent key={`${props.patientId}:${props.csrf}`} {...props} />;
@@ -178,11 +185,13 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         </svg>
         <div className="notices-summary-copy">
           <h2 id={headingId} ref={panelSummary} className="notices-title" tabIndex={-1}>Avisos de Mateus</h2>
-          <span className="notices-subtitle">Comunicados individuais para você</span>
+          <div className="patient-notices-meta">
+            <span className="notices-subtitle">Comunicados individuais</span>
+            {loaded && unreadCount > 0 ? (
+              <span className="notices-count" aria-live="polite">{unreadCount} {unreadCount === 1 ? "não lido" : "não lidos"}</span>
+            ) : null}
+          </div>
         </div>
-        {loaded && unreadCount > 0 ? (
-          <span className="notices-count" aria-live="polite">{unreadCount} {unreadCount === 1 ? "não lido" : "não lidos"}</span>
-        ) : null}
       </header>
       <div className="notices-panel-content">
         {error ? (
@@ -207,11 +216,12 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
                 <span className="patient-notice-marker" aria-hidden="true" />
                 <span className="notices-summary-copy">
                   <span className="notice-item-heading">{notice.title}</span>
-                  <span className="notice-item-meta">{formatDate(notice.created_at)} · {notice.read_at ? "Lido" : "Não lido"}</span>
+                  <span className="notice-item-meta"><time dateTime={notice.created_at}>{formatPreviewDate(notice.created_at)}</time> · {notice.read_at ? "Lido" : "Não lido"}</span>
                 </span>
                 <span className="notices-summary-action"><span className="notice-closed-label">Ler aviso</span><span className="notice-open-label">Fechar</span><svg className="patient-notice-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" /></svg></span>
               </summary>
               <div className="notice-item-content">
+                <p className="notice-item-meta notice-sent-at">Enviado em <time dateTime={notice.created_at}>{formatDate(notice.created_at)}</time>.</p>
                 <p className="notice-body">{notice.body}</p>
                 {notice.read_at ? <p className="notice-item-meta">Leitura confirmada em {formatDate(notice.read_at)}.</p> : (
                   <div className="notice-read-action">
@@ -231,10 +241,10 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         <p className="sr-status" role="status" aria-live="polite">{confirmation}</p>
       </div>
       <footer className="patient-notices-footer">
-        <p>Este espaço é só para leitura de avisos, sem respostas pelo portal.</p>
-        <button className="secondary-button patient-notices-refresh" type="button" onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
+        <p>Sem respostas pelo portal.</p>
+        <button className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2-5" /></svg>
-          {loading ? "Carregando…" : "Atualizar avisos"}
+          {loading ? "Carregando…" : "Atualizar"}
         </button>
       </footer>
     </section>

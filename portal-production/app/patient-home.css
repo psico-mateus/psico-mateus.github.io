@@ -8,7 +8,7 @@
 .patient-dashboard .patient-navigation {
   max-width: 780px;
   gap: .5rem;
-  margin: 0 0 1.5rem;
+  margin: 0 0 1rem;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -50,10 +50,10 @@
   align-items: center;
   gap: 1.5rem;
   margin: 0;
-  padding: 1.6rem 1.75rem;
-  background: var(--card);
-  border: 1px solid var(--patient-home-border);
-  border-radius: var(--patient-home-radius);
+  padding: .5rem .25rem .65rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   box-shadow: none;
   overflow: visible;
 }
@@ -64,10 +64,10 @@
 .patient-home .patient-hero h1 {
   width: fit-content;
   max-width: 100%;
-  margin-bottom: .65rem;
-  font-size: clamp(2rem, 3.2vw, 2.75rem);
-  line-height: 1.2;
-  letter-spacing: -.035em;
+  margin-bottom: .4rem;
+  font-size: clamp(1.85rem, 2.8vw, 2.35rem);
+  line-height: 1.25;
+  letter-spacing: -.025em;
   overflow-wrap: anywhere;
 }
 
@@ -83,8 +83,8 @@
   display: flex;
   align-items: center;
   gap: .65rem;
-  flex: 0 1 230px;
-  margin: 0;
+  flex: 0 1 18rem;
+  margin: 0 0 0 auto;
   color: var(--muted);
   font-size: 1rem;
   line-height: 1.55;
@@ -92,6 +92,8 @@
 
 .patient-home-privacy svg { width: 24px; height: 24px; flex: 0 0 auto; }
 .patient-home .patient-mobile-record { display: none; }
+.patient-home .patient-mobile-record { padding: .8rem 1rem; border-radius: 12px; }
+.patient-home .patient-mobile-record:hover { background: #65491c; border-color: #65491c; }
 .patient-mobile-record svg { width: 20px; height: 20px; flex: 0 0 auto; }
 
 .patient-home-workspace {
@@ -115,17 +117,19 @@
   background: var(--card);
 }
 
-.patient-home .patient-start > header { margin-bottom: 1rem; }
+.patient-home .patient-start > header { margin-bottom: .8rem; }
 .patient-home h2 { font-size: clamp(1.5rem, 2.4vw, 1.85rem); line-height: 1.25; letter-spacing: -.025em; }
+.patient-home .patient-start h2 { font-size: clamp(1.4rem, 2vw, 1.65rem); }
+.patient-start-title-narrow { display: none; }
 .patient-home .patient-start-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
 
 .patient-home .patient-start-card {
   display: flex;
   align-items: center;
   gap: 1rem;
-  min-height: 100px;
+  min-height: 88px;
   width: 100%;
-  padding: 1rem .5rem;
+  padding: .9rem .3rem;
   border: 0;
   border-bottom: 1px solid var(--patient-home-border);
   border-radius: 0;
@@ -148,9 +152,11 @@
   color: #fffdfa;
 }
 .patient-home .patient-start-card.primary:hover { background: #65491c; border-color: #65491c; }
-.patient-action-icon { width: 32px; height: 32px; flex: 0 0 auto; }
+.patient-action-icon { width: 44px; height: 44px; padding: 9px; flex: 0 0 auto; border-radius: 12px; background: #f3ece2; }
+.patient-home .patient-start-card.primary .patient-action-icon { background: rgba(255, 253, 250, .12); }
 .patient-action-copy { display: grid; gap: .3rem; min-width: 0; }
-.patient-home .patient-start-card strong { font: 500 1.3rem/1.3 var(--serif); overflow-wrap: anywhere; }
+.patient-home .patient-start-card strong { font: 650 1.125rem/1.4 var(--sans); overflow-wrap: anywhere; }
+.patient-home .patient-start-card.primary strong { font-size: 1.2rem; }
 .patient-action-copy > span { color: var(--muted); font-size: 1rem; line-height: 1.55; font-weight: 400; }
 .patient-home .patient-start-card.primary .patient-action-copy > span { color: #fffdfa; }
 .patient-home .patient-start-arrow { width: 20px; height: 20px; margin-left: auto; flex: 0 0 auto; color: currentColor; }
@@ -206,17 +212,20 @@
   line-height: 1.5;
 }
 .patient-dashboard :is(input, textarea, select) { font-size: 1rem; }
+.patient-dashboard .patient-account-panel { margin-top: 1.25rem; border-color: #ded6cb; border-radius: 12px; background: var(--card); }
 .patient-dashboard .patient-account-panel > summary { min-height: 56px; font-size: 1rem; }
 .patient-dashboard .patient-account-panel > summary small { font-size: .9rem; line-height: 1.5; }
 .patient-dashboard :where(button, summary, a):focus-visible { outline: 3px solid var(--green-2); outline-offset: 4px; }
 
 @media (max-width: 900px) {
   .patient-home .patient-hero { align-items: flex-start; flex-direction: column; gap: .85rem; }
-  .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; }
+  .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; margin-left: 0; }
   .patient-home-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notices" "actions"; }
   /* One visible record CTA: move it before notices, rather than duplicating it. */
   .patient-home .patient-mobile-record { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 48px; background: var(--green-2); border-color: var(--green-2); color: #fffdfa; }
   .patient-home .patient-start-card.primary { display: none; }
+  .patient-start-title-wide { display: none; }
+  .patient-start-title-narrow { display: inline; }
 }
 
 @media (max-width: 560px) {
@@ -224,14 +233,14 @@
   .patient-dashboard .patient-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 1rem; }
   .patient-dashboard .patient-navigation button { font-size: 1rem; padding: .7rem .4rem; }
   .patient-home { gap: 1rem; }
-  .patient-home .patient-hero { padding: 1.25rem; }
-  .patient-home .patient-hero h1 { font-size: 2rem; }
+  .patient-home .patient-hero { padding: .25rem 0 .5rem; }
+  .patient-home .patient-hero h1 { font-size: 1.85rem; }
   .patient-home .patient-hero-copy > p { font-size: 1rem; }
   .patient-home .patient-start { padding: 1.15rem; }
-  .patient-home .patient-start-card { gap: .75rem; min-height: 100px; }
+  .patient-home .patient-start-card { gap: .75rem; min-height: 88px; }
   .patient-home .patient-start-card.primary { padding: 1rem .8rem; }
-  .patient-action-icon { width: 26px; height: 26px; }
-  .patient-home .patient-start-card strong { font-size: 1.2rem; }
+  .patient-action-icon { width: 40px; height: 40px; padding: 8px; }
+  .patient-home .patient-start-card strong { font-size: 1.125rem; }
   .patient-home .patient-start-arrow { width: 16px; height: 16px; }
   .patient-home .patient-overview { padding: 1.25rem; }
   .patient-home .patient-overview-heading { align-items: flex-start; flex-wrap: wrap; }
@@ -244,10 +253,12 @@
 /* Rem-based container queries also reflow when only the text size increases. */
 @container patient-home (max-width: 60rem) {
   .patient-home .patient-hero { align-items: flex-start; flex-direction: column; gap: .85rem; }
-  .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; }
+  .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; margin-left: 0; }
   .patient-home-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notices" "actions"; }
   .patient-home .patient-mobile-record { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 48px; background: var(--green-2); border-color: var(--green-2); color: #fffdfa; }
   .patient-home .patient-start-card.primary { display: none; }
+  .patient-start-title-wide { display: none; }
+  .patient-start-title-narrow { display: inline; }
 }
 
 @container patient-home (max-width: 40rem) {

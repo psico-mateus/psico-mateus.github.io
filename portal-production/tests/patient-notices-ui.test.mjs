@@ -66,8 +66,8 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     await browser?.close();
   });
 
-  async function openPortal(role, viewport = { width: 1440, height: 1000 }, initialControls = {}) {
-    const context = await browser.newContext({ viewport, serviceWorkers: "block" });
+  async function openPortal(role, viewport = { width: 1440, height: 1000 }, initialControls = {}, reducedMotion = "no-preference") {
+    const context = await browser.newContext({ viewport, serviceWorkers: "block", reducedMotion });
     contexts.add(context);
     const page = await context.newPage();
     const controls = {
@@ -195,6 +195,8 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       } else {
         await expect(inbox.getByText("Nenhum aviso por aqui no momento.", { exact: true })).toBeVisible();
       }
+      await expect(inbox.getByRole("button", { name: "Atualizar avisos", exact: true })).toHaveText("Atualizar");
+      await assertPatientNoticesReadability(page);
     }
     await expect(page).toHaveTitle(/Área do paciente/u);
     assert.equal(new URL(page.url()).origin, new URL(baseUrl).origin);
@@ -203,10 +205,40 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     return { page, controls, context };
   }
 
+  async function assertPatientNoticesReadability(page) {
+    const inbox = page.locator(".patient-notices");
+    if (await inbox.count() === 0) return;
+    await expect(inbox.getByRole("heading", { name: "Avisos de Mateus", exact: true })).toBeVisible();
+    for (const counter of await inbox.locator(".notices-count").all()) await expect(counter).toBeVisible();
+    for (const state of await inbox.locator(".notice-item-summary .notice-item-meta").all()) {
+      await expect(state).toBeVisible();
+      await expect(state).toContainText(/Não lido|Lido/u);
+    }
+    const texts = await inbox.locator([
+      ".notices-title", ".notices-subtitle", ".notices-count", ".notice-item-heading",
+      ".notice-body", ".notices-empty", ".patient-notices-all-read",
+      ".notices-summary-action", ".notices-error > p",
+    ].join(", ")).evaluateAll((elements) => elements.filter((element) =>
+      element.getClientRects().length > 0 && window.getComputedStyle(element).visibility !== "hidden",
+    ).map((element) => ({ text: element.textContent.trim(), fontSize: Number.parseFloat(window.getComputedStyle(element).fontSize) })));
+    for (const item of texts) assert.ok(item.fontSize >= 16, `${item.text}: main notice text must remain at least 16px.`);
+    const targets = await inbox.locator("button, summary").evaluateAll((elements) => elements.filter((element) =>
+      element.getClientRects().length > 0 && window.getComputedStyle(element).visibility !== "hidden",
+    ).map((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { text: element.textContent.trim(), fontSize: Number.parseFloat(window.getComputedStyle(element).fontSize), width: bounds.width, height: bounds.height };
+    }));
+    for (const target of targets) {
+      assert.ok(target.width >= 44 && target.height >= 44, `${target.text}: notice controls must remain at least 44 × 44px.`);
+      assert.ok(target.fontSize >= 16, `${target.text}: notice controls must remain at least 16px.`);
+    }
+  }
+
   async function checkHealthy(page, controls, label) {
     assert.deepEqual(controls.unexpected, [], "No request may fall through the mocked API.");
     assert.deepEqual(controls.runtimeErrors, [], "No app runtime errors or warnings.");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "No horizontal overflow.");
+    await assertPatientNoticesReadability(page);
     await page.addScriptTag({ content: axe.source });
     const violations = await page.evaluate(async () => {
       const result = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] } });
@@ -224,16 +256,48 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
 
   for (const [label, viewport] of [["desktop", { width: 1440, height: 1000 }], ["mobile", { width: 390, height: 844 }], ["narrow-mobile", { width: 320, height: 740 }]]) {
     test(`patient ${label}: opening is read-only; explicit mark-read survives failure and preserves focus`, async () => {
-      const { page, controls } = await openPortal("patient", viewport);
+      const { page, controls } = await openPortal("patient", viewport, {}, label === "narrow-mobile" ? "reduce" : "no-preference");
       const inbox = page.locator(".patient-notices");
       await expect(inbox.locator(".notices-count")).toHaveText("1 não lido");
+      await expect(inbox.locator(".notices-count")).toBeVisible();
       await expect(inbox.getByRole("heading", { name: "Avisos de Mateus" })).toBeVisible();
       await expect(inbox.locator(".notice-item-heading").first()).toBeVisible();
       assert.equal(controls.mutations.length, 0);
       const notice = inbox.locator(".notice-item").first();
       await expect(notice.locator(".notice-body")).not.toBeVisible();
+      const previewTime = notice.locator("summary time");
+      await expect(previewTime).toBeVisible();
+      await expect(previewTime).toHaveAttribute("datetime", timestamp);
+      await expect(previewTime).not.toContainText(/\d{1,2}:\d{2}/u);
+      await expect(notice.locator("summary .notice-item-meta")).toContainText("Não lido");
+      await expect(inbox.locator(".notice-item").nth(1).locator("summary .notice-item-meta")).toContainText("Lido");
       await notice.locator("summary").click();
+      if (label === "narrow-mobile") {
+        // Read computed styles immediately after opening: no delayed transition
+        // may leave a downward chevron beside the already-visible close label.
+        const chevron = await notice.locator(".patient-notice-chevron").evaluate((element) => {
+          const styles = window.getComputedStyle(element);
+          const matrix = new DOMMatrixReadOnly(styles.transform);
+          return {
+            reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+            transition: styles.transitionProperty,
+            matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+          };
+        });
+        assert.equal(chevron.reducedMotion, true, "The narrow-mobile case must honor reduced motion.");
+        assert.equal(chevron.transition, "none", "The chevron must not transition even under global reduced-motion duration overrides.");
+        const openMatrix = [-1, 0, 0, -1, 0, 0];
+        assert.ok(chevron.matrix.every((value, index) => Math.abs(value - openMatrix[index]) < 0.000001),
+          "The open chevron must immediately point upward (180-degree rotation).");
+      }
       await expect(notice.locator(".notice-body")).toContainText("<img src=x onerror=alert(1)>");
+      const fullTimestamp = await page.evaluate((value) =>
+        new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)), timestamp);
+      await expect(notice.locator(".notice-sent-at")).toBeVisible();
+      await expect(notice.locator(".notice-sent-at")).toContainText("Enviado em");
+      await expect(notice.locator(".notice-sent-at time")).toHaveAttribute("datetime", timestamp);
+      await expect(notice.locator(".notice-sent-at time")).toHaveText(fullTimestamp);
+      await expect(notice.locator(".notice-sent-at time")).toContainText(/\d{1,2}:\d{2}/u);
       await expect(notice.locator("img")).toHaveCount(0);
       assert.ok((await notice.locator(".notice-item-heading").boundingBox()).width >= 120, "Expanded notice titles keep a readable column instead of collapsing beside a legacy disclosure marker.");
       assert.equal(controls.mutations.length, 0, "Opening/rendering never marks a notice read.");
@@ -241,8 +305,11 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       await notice.getByRole("button", { name: "Marcar como lido" }).click();
       await expect(notice.getByRole("alert")).toContainText("Falha sintética");
       await expect(inbox.locator(".notices-count")).toHaveText("1 não lido");
+      await expect(inbox.locator(".notices-count")).toBeVisible();
       await notice.getByRole("button", { name: "Marcar como lido" }).click();
       await expect(notice.locator(".notice-item-meta").last()).toContainText("Leitura confirmada");
+      await expect(notice.locator("summary .notice-item-meta")).toBeVisible();
+      await expect(notice.locator("summary .notice-item-meta")).toContainText("Lido");
       await expect(inbox.locator(".notices-count")).toHaveCount(0);
       await expect(inbox.getByText("Você já confirmou a leitura de todos os avisos.")).toBeVisible();
       await expect(notice.locator("summary")).toBeFocused();
@@ -266,6 +333,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     await inbox.getByRole("button", { name: "Tentar novamente" }).click();
     await expect(inbox.locator(".notice-item-heading")).toHaveCount(2);
     await expect(inbox.locator(".notices-count")).toHaveText("1 não lido");
+    await expect(inbox.locator(".notices-count")).toBeVisible();
     assert.equal(controls.mutations.length, 0);
     await checkHealthy(page, controls, "patient-initial-failure-retry-mobile");
   });

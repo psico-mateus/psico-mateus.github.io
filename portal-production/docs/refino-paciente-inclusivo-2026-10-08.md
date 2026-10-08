@@ -132,3 +132,36 @@ normal é do deployment, **não** restauração do banco nem revogação de cont
 Próxima melhoria só após observar necessidade: teste físico/assistivo, linguagem
 ou campo que cause dúvida real. Não criar funções novas apenas para preencher
 espaço, não duplicar perguntas de sessão e não redesenhar novamente sem evidência.
+
+## Segundo refinamento visual, ainda antes da publicação
+
+Após o pedido de mais acabamento, a revisão das capturas atuais confirmou excesso
+de caixas e altura no início, metadados longos nos avisos e ações com peso visual
+muito semelhante. O refinamento mantém a estrutura e os mesmos destinos:
+
+- Boas-vindas sem cartão externo e com explicação mais curta; aviso de privacidade
+  e ação de registrar preservados. A ação móvel usa o mesmo raio das outras ações.
+- Ações com texto sans legível e ícones existentes sobre fundo creme discreto.
+  No layout de uma coluna, o título passa a “Outras opções”, pois registrar já
+  está acima dos avisos. Continua havendo exatamente uma ação principal visível.
+- Avisos em linhas divisórias, sem cartões aninhados. Contador junto ao subtítulo,
+  estado textual, títulos sem truncamento e área clicável preservados.
+- Data curta em `time` na lista, com ano preservado; data e hora completas ao
+  abrir. Não há alteração de timestamps, texto enviado ou confirmação de leitura.
+- Atualização dos avisos menos dominante, mantendo nome acessível explícito;
+  área de conta com superfície e espaçamento consistentes com o restante.
+- Chevron muda de direção sem transição, inclusive com movimento reduzido.
+  A regra global existente de duração reduzida não passa a animar esse ícone.
+
+Este incremento não modifica requisições, sessão, rascunhos, persistência ou
+permissões. Não acrescenta biblioteca, serviço, notificação ou chat. Segue local.
+
+Repetidos neste incremento: lint, typecheck, build sanitizado, 194 testes, 9 testes
+de início por engine e os 12 casos de avisos por engine; Chromium e WebKit. Novas
+asserções verificam fonte principal ≥16 px, alvos de aviso ≥44×44 px, contagens e
+estados realmente visíveis, título contextual e metadados completos ao abrir.
+A matriz visual de 320/390/640/1366 px e as interações principais passou novamente.
+Capturas adicionais de 1440×1000 e 390×844, com dados sintéticos, confirmaram
+ausência de cortes/sobreposição e abertura somente de leitura. A integração HTTP
+de 309 verificações não foi repetida neste incremento: é o resultado do lote
+anterior, e os arquivos de backend/autenticação/banco não foram alterados.

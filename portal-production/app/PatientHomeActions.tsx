@@ -51,7 +51,7 @@ export function PatientHomeActions({ hasDraft, onRecord, onHistory, onMap, onRes
 
   return (
     <section className="patient-start" aria-labelledby="patient-start-title">
-      <header><h2 id="patient-start-title">O que você quer fazer?</h2></header>
+      <header><h2 id="patient-start-title"><span className="patient-start-title-wide">O que você quer fazer?</span><span className="patient-start-title-narrow">Outras opções</span></h2></header>
       <div className="patient-start-actions">
         {actions.map((action, index) => (
           <button key={index} className={`patient-start-card${index === 0 ? " primary" : ""}`} type="button" onClick={action.onClick}>
