@@ -12,6 +12,8 @@ const migrationNames = [
   "0004_patient_map_sharing.sql",
   "0005_patient_map_reset_cleanup.sql",
   "0006_entry_thought_reviews.sql",
+  "0007_professional_mfa_recovery.sql",
+  "0008_patient_notices.sql",
 ];
 const tableNames = [
   "users",
@@ -22,6 +24,8 @@ const tableNames = [
   "entry_views",
   "patient_map_draft_fields",
   "patient_map_shares",
+  "patient_notices",
+  "professional_mfa_recovery_codes",
   "sessions",
   "assisted_recovery_grants",
   "access_logs",
@@ -37,6 +41,8 @@ const expectedCounts = {
   entry_views: 1,
   patient_map_draft_fields: 2,
   patient_map_shares: 1,
+  patient_notices: 1,
+  professional_mfa_recovery_codes: 1,
   sessions: 1,
   assisted_recovery_grants: 1,
   access_logs: 1,
@@ -259,6 +265,22 @@ try {
     );
     await applyMigration(source, migrationNames[6]);
     insertSyntheticThoughtReview(source);
+    const preserved = source.prepare("SELECT * FROM users ORDER BY id").all().map((row) => ({ ...row }));
+    const recordsBefore = source.prepare("SELECT * FROM entries ORDER BY id").all();
+    await applyMigrations(source, migrationNames.slice(7));
+    assert.deepEqual(source.prepare("SELECT * FROM users ORDER BY id").all()
+      .map(({ mfa_recovery_set_id, ...user }) => { assert.equal(mfa_recovery_set_id, null); return user; }), preserved,
+    "as novas migrações preservam contas e credenciais existentes");
+    assert.deepEqual(source.prepare("SELECT * FROM entries ORDER BY id").all(), recordsBefore,
+      "as novas migrações preservam registros existentes");
+    source.exec(`
+      INSERT INTO patient_notices (id, patient_id, therapist_id, title, body, created_at)
+      VALUES ('notice_synthetic', 'patient_synthetic', 'therapist_synthetic',
+        'Aviso sintético', 'Conteúdo neutro do ensaio.', '2026-01-03T10:00:00.000Z');
+      INSERT INTO professional_mfa_recovery_codes (id, user_id, set_id, position, code_hash, created_at)
+      VALUES ('mfa_synthetic', 'therapist_synthetic', 'set_synthetic', 1,
+        'hash-synthetic-only-not-real', '2026-01-03T10:00:00.000Z');
+    `);
   } finally {
     source.close();
   }

@@ -60,6 +60,15 @@ test("build sanitization gives the service worker a deterministic client fingerp
     await rename(assetPath, renamedAssetPath);
     await executeSanitizer();
     assert.notEqual(await readFile(serviceWorkerPath, "utf8"), secondWorker);
+
+    await writeFile(serviceWorkerPath, 'const APP_BUILD_ID = "__CLIENT_BUILD_ID__";\n', "utf8");
+    await executeSanitizer();
+    const versionedWorker = await readFile(serviceWorkerPath, "utf8");
+    const buildId = versionedWorker.match(/area-do-paciente-client-build:([a-f0-9]{16})/u)?.[1];
+    assert.ok(buildId);
+    assert.ok(versionedWorker.includes(`const APP_BUILD_ID = "${buildId}";`));
+    await executeSanitizer();
+    assert.equal(await readFile(serviceWorkerPath, "utf8"), versionedWorker);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

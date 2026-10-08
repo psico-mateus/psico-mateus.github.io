@@ -203,6 +203,10 @@ async function routePortal(page, sessionRole = "patient") {
   await page.route("**/api/portal/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api\/portal/, "");
+    if (path === "/notices") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ notices: [], unread_count: 0, next_cursor: null }) });
+      return;
+    }
     if (path === "/config") {
       await route.fulfill({
         contentType: "application/json",
@@ -225,6 +229,52 @@ async function routePortal(page, sessionRole = "patient") {
             ? { id: "patient-synthetic", name: "Paciente", role: "patient" }
             : null,
           csrf: sessionRole === "patient" ? "csrf-synthetic" : undefined,
+        }),
+      });
+      return;
+    }
+    if (path === "/recover/mfa/start" && route.request().method() === "POST") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ticket: "ticket-sintetico-recuperacao-mfa".repeat(4),
+          totp_secret: "JBSWY3DPEHPK3PXP",
+          expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+        }),
+      });
+      return;
+    }
+    if (path === "/recover/mfa/confirm" && route.request().method() === "POST") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          user: { id: "therapist-synthetic", name: "Mateus", role: "therapist" },
+          csrf: "csrf-therapist-synthetic",
+          recovery_codes: Array.from(
+            { length: 8 },
+            (_, index) => `EMERG-${String(index + 1).padStart(2, "0")}-LOCAL`,
+          ),
+        }),
+      });
+      return;
+    }
+    if (path === "/account/mfa-recovery-codes" && route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          remaining: 8,
+          total: 8,
+          generated_at: now,
+        }),
+      });
+      return;
+    }
+    if (path === "/professional/patients" && route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          patients: [],
+          activity: { total_count: 0, shared_count: 0, private_count: 0 },
         }),
       });
       return;
@@ -377,6 +427,62 @@ async function reviewGuest(browserType, label, viewport) {
         `(acesso=${authBox?.y ?? "ausente"}, topo útil=${visibleTop}, altura=${viewport.height})`,
       );
     }
+  }
+
+  if (label === "guest-webkit-390") {
+    await page.getByText("Acesso profissional", { exact: true }).click();
+    await page
+      .getByRole("button", {
+        name: "Não tenho mais acesso ao autenticador",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("heading", { name: "Recupere seu autenticador", exact: true })
+      .waitFor();
+    await reviewScreen(
+      page,
+      `${label}-recuperacao-mfa-inicio`,
+      `${label}-recuperacao-mfa-inicio.png`,
+    );
+    const recoveryDialog = page.getByRole("dialog", {
+      name: "Recupere seu autenticador",
+      exact: true,
+    });
+    await recoveryDialog.getByLabel("E-mail profissional", { exact: true }).fill("mateus@example.test");
+    await recoveryDialog.getByLabel("Senha", { exact: true }).fill("senha-sintetica-local");
+    await recoveryDialog.getByLabel("Código emergencial", { exact: true }).fill("EMERG-01-LOCAL");
+    await recoveryDialog.getByRole("button", { name: "Continuar", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "Configure um novo autenticador", exact: true })
+      .waitFor();
+    await page
+      .getByText("Você ainda não entrou e o autenticador anterior ainda não foi substituído.", {
+        exact: false,
+      })
+      .waitFor();
+    await reviewScreen(
+      page,
+      `${label}-recuperacao-mfa-novo-autenticador`,
+      `${label}-recuperacao-mfa-novo-autenticador.png`,
+    );
+    await page
+      .getByLabel("Código de 6 dígitos do novo autenticador", { exact: true })
+      .fill("123456");
+    await page.getByRole("button", { name: "Confirmar e entrar", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "Seus códigos emergenciais", exact: true })
+      .waitFor();
+    if ((await page.locator(".recovery-codes-list li").count()) !== 8) {
+      throw new Error(`${label}: a recuperação não mostrou os oito códigos emergenciais`);
+    }
+    await reviewScreen(
+      page,
+      `${label}-recuperacao-mfa-codigos`,
+      `${label}-recuperacao-mfa-codigos.png`,
+    );
+    await page.getByRole("button", { name: "Já guardei em segurança", exact: true }).click();
+    await page.getByRole("heading", { name: "Olá, Mateus.", exact: true }).waitFor();
   }
 
   const dimensions = await assertViewportFits(page, `${label}-acesso-final`);

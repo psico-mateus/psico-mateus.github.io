@@ -183,6 +183,7 @@ async function routeProfessionalPortal(page) {
     failNextMapRequest: false,
     delayNextMapRequestMs: 0,
     mfaTransferExpiryMs: 15 * 60_000,
+    mfaRecoveryCodesRemaining: 6,
   };
   const mapSharesByPatient = new Map([
     [mapOnlyPatient.patient_id, [structuredClone(mapOnlyShare)]],
@@ -262,6 +263,29 @@ async function routeProfessionalPortal(page) {
           totp_secret: "JBSWY3DPEHPK3PXP",
           ticket: "ticket-sintetico-cifrado-para-revisao-visual-local".repeat(3),
           expires_at: new Date(Date.now() + controls.mfaTransferExpiryMs).toISOString(),
+        }),
+      );
+      return;
+    }
+    if (path === "/account/mfa-recovery-codes" && method === "GET") {
+      await route.fulfill(
+        jsonResponse({
+          remaining: controls.mfaRecoveryCodesRemaining,
+          total: 8,
+          generated_at: ago(20),
+        }),
+      );
+      return;
+    }
+    if (path === "/account/mfa-recovery-codes" && method === "POST") {
+      controls.mfaRecoveryCodesRemaining = 8;
+      await route.fulfill(
+        jsonResponse({
+          recovery_codes: Array.from(
+            { length: 8 },
+            (_, index) => `EMERG-${String(index + 1).padStart(2, "0")}-LOCAL`,
+          ),
+          generated_at: now.toISOString(),
         }),
       );
       return;
@@ -423,6 +447,22 @@ async function reviewProfessional(browserType, label, viewport) {
     viewport,
     reducedMotion: "reduce",
     serviceWorkers: "block",
+  });
+  // O clipboard nativo pode aguardar uma permissão do sistema em WebKit
+  // headless. Aqui verificamos a UI com um clipboard sintético; o fallback
+  // de seleção possui testes comportamentais próprios em portal.test.mjs.
+  await context.addInitScript(() => {
+    window.__syntheticClipboardWriteCount = 0;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (text) => {
+        window.__syntheticClipboardWriteCount += 1;
+        if (window.__syntheticRejectClipboard) {
+          throw new DOMException("Synthetic permission refusal", "NotAllowedError");
+        }
+        window.__syntheticCopiedText = text;
+      } },
+    });
   });
   const page = await context.newPage();
   const assertNoRuntimeErrors = trackRuntimeErrors(
@@ -658,10 +698,153 @@ async function reviewProfessional(browserType, label, viewport) {
   await invitationRefreshAfterVisibility;
 
   await page.getByText("Segurança e conta", { exact: true }).click();
-  await page.getByRole("heading", { name: "Vai trocar de celular?", exact: true }).waitFor();
+  await page
+    .getByRole("heading", {
+      name: "Códigos emergenciais do autenticador",
+      exact: true,
+    })
+    .waitFor();
+  await page.getByText("6 de 8 disponíveis", { exact: true }).waitFor();
   await reviewScreen(page, `${label}-seguranca`, `${label}-seguranca.png`);
+  const emergencyCodes = page.getByRole("region", {
+    name: "Códigos emergenciais do autenticador",
+    exact: true,
+  });
+  await emergencyCodes.getByLabel("Senha atual", { exact: true }).fill("senha-sintetica-local");
+  await emergencyCodes
+    .getByLabel("Código atual do autenticador", { exact: true })
+    .fill("123456");
+  page.once("dialog", (dialog) => dialog.accept());
+  await emergencyCodes
+    .getByRole("button", { name: "Criar 8 novos códigos", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Seus códigos emergenciais", exact: true })
+    .waitFor();
+  if ((await page.locator(".recovery-codes-list li").count()) !== 8) {
+    throw new Error(`${label}: a nova lista não exibiu oito códigos emergenciais`);
+  }
+  const recoveryCodesDialog = page.getByRole("dialog", {
+    name: "Seus códigos emergenciais",
+    exact: true,
+  });
+  const copyAllButton = recoveryCodesDialog.getByRole("button", { name: "Copiar todos", exact: true });
+  await copyAllButton.scrollIntoViewIfNeeded();
+  if (viewport.width <= 390 && (await recoveryCodesDialog.evaluate((dialog) => dialog.scrollTop)) <= 0) {
+    throw new Error(`${label}: a regressão de foco não cobriu o modal rolado no celular`);
+  }
+  // A pointer click, not dispatchEvent, catches WebKit moving focus to MAIN
+  // on mousedown. Refocusing the title must not scroll before the mouseup.
+  await copyAllButton.click();
+  try {
+    await recoveryCodesDialog.getByRole("button", { name: "Códigos copiados", exact: true }).waitFor();
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => ({
+      scrollTop: document.querySelector(".recovery-codes-dialog")?.scrollTop,
+      focusedTag: document.activeElement?.tagName,
+      focusedId: document.activeElement?.id,
+      clipboardWrites: window.__syntheticClipboardWriteCount,
+    }));
+    await page.screenshot({ path: resolve(outputDir, `${label}-copy-failure.png`), fullPage: false });
+    throw new Error(`${label}: o clique em Copiar todos não concluiu ${JSON.stringify(diagnostic)}`, { cause: error });
+  }
+  const displayedCodes = await recoveryCodesDialog.locator(".recovery-codes-list code").allTextContents();
+  const copied = await page.evaluate(() => ({ text: window.__syntheticCopiedText, writes: window.__syntheticClipboardWriteCount }));
+  if (copied.writes !== 1 || copied.text !== displayedCodes.join("\n")) {
+    throw new Error(`${label}: o clique não copiou exatamente os oito códigos exibidos uma única vez`);
+  }
+  // Refuse Clipboard API permission and inspect the real browser's focused
+  // selection at the exact legacy-copy call, without writing the OS clipboard.
+  await page.evaluate(() => {
+    window.__syntheticRejectClipboard = true;
+    window.__syntheticFallbackAllowed = true;
+    window.__syntheticFallbackCalls = [];
+    window.__syntheticOriginalExecCommand = document.execCommand;
+    document.execCommand = (command) => {
+      const dialog = document.querySelector(".recovery-codes-dialog");
+      const field = document.activeElement;
+      const expected = [...dialog.querySelectorAll(".recovery-codes-list code")]
+        .map((code) => code.textContent).join("\n");
+      const validSelection = command === "copy" && field instanceof HTMLTextAreaElement
+        && dialog.contains(field) && field.value === expected
+        && field.selectionStart === 0 && field.selectionEnd === expected.length
+        && document.getSelection()?.toString() === expected;
+      const accepted = validSelection && window.__syntheticFallbackAllowed;
+      window.__syntheticFallbackCalls.push({
+        focusedTag: field?.tagName,
+        validSelection,
+        accepted,
+      });
+      if (accepted) window.__syntheticCopiedText = field.value;
+      return accepted;
+    };
+  });
+  await recoveryCodesDialog.getByRole("button", { name: "Códigos copiados", exact: true }).click();
+  await page.waitForFunction(() => window.__syntheticFallbackCalls.length === 1);
+  const fallback = await page.evaluate(() => ({
+    call: window.__syntheticFallbackCalls[0],
+    text: window.__syntheticCopiedText,
+    temporaryFieldRemoved: !document.querySelector(".recovery-codes-dialog textarea[aria-hidden=true]"),
+    focusRestored: document.querySelector(".recovery-codes-dialog").contains(document.activeElement),
+  }));
+  if (!fallback.call.accepted || fallback.text !== displayedCodes.join("\n")
+    || !fallback.temporaryFieldRemoved || !fallback.focusRestored) {
+    throw new Error(`${label}: o fallback não preservou seleção, foco e limpeza ${JSON.stringify(fallback.call)}`);
+  }
+  await page.evaluate(() => { window.__syntheticFallbackAllowed = false; });
+  await recoveryCodesDialog.getByRole("button", { name: "Códigos copiados", exact: true }).click();
+  await recoveryCodesDialog.getByText(
+    "O navegador bloqueou a cópia. Selecione os códigos e copie manualmente.",
+    { exact: true },
+  ).waitFor();
+  if (await recoveryCodesDialog.getByRole("button", { name: "Códigos copiados", exact: true }).count()) {
+    throw new Error(`${label}: a cópia recusada manteve uma confirmação falsa de sucesso`);
+  }
+  await page.screenshot({ path: resolve(outputDir, `${label}-copy-fallback-blocked.png`), fullPage: false });
+  await page.evaluate(() => { window.__syntheticFallbackAllowed = true; });
+  await recoveryCodesDialog.getByRole("button", { name: "Copiar todos", exact: true }).click();
+  await recoveryCodesDialog.getByRole("button", { name: "Códigos copiados", exact: true }).waitFor();
+  const fallbackCalls = await page.evaluate(() => window.__syntheticFallbackCalls);
+  if (fallbackCalls.length !== 3 || fallbackCalls.some(({ validSelection }) => !validSelection)
+    || fallbackCalls.map(({ accepted }) => accepted).join() !== "true,false,true") {
+    throw new Error(`${label}: o fallback não validou sucesso, recusa e nova tentativa ${JSON.stringify(fallbackCalls)}`);
+  }
+  await page.evaluate(() => {
+    document.execCommand = window.__syntheticOriginalExecCommand;
+    window.__syntheticRejectClipboard = false;
+  });
+  await reviewScreen(
+    page,
+    `${label}-codigos-emergenciais`,
+    `${label}-codigos-emergenciais.png`,
+  );
+  await page.emulateMedia({ media: "print" });
+  const recoveryCodesPrintState = await page.evaluate(() => ({
+    listVisibility: getComputedStyle(document.querySelector(".recovery-codes-list")).visibility,
+    actionsDisplay: getComputedStyle(document.querySelector(".recovery-codes-actions")).display,
+    doneDisplay: getComputedStyle(document.querySelector(".recovery-codes-done")).display,
+  }));
+  if (
+    recoveryCodesPrintState.listVisibility !== "visible" ||
+    recoveryCodesPrintState.actionsDisplay !== "none" ||
+    recoveryCodesPrintState.doneDisplay !== "none"
+  ) {
+    throw new Error(`${label}: a impressão dos códigos emergenciais não ficou privada e limpa`);
+  }
+  await page.emulateMedia({ media: "screen" });
+  await recoveryCodesDialog
+    .getByRole("button", { name: "Já guardei em segurança", exact: true })
+    .click();
+  await page.getByText("8 de 8 disponíveis", { exact: true }).waitFor();
+
+  await page
+    .getByRole("heading", {
+      name: "Quer preparar um segundo autenticador?",
+      exact: true,
+    })
+    .waitFor();
   const mfaTransfer = page.getByRole("region", {
-    name: "Vai trocar de celular?",
+    name: "Quer preparar um segundo autenticador?",
     exact: true,
   });
   await mfaTransfer.getByLabel("Senha atual", { exact: true }).fill("senha-sintetica-local");
@@ -669,22 +852,22 @@ async function reviewProfessional(browserType, label, viewport) {
     .getByLabel("Código atual do autenticador", { exact: true })
     .fill("123456");
   await mfaTransfer
-    .getByRole("button", { name: "Preparar troca de celular", exact: true })
+    .getByRole("button", { name: "Preparar segundo autenticador", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .getByRole("heading", { name: "Prepare um segundo autenticador", exact: true })
     .waitFor();
   await reviewScreen(page, `${label}-troca-celular`, `${label}-troca-celular.png`);
   const transferDialog = page.getByRole("dialog", {
-    name: "Guarde o acesso também no Mac",
+    name: "Prepare um segundo autenticador",
     exact: true,
   });
   const macCodeField = transferDialog.getByLabel(
-    "Código de 6 dígitos mostrado no Mac",
+    "Código de 6 dígitos do segundo autenticador",
     { exact: true },
   );
   const confirmMacButton = transferDialog.getByRole("button", {
-    name: "Confirmar código do Mac",
+    name: "Confirmar segundo autenticador",
     exact: true,
   });
   await macCodeField.scrollIntoViewIfNeeded();
@@ -699,7 +882,7 @@ async function reviewProfessional(browserType, label, viewport) {
   );
   await page.keyboard.press("Shift+Tab");
   await page.waitForFunction(
-    () => document.activeElement?.textContent?.includes("Confirmar código do Mac"),
+    () => document.activeElement?.textContent?.includes("Confirmar segundo autenticador"),
   );
   await page.emulateMedia({ media: "print" });
   const printState = await page.evaluate(() => ({
@@ -723,10 +906,10 @@ async function reviewProfessional(browserType, label, viewport) {
   await page.emulateMedia({ media: "screen" });
   await page.keyboard.press("Escape");
   await page
-    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .getByRole("heading", { name: "Prepare um segundo autenticador", exact: true })
     .waitFor({ state: "detached" });
   await page.waitForFunction(() =>
-    document.activeElement?.textContent?.includes("Preparar troca de celular"),
+    document.activeElement?.textContent?.includes("Preparar segundo autenticador"),
   );
 
   routeControls.mfaTransferExpiryMs = 80;
@@ -735,17 +918,17 @@ async function reviewProfessional(browserType, label, viewport) {
     .getByLabel("Código atual do autenticador", { exact: true })
     .fill("123456");
   await mfaTransfer
-    .getByRole("button", { name: "Preparar troca de celular", exact: true })
+    .getByRole("button", { name: "Preparar segundo autenticador", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .getByRole("heading", { name: "Prepare um segundo autenticador", exact: true })
     .waitFor();
   await page.getByText(
     "O tempo para copiar a chave terminou. Nada foi alterado. Quando quiser, comece novamente.",
     { exact: true },
   ).waitFor();
   await page
-    .getByRole("heading", { name: "Guarde o acesso também no Mac", exact: true })
+    .getByRole("heading", { name: "Prepare um segundo autenticador", exact: true })
     .waitFor({ state: "detached" });
 
   const dimensions = await assertViewportFits(page, `${label}-final`);

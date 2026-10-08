@@ -341,6 +341,35 @@ async function setProfessionalTotpCounter(userId, counter) {
   }
 }
 
+async function professionalMfaRecoveryState(userId) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  try {
+    const account = database
+      .prepare(
+        `SELECT totp_secret, last_totp_counter, mfa_recovery_set_id,
+                password_hash
+         FROM users WHERE id = ? AND role = 'therapist'`,
+      )
+      .get(userId);
+    const codes = database
+      .prepare(
+        `SELECT id, set_id, position, code_hash, created_at, used_at,
+                invalidated_at, consumption_nonce
+         FROM professional_mfa_recovery_codes
+         WHERE user_id = ?
+         ORDER BY created_at, set_id, position`,
+      )
+      .all(userId);
+    const sessionCount = database
+      .prepare("SELECT COUNT(*) AS total FROM sessions WHERE user_id = ?")
+      .get(userId).total;
+    return { account, codes, sessionCount };
+  } finally {
+    database.close();
+  }
+}
+
 async function clearSyntheticAuthWindows() {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(databasePath);
@@ -882,7 +911,7 @@ const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
 assert.equal(
   await storedPrivacyVersion(patientA.user.id),
-  "2026-08-20",
+  "2026-10-08",
   "novo cadastro deve registrar a versão atual do aviso de privacidade",
 );
 
@@ -2743,6 +2772,41 @@ expectStatus(
   "exportação com sessão profissional",
 );
 
+const noticeComposePath = `/professional/patients/${patientA.user.id}/notices`;
+const noticeInput = {
+  title: "Aviso sintético de integração",
+  body: "Texto exclusivamente sintético para verificar o fluxo HTTP de avisos.",
+  client_request_id: "request-http-notice-synthetic-01",
+};
+expectStatus(await api("/notices"), 401, "avisos sem sessão");
+expectStatus(await api("/notices", { auth: therapist }), 403, "profissional na lista exclusiva do paciente");
+expectStatus(await api(noticeComposePath, { method: "POST", body: noticeInput, auth: patientA }), 403, "paciente tentando enviar aviso profissional");
+expectStatus(await api(noticeComposePath, { method: "POST", body: noticeInput, auth: therapist, includeCsrf: false }), 403, "aviso sem CSRF");
+expectStatus(await api(noticeComposePath, { method: "POST", body: noticeInput, auth: therapist, includeOrigin: false }), 403, "aviso sem origem confiável");
+const createdNotice = await api(noticeComposePath, { method: "POST", body: noticeInput, auth: therapist });
+expectStatus(createdNotice, 201, "criação HTTP de aviso");
+assert.equal(createdNotice.payload.idempotent, false);
+assert.deepEqual(Object.keys(createdNotice.payload.notice).sort(), ["body", "created_at", "id", "read_at", "title"]);
+assert.equal(createdNotice.payload.notice.read_at, null);
+assert.match(createdNotice.response.headers.get("cache-control") ?? "", /no-store/iu);
+const repeatedNotice = await api(noticeComposePath, { method: "POST", body: noticeInput, auth: therapist });
+expectStatus(repeatedNotice, 200, "repetição idempotente do aviso");
+assert.deepEqual(repeatedNotice.payload, { notice: createdNotice.payload.notice, idempotent: true });
+const patientNotices = await api("/notices", { auth: patientA });
+expectStatus(patientNotices, 200, "lista HTTP de avisos do paciente");
+assert.deepEqual(patientNotices.payload, { notices: [createdNotice.payload.notice], unread_count: 1, next_cursor: null });
+const noticeReadPath = `/notices/${createdNotice.payload.notice.id}/read`;
+expectStatus(await api(noticeReadPath, { method: "POST", body: {}, auth: patientB }), 404, "outro paciente não pode ler aviso");
+const readNotice = await api(noticeReadPath, { method: "POST", body: {}, auth: patientA });
+expectStatus(readNotice, 200, "marcação HTTP de aviso lido");
+assert.ok(Date.parse(readNotice.payload.notice.read_at));
+const repeatedReadNotice = await api(noticeReadPath, { method: "POST", body: {}, auth: patientA });
+expectStatus(repeatedReadNotice, 200, "leitura repetida preserva data original");
+assert.equal(repeatedReadNotice.payload.notice.read_at, readNotice.payload.notice.read_at);
+const professionalNotices = await api(noticeComposePath, { auth: therapist });
+expectStatus(professionalNotices, 200, "histórico HTTP de avisos do profissional");
+assert.deepEqual(professionalNotices.payload, { notices: [readNotice.payload.notice], unread_count: 0, next_cursor: null });
+
 const exportResult = await api("/export", { auth: patientA });
 expectStatus(exportResult, 200, "exportação do paciente");
 assert.match(
@@ -2750,7 +2814,8 @@ assert.match(
   /meus-dados-area-do-paciente\.json/u,
 );
 assert.equal(exportResult.payload.format, "area-do-paciente-export");
-assert.equal(exportResult.payload.format_version, 3);
+assert.equal(exportResult.payload.format_version, 4);
+assert.deepEqual(exportResult.payload.notices, [readNotice.payload.notice]);
 assert.equal(exportResult.payload.account.display_name, synthetic.sharedName);
 assert.equal(exportResult.payload.account.account_type, "patient");
 assert.equal(exportResult.payload.account.account_status, "active");
@@ -2838,6 +2903,7 @@ for (const forbiddenKey of [
   "token_hash",
   "csrf_token",
   "request_id",
+  "client_request_id",
   "generation",
   "revision",
   "snapshot",
@@ -2849,6 +2915,19 @@ for (const forbiddenKey of [
     false,
     `a exportação não pode conter ${forbiddenKey}`,
   );
+}
+
+const noticeRemovalPath = `${noticeComposePath}/${createdNotice.payload.notice.id}`;
+expectStatus(await api(noticeRemovalPath, { method: "DELETE", auth: patientA }), 403, "paciente não pode excluir aviso profissional");
+expectStatus(await api(noticeRemovalPath, { method: "DELETE", auth: therapist }), 204, "exclusão HTTP de aviso");
+expectStatus(await api(noticeReadPath, { method: "POST", body: {}, auth: patientA }), 404, "aviso removido não pode ser lido");
+expectStatus(await api(noticeComposePath, { method: "POST", body: noticeInput, auth: therapist }), 409, "repetição tardia não ressuscita aviso removido");
+const exportAfterNoticeDeletion = await api("/export", { auth: patientA });
+expectStatus(exportAfterNoticeDeletion, 200, "exportação depois da remoção do aviso");
+assert.deepEqual(exportAfterNoticeDeletion.payload.notices, []);
+const noticeAudit = await serializedAccessLogs();
+for (const secretValue of [noticeInput.title, noticeInput.body, noticeInput.client_request_id]) {
+  assert.equal(noticeAudit.includes(secretValue), false, "auditoria HTTP não pode conter texto ou chave de envio de aviso");
 }
 
 const invitations = await api("/invitations", { auth: therapist });
@@ -3369,10 +3448,340 @@ const sessionAfterMfaTransfer = await api("/session", { auth: therapist });
 expectStatus(sessionAfterMfaTransfer, 200, "sessão preservada depois da preparação do Mac");
 assert.equal(sessionAfterMfaTransfer.payload.user.role, "therapist");
 
+await clearSyntheticAuthWindows();
+const anonymousMfaRecoveryStatus = await api("/account/mfa-recovery-codes");
+expectStatus(
+  anonymousMfaRecoveryStatus,
+  401,
+  "estado dos códigos MFA sem sessão",
+);
+expectStatus(
+  await api("/account/mfa-recovery-codes", { auth: activePatientForMfa }),
+  403,
+  "paciente consultando códigos MFA profissionais",
+);
+const initialMfaRecoveryStatus = await api("/account/mfa-recovery-codes", {
+  auth: therapist,
+});
+expectStatus(initialMfaRecoveryStatus, 200, "estado inicial dos códigos MFA");
+assert.deepEqual(initialMfaRecoveryStatus.payload, {
+  remaining: 0,
+  total: 0,
+  generated_at: null,
+});
+
+expectStatus(
+  await api("/account/mfa-recovery-codes", {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: "000000",
+    },
+    auth: therapist,
+    includeCsrf: false,
+  }),
+  403,
+  "geração de códigos MFA sem CSRF",
+);
+const recoveryGenerationTime = Date.now();
+await setProfessionalTotpCounter(
+  therapist.user.id,
+  Math.floor(recoveryGenerationTime / 30_000) - 2,
+);
+const recoveryGenerationTotp = totp(
+  setup.payload.totp_secret,
+  recoveryGenerationTime,
+);
+const wrongPasswordMfaRecoveryGeneration = await api(
+  "/account/mfa-recovery-codes",
+  {
+    method: "POST",
+    body: {
+      current_password: "SenhaProfissionalIncorreta123",
+      totp: recoveryGenerationTotp,
+    },
+    auth: therapist,
+  },
+);
+expectStatus(
+  wrongPasswordMfaRecoveryGeneration,
+  400,
+  "geração de códigos MFA com senha errada",
+);
+assert.equal("recovery_codes" in wrongPasswordMfaRecoveryGeneration.payload, false);
+
+const firstMfaRecoveryGeneration = await api(
+  "/account/mfa-recovery-codes",
+  {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: recoveryGenerationTotp,
+    },
+    auth: therapist,
+  },
+);
+expectStatus(firstMfaRecoveryGeneration, 200, "geração dos códigos MFA");
+assert.equal(firstMfaRecoveryGeneration.payload.recovery_codes.length, 8);
+assert.equal(
+  new Set(firstMfaRecoveryGeneration.payload.recovery_codes).size,
+  8,
+);
+for (const code of firstMfaRecoveryGeneration.payload.recovery_codes) {
+  assert.match(code, /^[A-Z2-7]{4}(?:-[A-Z2-7]{4}){3}$/u);
+}
+assert.match(
+  firstMfaRecoveryGeneration.response.headers.get("cache-control") ?? "",
+  /no-store/iu,
+);
+const firstStoredRecoveryState = await professionalMfaRecoveryState(
+  therapist.user.id,
+);
+assert.equal(firstStoredRecoveryState.codes.length, 8);
+assert.equal(
+  firstStoredRecoveryState.codes.filter(
+    (code) => code.used_at === null && code.invalidated_at === null,
+  ).length,
+  8,
+);
+assert.doesNotMatch(
+  JSON.stringify(firstStoredRecoveryState),
+  new RegExp(
+    firstMfaRecoveryGeneration.payload.recovery_codes
+      .map((code) => code.replaceAll("-", ""))
+      .join("|"),
+    "u",
+  ),
+  "o banco deve guardar somente HMAC dos códigos MFA",
+);
+
+const secondMfaRecoveryGeneration = await api(
+  "/account/mfa-recovery-codes",
+  {
+    method: "POST",
+    body: {
+      current_password: synthetic.therapistPassword,
+      totp: totp(setup.payload.totp_secret, recoveryGenerationTime + 30_000),
+    },
+    auth: therapist,
+  },
+);
+expectStatus(
+  secondMfaRecoveryGeneration,
+  200,
+  "substituição integral dos códigos MFA",
+);
+const secondMfaRecoveryCodes = secondMfaRecoveryGeneration.payload.recovery_codes;
+assert.equal(secondMfaRecoveryCodes.length, 8);
+const replacedRecoveryState = await professionalMfaRecoveryState(
+  therapist.user.id,
+);
+assert.equal(replacedRecoveryState.codes.length, 16);
+assert.equal(
+  replacedRecoveryState.codes.filter(
+    (code) => code.used_at === null && code.invalidated_at === null,
+  ).length,
+  8,
+  "somente o conjunto mais novo pode permanecer ativo",
+);
+const currentMfaRecoveryStatus = await api("/account/mfa-recovery-codes", {
+  auth: therapist,
+});
+assert.deepEqual(currentMfaRecoveryStatus.payload, {
+  remaining: 8,
+  total: 8,
+  generated_at: secondMfaRecoveryGeneration.payload.generated_at,
+});
+
+const rejectedOldEmergencyCode = await api("/recover/mfa/start", {
+  method: "POST",
+  body: {
+    email: synthetic.therapistEmail,
+    password: synthetic.therapistPassword,
+    recovery_code: firstMfaRecoveryGeneration.payload.recovery_codes[0],
+  },
+  clientIp: "203.0.113.120",
+});
+expectStatus(rejectedOldEmergencyCode, 400, "código MFA de conjunto substituído");
+assert.deepEqual(rejectedOldEmergencyCode.payload, {
+  error: "Não foi possível recuperar o acesso profissional.",
+});
+assert.equal("totp_secret" in rejectedOldEmergencyCode.payload, false);
+
+const professionalStateBeforeRecovery = await professionalMfaRecoveryState(
+  therapist.user.id,
+);
+const clinicalCountsBeforeProfessionalRecovery = await clinicalTableCounts();
+const startedProfessionalMfaRecovery = await api("/recover/mfa/start", {
+  method: "POST",
+  body: {
+    email: synthetic.therapistEmail,
+    password: synthetic.therapistPassword,
+    recovery_code: secondMfaRecoveryCodes[0].toLowerCase().replaceAll("-", " "),
+  },
+  clientIp: "203.0.113.121",
+});
+expectStatus(startedProfessionalMfaRecovery, 200, "início da recuperação do MFA");
+assert.ok(startedProfessionalMfaRecovery.payload.ticket.length >= 200);
+assert.match(
+  startedProfessionalMfaRecovery.payload.totp_secret,
+  /^[A-Z2-7]{32}$/u,
+);
+assert.ok(Date.parse(startedProfessionalMfaRecovery.payload.expires_at) > Date.now());
+assert.equal(startedProfessionalMfaRecovery.response.headers.get("set-cookie"), null);
+assert.match(
+  startedProfessionalMfaRecovery.response.headers.get("cache-control") ?? "",
+  /no-store/iu,
+);
+assert.deepEqual(
+  await professionalMfaRecoveryState(therapist.user.id),
+  professionalStateBeforeRecovery,
+  "a primeira etapa não pode trocar MFA, consumir código ou revogar sessões",
+);
+
+const rejectedNewMfaTotp = await api("/recover/mfa/confirm", {
+  method: "POST",
+  body: {
+    ticket: startedProfessionalMfaRecovery.payload.ticket,
+    totp: "000000",
+  },
+  clientIp: "203.0.113.121",
+});
+expectStatus(rejectedNewMfaTotp, 400, "confirmação com novo MFA incorreto");
+assert.deepEqual(rejectedNewMfaTotp.payload, {
+  error: "Não foi possível recuperar o acesso profissional.",
+});
+assert.equal(rejectedNewMfaTotp.response.headers.get("set-cookie"), null);
+assert.deepEqual(
+  await professionalMfaRecoveryState(therapist.user.id),
+  professionalStateBeforeRecovery,
+  "erro na confirmação não pode alterar o acesso",
+);
+
+const newMfaConfirmationCode = totp(
+  startedProfessionalMfaRecovery.payload.totp_secret,
+);
+const recoveredSessionA = session();
+const recoveredSessionB = session();
+const concurrentMfaRecoveries = await Promise.all([
+  api("/recover/mfa/confirm", {
+    method: "POST",
+    body: {
+      ticket: startedProfessionalMfaRecovery.payload.ticket,
+      totp: newMfaConfirmationCode,
+    },
+    auth: recoveredSessionA,
+    clientIp: "203.0.113.122",
+  }),
+  api("/recover/mfa/confirm", {
+    method: "POST",
+    body: {
+      ticket: startedProfessionalMfaRecovery.payload.ticket,
+      totp: newMfaConfirmationCode,
+    },
+    auth: recoveredSessionB,
+    clientIp: "203.0.113.123",
+  }),
+]);
+assert.deepEqual(
+  concurrentMfaRecoveries
+    .map(({ response }) => response.status)
+    .sort((left, right) => left - right),
+  [200, 400],
+  "o mesmo código emergencial deve concluir a recuperação uma única vez",
+);
+const successfulMfaRecoveryIndex = concurrentMfaRecoveries.findIndex(
+  ({ response }) => response.status === 200,
+);
+const successfulMfaRecovery = concurrentMfaRecoveries[successfulMfaRecoveryIndex];
+const recoveredProfessionalSession =
+  successfulMfaRecoveryIndex === 0 ? recoveredSessionA : recoveredSessionB;
+assert.equal(successfulMfaRecovery.payload.user.role, "therapist");
+assert.equal(successfulMfaRecovery.payload.recovery_codes.length, 8);
+assert.match(
+  successfulMfaRecovery.response.headers.get("set-cookie") ?? "",
+  /^portal_session=[^;]+/u,
+);
+const professionalStateAfterRecovery = await professionalMfaRecoveryState(
+  therapist.user.id,
+);
+assert.notEqual(
+  professionalStateAfterRecovery.account.totp_secret,
+  professionalStateBeforeRecovery.account.totp_secret,
+);
+assert.equal(professionalStateAfterRecovery.sessionCount, 1);
+assert.equal(
+  professionalStateAfterRecovery.codes.filter(
+    (code) => code.used_at === null && code.invalidated_at === null,
+  ).length,
+  8,
+);
+assert.equal(
+  professionalStateAfterRecovery.codes.filter(
+    (code) => code.consumption_nonce !== null,
+  ).length,
+  1,
+  "um único código antigo deve registrar o consumo CAS",
+);
+assert.deepEqual(
+  await clinicalTableCounts(),
+  clinicalCountsBeforeProfessionalRecovery,
+  "recuperar MFA não pode alterar dados clínicos ou identidades",
+);
+
+const oldProfessionalSessionAfterRecovery = await api("/session", {
+  auth: therapist,
+});
+assert.equal(oldProfessionalSessionAfterRecovery.payload.user, null);
+const secondOldProfessionalSessionAfterRecovery = await api("/session", {
+  auth: secondProfessionalSession,
+});
+assert.equal(secondOldProfessionalSessionAfterRecovery.payload.user, null);
+const completeRecoveredSession = await api("/session", {
+  auth: recoveredProfessionalSession,
+});
+expectStatus(completeRecoveredSession, 200, "nova sessão depois de recuperar MFA");
+assert.equal(completeRecoveredSession.payload.user.role, "therapist");
+
+const replayedProfessionalMfaRecovery = await api("/recover/mfa/confirm", {
+  method: "POST",
+  body: {
+    ticket: startedProfessionalMfaRecovery.payload.ticket,
+    totp: newMfaConfirmationCode,
+  },
+  clientIp: "203.0.113.124",
+});
+expectStatus(replayedProfessionalMfaRecovery, 400, "reutilização do ticket MFA");
+const reusedOldEmergencyCode = await api("/recover/mfa/start", {
+  method: "POST",
+  body: {
+    email: synthetic.therapistEmail,
+    password: synthetic.therapistPassword,
+    recovery_code: secondMfaRecoveryCodes[0],
+  },
+  clientIp: "203.0.113.125",
+});
+expectStatus(reusedOldEmergencyCode, 400, "reutilização do código emergencial");
+
+const logsAfterProfessionalMfaRecovery = await serializedAccessLogs();
+for (const secretValue of [
+  startedProfessionalMfaRecovery.payload.ticket,
+  startedProfessionalMfaRecovery.payload.totp_secret,
+  newMfaConfirmationCode,
+  ...secondMfaRecoveryCodes,
+  ...successfulMfaRecovery.payload.recovery_codes,
+]) {
+  assert.equal(
+    logsAfterProfessionalMfaRecovery.includes(secretValue),
+    false,
+    "auditoria não pode conter ticket, chave TOTP ou código emergencial",
+  );
+}
+
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 255,
+    checks: 309,
     data: "synthetic-only",
     production_requests: 0,
   }),
