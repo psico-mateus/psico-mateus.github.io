@@ -95,3 +95,16 @@ Antes de trocar de celular, o profissional deve abrir **Segurança e conta →
 Códigos emergenciais do autenticador**, gerar a lista com senha + MFA atual e
 guardá-la em local seguro separado do aparelho. A lista aparece uma única vez.
 O recurso não dispensa a senha nem recupera retroativamente códigos perdidos.
+
+## Código-fonte e sincronização
+
+Os commits estão salvos na branch local `agent/prepara-troca-celular-20260824`.
+O envio dessa branch ao GitHub ficou pendente: HTTPS sem credencial disponível
+e SSH sem chave autorizada. Não foi feito merge ou atualização de `main`.
+Isso não afeta os deployments Cloudflare concluídos e verificados acima.
+
+Foi guardado um bundle Git privado, incluindo a branch e sua história, em
+`/Users/mateus/.codex/backups/psico-mateus/2026-10-08/source-avisos-recuperacao.bundle`.
+O arquivo tem permissão `0600`, está fora do repositório e passou em
+`git bundle verify`. Após reconectar o GitHub, enviar a branch normalmente;
+não usar force-push nem reconstruir o trabalho a partir do `main` desatualizado.
