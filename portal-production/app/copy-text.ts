@@ -27,7 +27,10 @@ function copyWithSelection(text: string) {
     opacity: "0",
     pointerEvents: "none",
   });
-  document.body.appendChild(textArea);
+  // A modal focus trap must not redirect focus away from the selection field.
+  // Keep it in the currently focused dialog; ordinary pages still use body.
+  const copyContainer = activeElement?.closest('[role="dialog"], dialog') ?? document.body;
+  copyContainer.appendChild(textArea);
 
   try {
     textArea.focus({ preventScroll: true });
