@@ -6,36 +6,87 @@ e não autoriza alterações no banco de produção.
 
 ## O que protege o acesso
 
-O acesso profissional combina três elementos diferentes:
+O acesso profissional combina quatro elementos diferentes:
 
 1. **Senha ou frase-senha:** primeiro fator de autenticação.
 2. **Aplicativo autenticador (MFA):** gera um código temporário de seis dígitos a
    partir de uma chave TOTP. Ele continua obrigatório mesmo depois de redefinir a
    senha.
-3. **Código de recuperação da conta:** serve para criar uma nova senha quando a
+3. **Códigos emergenciais do autenticador:** uma lista com oito códigos de uso
+   único. Um deles, junto do e-mail e da senha, permite cadastrar um novo
+   autenticador quando nenhum dos antigos está disponível.
+4. **Código para recuperar a senha:** serve para criar uma nova senha quando a
    anterior foi esquecida. Ele **não substitui o autenticador e não recupera o
    MFA**.
 
 A chave TOTP aparece durante a configuração inicial e permanece cifrada no banco
 com `APP_SECRET`. Em uma sessão profissional já autenticada, a opção **Preparar
-troca de celular** pode reexibi-la temporariamente depois de confirmar a senha e
-um código MFA atual. Isso não desativa nem substitui o MFA.
+um segundo autenticador** pode reexibi-la temporariamente depois de confirmar a
+senha e um código MFA atual. Isso não desativa nem substitui o MFA.
 
-## Troca planejada de celular
+Os códigos emergenciais são o caminho principal de recuperação quando Mateus
+perde todos os autenticadores. Eles não dependem do Mac, da Conta Apple, de
+e-mail, de um segundo celular ou de suporte técnico. Essa independência exige
+uma preparação simples: gerar a lista enquanto o acesso normal ainda funciona e
+guardar pelo menos uma cópia em local privado, separada da senha.
 
-Faça esta preparação antes de entregar ou apagar o iPhone antigo. Não é necessário
-estar com os dois celulares ao mesmo tempo:
+## Preparar a recuperação independente
+
+Faça isto uma vez assim que a função estiver disponível:
 
 1. No painel profissional, abra **Segurança e conta**.
-2. Em **Vai trocar de celular?**, escolha **Preparar troca de celular**.
+2. Em **Códigos emergenciais do autenticador**, confira o status da lista.
+3. Informe a senha atual e um código do autenticador.
+4. Escolha **Criar 8 novos códigos** e confirme que a lista anterior será
+   invalidada.
+5. Guarde a nova lista. É possível copiar todos, baixar um arquivo TXT em um
+   dispositivo particular ou imprimir em uma impressora particular.
+6. Mantenha a lista separada da senha. Não envie por mensagem, e-mail ou conversa
+   com IA e não salve em pasta compartilhada.
+7. Feche a janela somente depois de conferir a cópia: os códigos aparecem uma
+   única vez.
+
+Cada código funciona uma única vez. O painel mostra apenas quantos ainda estão
+disponíveis, nunca os valores antigos. Criar uma lista nova invalida toda lista
+anterior sem alterar a senha, o autenticador atual, pacientes ou registros.
+
+## Recuperar sem o celular antigo nem o Mac
+
+Se todos os autenticadores forem perdidos, mas ainda houver a senha e um código
+emergencial:
+
+1. Abra o login da Área do paciente e expanda **Acesso profissional**.
+2. Escolha **Não tenho mais acesso ao autenticador**.
+3. Informe o e-mail profissional, a senha e um código emergencial guardado.
+4. O portal mostrará uma nova chave por tempo limitado. Nesse ponto você ainda
+   não entrou e a recuperação ainda não terminou.
+5. Abra qualquer aplicativo autenticador TOTP em um aparelho confiável, escolha
+   adicionar uma conta manualmente e cole a chave.
+6. Digite no portal um código novo de seis dígitos gerado pelo aplicativo.
+7. Somente depois dessa confirmação a sessão profissional será aberta.
+8. Guarde a nova lista de oito códigos emergenciais exibida uma única vez. A lista
+   anterior deixa de funcionar.
+
+O código emergencial não entra sozinho: e-mail e senha válidos continuam
+obrigatórios, e o novo autenticador precisa gerar um código correto antes de o
+portal liberar o painel.
+
+## Segundo autenticador opcional
+
+Um segundo autenticador é uma prevenção adicional, não o único caminho de
+recuperação. Ele pode estar em outro celular, tablet, computador ou gerenciador
+de senhas compatível com TOTP. O Mac é apenas uma dessas opções:
+
+1. No painel profissional, abra **Segurança e conta**.
+2. Em **Quer preparar um segundo autenticador?**, escolha **Preparar segundo
+   autenticador**.
 3. Confirme a senha e um código atual do autenticador do iPhone antigo.
-4. No Mac, abra o app **Senhas**, localize ou crie a entrada da Área do paciente e
-   use **Editar → Configurar código → Chave de configuração**.
-5. Cole a chave exibida pelo portal.
-6. Espere o código do Mac mudar e confirme esse novo número no portal.
-7. Antes de entregar o iPhone, saia e entre novamente usando um código gerado pelo
-   Mac. Só considere a preparação concluída depois desse teste.
-8. Se quiser uma segunda contingência, use a opção de cópia em papel apenas em uma
+4. No autenticador secundário, escolha adicionar uma conta por chave de
+   configuração e cole a chave exibida pelo portal.
+5. Espere o código mudar e confirme esse novo número no portal.
+6. Antes de entregar o iPhone, saia e entre novamente usando um código gerado pelo
+   segundo autenticador. Só considere a preparação concluída depois desse teste.
+7. Se quiser uma segunda contingência, use a opção de cópia em papel apenas em uma
    impressora particular. A folha permite gerar os códigos: não a salve em PDF
    compartilhado e mantenha-a separada da senha.
 
@@ -44,22 +95,22 @@ ticket que liga as duas etapas é cifrado, expira, vale apenas para a mesma sess
 deixa de ser válido se a chave TOTP for alterada. O fluxo não altera contas,
 sessões, pacientes ou registros.
 
-Se **Senhas e Chaves do iCloud** estiver habilitado na mesma Conta Apple, o código
-de verificação pode sincronizar com o iPhone novo. Mesmo que isso não aconteça, o
-Mac já confirmado permite entrar e repetir a preparação no aparelho novo: abra
-novamente **Segurança e conta → Preparar troca de celular** usando um código do Mac
-e cadastre a chave no novo iPhone.
+Se o segundo autenticador sincronizar com o aparelho novo, o código pode aparecer
+automaticamente. Se não aparecer, ainda é possível usar um código emergencial para
+cadastrar um novo autenticador. Portanto, a recuperação não depende da
+sincronização.
 
 ## Prevenção imediata
 
 Faça esta preparação enquanto o autenticador atual ainda está disponível:
 
-- use **Preparar troca de celular** para manter o TOTP no app Senhas do Mac ou em
-  outro autenticador confiável;
+- gere e guarde os oito códigos emergenciais do autenticador;
+- use **Preparar segundo autenticador** se também quiser manter o TOTP em outro
+  aparelho confiável;
 - teste o segundo autenticador com um código novo, sem reutilizar o mesmo código
   que acabou de ser aceito;
 - se guardar a chave TOTP em papel ou arquivo cifrado, mantenha-a em local físico
-  controlado e separado do código de recuperação da conta;
+  controlado e separado dos códigos emergenciais e do código para recuperar a senha;
 - não salve captura do QR code no aplicativo Fotos, em pasta compartilhada ou em
   serviço sem proteção adequada;
 - conserve uma cópia offline e segura do `APP_SECRET`. A Cloudflare oculta o valor
@@ -70,11 +121,18 @@ Faça esta preparação enquanto o autenticador atual ainda está disponível:
 - registre apenas a data em que o conjunto de recuperação foi conferido. Não
   registre chaves, códigos ou senhas neste repositório.
 
-O conjunto mínimo recomendado é: autenticador principal, autenticador secundário
-testado, código de recuperação da conta guardado separadamente e cópia offline do
-`APP_SECRET`.
+O conjunto mínimo recomendado para o uso cotidiano é: autenticador principal,
+senha e lista de códigos emergenciais guardada separadamente. Um autenticador
+secundário testado e uma cópia offline do `APP_SECRET` adicionam contingência
+administrativa, mas não são pré-requisitos para o fluxo de recuperação do portal.
 
 ## Se o celular for perdido ou roubado
+
+### Há um código emergencial
+
+Use o fluxo **Não tenho mais acesso ao autenticador** descrito acima. Depois de
+confirmar o novo autenticador, guarde a lista substituta e encerre as demais
+sessões se o aparelho perdido puder ter permanecido conectado.
 
 ### Há um segundo autenticador ou uma cópia segura da chave TOTP
 
@@ -87,10 +145,11 @@ testado, código de recuperação da conta guardado separadamente e cópia offli
 6. Se houver possibilidade de a chave TOTP ter sido exposta, programe uma rotação
    controlada do MFA; apenas recuperar a mesma chave não elimina essa exposição.
 
-### Não há segundo autenticador nem cópia da chave TOTP
+### Não há autenticador, chave TOTP nem código emergencial
 
-O código de recuperação da conta não resolve esse caso. Não há atualmente um
-fluxo automático no portal para substituir o MFA de uma conta profissional ativa.
+O código para recuperar a senha não resolve esse caso. Também não é seguro criar
+um botão que aceite apenas e-mail e senha, pois isso transformaria a recuperação
+em um bypass do MFA.
 
 1. Não apague nem recrie a conta profissional.
 2. Não altere `APP_SECRET` ou `SETUP_SECRET`.
@@ -99,19 +158,19 @@ fluxo automático no portal para substituir o MFA de uma conta profissional ativ
    sessões profissionais como a primeira ação da manutenção controlada.
 5. Não tente alterar o D1 manualmente. O procedimento de escrita remota continua
    indisponível nesta versão.
-6. Preserve o estado e aguarde a conclusão do ensaio remoto descartável descrito
-   adiante.
+6. Preserve o estado para uma manutenção técnica controlada, sem apagar a conta ou
+   recriar o banco.
 
-Sem um autenticador secundário já testado ou uma cópia segura da chave, não existe
-um bypass público do MFA. A preparação guiada reduz esse risco sem enfraquecer o
-login profissional.
+Sem autenticador, chave TOTP ou código emergencial, não existe um bypass público
+do MFA. Guardar a lista emergencial é o que torna a recuperação simples sem
+enfraquecer o login profissional.
 
 ## O que não fazer
 
 - Não flexibilizar os endpoints de configuração inicial para aceitar uma conta
   profissional já ativa.
 - Não transformar `SETUP_SECRET` em um código público de redefinição do MFA.
-- Não permitir que apenas o código de recuperação de senha desative ou substitua o
+- Não permitir que apenas o código para recuperar a senha desative ou substitua o
   autenticador.
 - Não criar endpoint público, link por e-mail ou “pergunta de segurança” para
   recuperar o acesso profissional.
@@ -121,8 +180,9 @@ login profissional.
   armazenado, e sua troca improvisada pode inutilizar contas existentes.
 - Não executar SQL manual copiado de mensagens ou documentos sem validações,
   bookmark, ensaio e conferência do alvo.
-- Não enviar senha, `APP_SECRET`, chave TOTP, QR code, código MFA ou código de
-  recuperação por e-mail, mensageiro, issue, commit, log ou conversa com IA.
+- Não enviar senha, `APP_SECRET`, chave TOTP, QR code, código MFA, código
+  emergencial ou código para recuperar a senha por e-mail, mensageiro, issue,
+  commit, log ou conversa com IA.
 - Não restaurar o banco inteiro por Time Travel para corrigir somente o MFA. A
   restauração sobrescreve o D1 e pode remover registros legítimos criados depois do
   ponto escolhido; ela é último recurso para um incidente de banco, não o fluxo
@@ -131,10 +191,11 @@ login profissional.
 ## Checklist preventivo
 
 - [ ] O autenticador principal funciona.
-- [ ] O Mac foi configurado pela opção **Preparar troca de celular** e testado com
-      um código novo.
-- [ ] A chave TOTP, se mantida, está protegida e separada do código de recuperação.
-- [ ] O código de recuperação da conta está guardado em local seguro.
+- [ ] Existem códigos emergenciais disponíveis e uma cópia segura foi conferida.
+- [ ] O segundo autenticador, se usado, foi configurado pela opção **Preparar
+      segundo autenticador** e testado com um código novo.
+- [ ] A chave TOTP, se mantida, está protegida e separada dos demais fatores.
+- [ ] O código para recuperar a senha está guardado em local seguro.
 - [ ] Existe uma cópia offline e segura do `APP_SECRET`.
 - [ ] A conta da Cloudflare tem recuperação independente do celular principal.
 - [ ] Nenhum segredo foi colocado no Git, nas fotos, em logs ou em mensagens.
@@ -143,7 +204,7 @@ login profissional.
 ## Checklist de incidente
 
 - [ ] Classificar o aparelho como perdido ou possivelmente roubado.
-- [ ] Usar o autenticador secundário, se disponível.
+- [ ] Usar um código emergencial ou o autenticador secundário, se disponível.
 - [ ] Encerrar todas as sessões profissionais.
 - [ ] Alterar a senha se ela puder ter sido exposta.
 - [ ] Confirmar que o login exige e aceita o MFA.

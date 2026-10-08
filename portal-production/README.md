@@ -92,6 +92,9 @@ com uma origem explicitamente local:
 ```bash
 PORTAL_VISUAL_BASE_URL=http://localhost:3000/ pnpm test:visual
 PORTAL_VISUAL_BASE_URL=http://localhost:3000/ pnpm test:visual:professional
+PORTAL_VISUAL_BASE_URL=http://localhost:3000/ node tests/manual-update-review.mjs
+PORTAL_NOTICES_UI_BASE_URL=http://localhost:3000/ node --test tests/patient-notices-ui.test.mjs
+PORTAL_NOTICES_UI_BASE_URL=http://localhost:3000/ PORTAL_NOTICES_UI_BROWSER=webkit node --test tests/patient-notices-ui.test.mjs
 ```
 
 A primeira cobre visitante e paciente. A segunda intercepta a API somente no
@@ -141,10 +144,23 @@ Pacientes e profissional podem encerrar todas as sessões da própria conta em c
 de aparelho perdido ou acesso esquecido. A ação exige a senha atual, exige também
 um novo código MFA no perfil profissional e não altera nem exclui registros.
 
-O código de recuperação da conta profissional redefine somente a senha; ele não
-substitui o autenticador. A prevenção para perda do celular e o desenho de uma
-futura rotação local, sem endpoint público, estão documentados em
+O código de recuperação da senha continua separado do autenticador. No painel
+profissional, senha atual e um código MFA permitem gerar oito códigos de emergência
+de uso único. Guarde-os antes de perder o celular, de preferência também fora dele.
+Na tela de entrada, senha + um desses códigos permitem configurar um novo
+autenticador, sem depender do Mac. Nada muda até confirmar o novo autenticador;
+a confirmação encerra sessões antigas e substitui os códigos de emergência.
+O procedimento e a recuperação técnica excepcional estão documentados em
 [`docs/recuperacao-acesso-profissional.md`](docs/recuperacao-acesso-profissional.md).
+
+Avisos individuais ficam no início da área de cada paciente e no respectivo
+acesso profissional. Não são chat: não há respostas, push nem notificações com
+conteúdo sensível. O paciente marca explicitamente como lido. O texto é removido
+ao retirar um aviso; a conta excluída remove também avisos e códigos MFA por FK.
+As migrações `0007_professional_mfa_recovery.sql` e `0008_patient_notices.sql`
+precisam de backup e aprovação antes de qualquer aplicação remota. Uma tabela
+de avisos ainda ausente não pode impedir login ou cadastro; apenas a nova área
+fica temporariamente indisponível.
 
 O encerramento do vínculo desativa o acesso e encerra sessões, mas não apaga
 automaticamente a conta ou os registros. O aviso de privacidade orienta como
