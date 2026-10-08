@@ -16,6 +16,11 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
+
+  // Documentos e seus redirecionamentos seguem a navegação nativa do navegador.
+  // Encaminhá-los por respondWith(fetch(...)) pode travar a navegação no WebKit.
+  if (request.mode === "navigate") return;
+
   const url = new URL(request.url);
 
   if (request.method !== "GET" || url.origin !== self.location.origin) return;

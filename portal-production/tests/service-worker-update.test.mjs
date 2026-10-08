@@ -39,6 +39,17 @@ test("worker encaminha GET autenticado à rede, sem guardar resposta clínica", 
   assert.equal(state.requests[0], request);
 });
 
+test("worker deixa documentos e redirecionamentos com a navegação nativa", () => {
+  const { handlers, state } = worker();
+  for (const url of ["/", "/privacidade/", "/privacidade"]) {
+    handlers.get("fetch")({
+      request: { mode: "navigate", method: "GET", url: `https://portal.example.test${url}` },
+      respondWith: () => assert.fail("documento não deve passar pelo service worker"),
+    });
+  }
+  assert.equal(state.requests.length, 0);
+});
+
 test("worker não intercepta escritas nem requisições externas", () => {
   const { handlers, state } = worker();
   for (const request of [

@@ -69,6 +69,19 @@ test("build sanitization gives the service worker a deterministic client fingerp
     assert.ok(versionedWorker.includes(`const APP_BUILD_ID = "${buildId}";`));
     await executeSanitizer();
     assert.equal(await readFile(serviceWorkerPath, "utf8"), versionedWorker);
+
+    // Um hotfix apenas no SW deve reaparecer mesmo para quem dispensou a versão
+    // anterior; reprocessar o mesmo hotfix continua determinístico.
+    await writeFile(serviceWorkerPath, `${versionedWorker}// worker-only hotfix\n`, "utf8");
+    await executeSanitizer();
+    const hotfixWorker = await readFile(serviceWorkerPath, "utf8");
+    const hotfixId = hotfixWorker.match(/area-do-paciente-client-build:([a-f0-9]{16})/u)?.[1];
+    assert.ok(hotfixId);
+    assert.notEqual(hotfixId, buildId);
+    assert.ok(hotfixWorker.includes(`const APP_BUILD_ID = "${hotfixId}";`));
+    assert.equal(hotfixWorker.match(/area-do-paciente-client-build/g)?.length, 1);
+    await executeSanitizer();
+    assert.equal(await readFile(serviceWorkerPath, "utf8"), hotfixWorker);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

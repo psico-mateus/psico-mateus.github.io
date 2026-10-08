@@ -83,6 +83,16 @@ async function stampServiceWorker(directory) {
     /^\/\/ area-do-paciente-client-build:[a-f0-9]{16}\r?\n/u,
     "",
   );
+  // Uma correção apenas no worker também é uma versão nova. O identificador
+  // anterior é normalizado para não criar uma referência circular no hash.
+  const normalizedWorker = unstampedWorker.replace(
+    /const APP_BUILD_ID = "(?:__CLIENT_BUILD_ID__|[a-f0-9]{16})";/u,
+    'const APP_BUILD_ID = "__CLIENT_BUILD_ID__";',
+  );
+  fingerprint.update("sw.js");
+  fingerprint.update("\0");
+  fingerprint.update(normalizedWorker);
+  fingerprint.update("\0");
   const buildId = fingerprint.digest("hex").slice(0, 16);
   await writeFile(
     serviceWorkerPath,
