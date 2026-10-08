@@ -2,12 +2,18 @@
 
 ## Estado
 
-Lote **local, não publicado**, posterior a `b05dd02`, na branch
-`agent/refino-paciente-inclusivo-20261008`. O refinamento anterior do início e
-dos avisos (`4dec3c4`) está publicado nos dois endereços; versões e retorno
-registrados em `rollback-refino-paciente-2026-10-08.md`.
+Lote **publicado no endereço principal**, após aprovação do responsável,
+código `9a8cf2a`, na branch `agent/refino-paciente-inclusivo-20261008`.
+Versão principal `db6c7213-dfb0-42d1-8418-a213772a561a`, tráfego 100%,
+fingerprint `a3ddfce297d7e10c`.
 
-Não houve merge, push, deploy, migração remota ou alteração de secrets neste lote.
+O Worker legado não foi publicado neste lote exclusivo de interface. Continua
+na versão `0478b052-cd09-4b42-bab7-71c710616e72`, com o refinamento anterior do
+início e dos avisos (`4dec3c4`) e a API original. Ambos os endereços continuam
+funcionais; não houve novo redirecionamento. Retorno rápido para a versão
+principal imediatamente anterior em `rollback-refino-registros-2026-10-08.md`.
+
+Não houve merge, push, migração remota ou alteração de secrets neste lote.
 
 ## Revisão e correções confirmadas
 
@@ -74,6 +80,13 @@ no caminho de Downloads nesta retomada. Nenhum conteúdo clínico foi reescrito;
 foram usados código atual, continuidade do repositório e princípios do prompt
 mestre disponível, sem reaplicar decisões antigas já superadas.
 
-Antes de publicar: aprovação do responsável, novo build público sanitizado,
-conferência das versões ativas e registro do retorno para a versão atualmente
-publicada — não para versões anteriores ao refinamento do início.
+Publicação: aprovação obtida, novo build público sanitizado, dry-run aprovado,
+versões ativas conferidas e retorno registrado para a versão imediatamente
+anterior — não para versões anteriores ao refinamento do início. O preflight
+público passou nos oito endpoints, sem autenticação ou escrita em produção.
+O pós-check passou nos mesmos oito endpoints e em quatro cenários de navegador
+(dois endereços × Chromium desktop/WebKit móvel), com SW controlador ativo,
+navegação pública login/cadastro/recuperação/privacidade, sem erros ou overflow.
+Fingerprints principal novo e legado anterior confirmados. A intermitência de
+conexão do executor na primeira tentativa e as limitações dos testes públicos
+estão registradas no runbook de publicação. Nenhum formulário real foi enviado.
