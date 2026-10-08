@@ -11,6 +11,8 @@ import {
 } from "react";
 import { AppUpdateManager } from "./AppUpdateManager";
 import { PatientNotices } from "./PatientNotices";
+import { PatientHomeActions, PatientQuickRecordAction } from "./PatientHomeActions";
+import "./patient-home.css";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import {
@@ -2523,51 +2525,17 @@ function PatientDashboard({
         <section className="patient-home" aria-labelledby="patient-home-title">
           <section className="dashboard-hero patient-hero">
             <div className="patient-hero-copy">
-              <p className="eyebrow">SUA ÁREA DO PACIENTE</p>
               <h1 id="patient-home-title" tabIndex={-1}>Olá, {user.name}.</h1>
-              <p>Escolha o que faz sentido agora. Nada é compartilhado automaticamente.</p>
-              <span className="patient-privacy-chip"><span aria-hidden="true" /> Privado por padrão</span>
+              <p>Este espaço acompanha sua terapia. Você escolhe o que usar e o que compartilhar.</p>
             </div>
+            <p className="patient-home-privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="12" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v3" /></svg>Seus registros começam privados.</p>
+            <PatientQuickRecordAction hasDraft={Boolean(editing)} onRecord={openNewRecord} />
           </section>
 
+          <div className="patient-home-workspace">
           <PatientNotices patientId={user.id} csrf={csrf} onSessionLost={onSessionLost} />
-
-          <section className="patient-start" aria-labelledby="patient-start-title">
-            <header>
-              <p className="eyebrow">ESCOLHA UM CAMINHO</p>
-              <h2 id="patient-start-title">O que pode ajudar você agora?</h2>
-            </header>
-            <p className="patient-start-guide">
-              <strong>Registro</strong> guarda acontecimentos. <strong>Meu mapa</strong> ajuda a
-              observar padrões ao longo do tempo.
-            </p>
-            <div className="patient-start-actions">
-              <button className="patient-start-card primary" type="button" onClick={openNewRecord}>
-                <span className="patient-start-kicker">{editing ? "RASCUNHO NESTA SESSÃO" : "REGISTRO"}</span>
-                <strong>{editing ? "Continuar registro" : "Registrar algo"}</strong>
-                <small>{editing ? "O que você escreveu continua guardado enquanto esta página estiver aberta." : "Guardar uma situação, emoção ou dúvida."}</small>
-                <span className="patient-start-arrow" aria-hidden="true">→</span>
-              </button>
-              <button className="patient-start-card" type="button" onClick={openRecordHistory}>
-                <span className="patient-start-kicker">HISTÓRICO</span>
-                <strong>Ver meus registros</strong>
-                <small>Consultar o que você escreveu e os compartilhamentos.</small>
-                <span className="patient-start-arrow" aria-hidden="true">→</span>
-              </button>
-              <button className="patient-start-card" type="button" onClick={() => changeArea("map")}>
-                <span className="patient-start-kicker">MEU MAPA</span>
-                <strong>Abrir Meu mapa</strong>
-                <small>Observar gostos, limites e possibilidades e continuar depois.</small>
-                <span className="patient-start-arrow" aria-hidden="true">→</span>
-              </button>
-              <button className="patient-start-card" type="button" onClick={openResourceIndex}>
-                <span className="patient-start-kicker">RECURSOS</span>
-                <strong>Ver recursos</strong>
-                <small>Encontrar uma ferramenta ou ler sobre um tema.</small>
-                <span className="patient-start-arrow" aria-hidden="true">→</span>
-              </button>
-            </div>
-          </section>
+          <PatientHomeActions hasDraft={Boolean(editing)} onRecord={openNewRecord} onHistory={openRecordHistory} onMap={() => changeArea("map")} onResources={openResourceIndex} />
+          </div>
 
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <header className="patient-overview-heading">
@@ -2576,13 +2544,14 @@ function PatientDashboard({
                 <span aria-hidden="true">↻</span> {refreshing ? "Atualizando…" : "Atualizar"}
               </button>
             </header>
+            {entriesError && entries.length > 0 ? <p className="patient-summary-stale">Este resumo mostra os últimos dados carregados. Tente atualizar para conferir se houve mudanças.</p> : null}
             <div className="patient-overview-metrics">
               <article>
                 <span className="overview-number">{loading ? "…" : entriesError && entries.length === 0 ? "—" : entries.length}</span>
                 <div>
                   <strong>{entries.length === 1 ? "registro no histórico" : "registros no histórico"}</strong>
                   <small>
-                    {privateCount === 0
+                    {loading ? "Consultando seus registros…" : entriesError && entries.length === 0 ? "Resumo indisponível. Tente carregar novamente." : privateCount === 0
                       ? "Nenhum registro está privado."
                       : privateCount === 1
                         ? "1 registro continua privado · só você vê."
@@ -2596,6 +2565,8 @@ function PatientDashboard({
                   <strong>{sharedCount === 1 ? "compartilhado com Mateus" : "compartilhados com Mateus"}</strong>
                   {loading ? (
                     <small>Consultando visualizações…</small>
+                  ) : entriesError && entries.length === 0 ? (
+                    <small>Não foi possível consultar os compartilhamentos.</small>
                   ) : sharedCount === 0 ? (
                     <small>Nenhum registro está visível para Mateus.</small>
                   ) : (

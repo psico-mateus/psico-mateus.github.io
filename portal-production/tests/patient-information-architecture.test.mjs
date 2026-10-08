@@ -9,6 +9,8 @@ const mapCatalog = await readFile(new URL("../content/patient-map-catalog.ts", i
 const tools = await readFile(new URL("../app/PatientToolsShell.tsx", import.meta.url), "utf8");
 const navigationState = await readFile(new URL("../app/patient-navigation.ts", import.meta.url), "utf8");
 const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const homeActions = await readFile(new URL("../app/PatientHomeActions.tsx", import.meta.url), "utf8");
+const homeCss = await readFile(new URL("../app/patient-home.css", import.meta.url), "utf8");
 
 test("patient navigation has four clear destinations in the intended order", () => {
   assert.match(navigationState, /type PatientArea = "home" \| "records" \| "map" \| "resources"/u);
@@ -33,21 +35,26 @@ test("patient navigation has four clear destinations in the intended order", () 
 
 test("home separates the four patient uses without adding progress pressure", () => {
   for (const phrase of [
-    "O que pode ajudar você agora?",
+    "O que você quer fazer?",
     "Registrar algo",
     "Ver meus registros",
     "Abrir Meu mapa",
     "Ver recursos",
-    "Nada é compartilhado automaticamente",
-    "Registro</strong> guarda acontecimentos",
-    "Meu mapa</strong> ajuda a",
-    "observar padrões ao longo do tempo",
+    "Guardar uma situação, emoção ou dúvida.",
+    "Consultar seu histórico e os compartilhamentos.",
+    "Observar gostos, limites e possibilidades.",
+    "Encontrar ferramentas e leituras complementares.",
   ]) {
-    assert.match(app, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    assert.match(homeActions, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
   }
-  assert.doesNotMatch(app, /sequência de dias|meta semanal|pontuação do mapa/iu);
-  assert.doesNotMatch(app, /patient-start-number/u);
-  assert.match(app, /Continuar registro/u);
+  assert.doesNotMatch(app + homeActions, /sequência de dias|meta semanal|pontuação do mapa/iu);
+  assert.doesNotMatch(homeActions, /patient-start-number/u);
+  assert.match(homeActions, /Continuar registro/u);
+  assert.match(app, /Seus registros começam privados/u);
+  assert.match(app, /<PatientHomeActions hasDraft=\{Boolean\(editing\)\}/u);
+  assert.doesNotMatch(homeActions, /fetch\(|portalRequest|localStorage|sessionStorage|useEffect/u);
+  assert.match(homeCss, /transition: none/u);
+  assert.match(homeCss, /grid-template-areas: "notices" "actions"/u);
 });
 
 test("resources keep practical tools, readings and the public Guide distinct", () => {
