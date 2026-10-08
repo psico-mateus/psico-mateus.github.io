@@ -387,10 +387,9 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
   assert.match(app, /Este campo não envia mensagem nem pedido de resposta imediata/);
   assert.match(app, /preencha somente “Título breve” e “O que aconteceu\?”/);
   assert.match(app, /className="field-label-line"[\s\S]*?Necessário/);
-  assert.match(app, /className="entry-optional-disclosure"/);
-  assert.match(app, /open=\{optionalOpen\}/);
-  assert.match(app, /useState\(\(\) => optionalHasContent\)/);
-  assert.match(app, /Fechar não apaga suas respostas/);
+  assert.match(app, /className="entry-step entry-step-details"/);
+  assert.match(app, /Corpo, pensamentos e vontade/);
+  assert.doesNotMatch(app, /optionalOpen|optionalHasContent|entry-optional-disclosure/u);
   assert.match(app, /Será salvo como privado/);
   assert.match(app, /Continuará compartilhado com Mateus/);
   assert.match(app, /Salvar registro privado/);
@@ -1284,47 +1283,52 @@ test("mobile access shortcut and patient summary remain simple and private", asy
   assert.doesNotMatch(visualReview, /https:\/\/area-do-paciente/u);
 });
 
-test("record form keeps the session note visible and reveals other optional fields without losing values", async () => {
+test("record form keeps optional fields visible and offers early save immediately after the required situation", async () => {
   const [app, styles] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
-  const optionalStep =
-    app.match(
-      /<section className="entry-step entry-step-optional"[\s\S]*?<details[\s\S]*?<div className="two-columns optional-fields">[\s\S]*?<\/section>/u,
-    )?.[0] ?? "";
-  assert.match(optionalStep, /Quer parar por aqui\?/u);
-  assert.match(optionalStep, /type="submit"/u);
-  assert.match(optionalStep, /Salvar agora como privado/u);
-  assert.match(optionalStep, /O restante é opcional/u);
-  assert.match(optionalStep, /Adicionar outros detalhes/u);
-  assert.match(optionalStep, /onToggle=\{\(event\) => setOptionalOpen\(event\.currentTarget\.open\)\}/u);
-  assert.match(optionalStep, /O que percebeu no corpo\?/u);
-  assert.match(optionalStep, /Quais pensamentos apareceram\?/u);
-  assert.match(optionalStep, /id="entry-session-note"/u);
-  assert.match(optionalStep, /O que quero levar/u);
-  assert.match(optionalStep, /O que ficou presente desde a última sessão\?/u);
-  assert.match(optionalStep, /O que gostaria de levar para a próxima sessão\?/u);
-  assert.match(optionalStep, /Nada é compartilhado automaticamente/u);
-  assert.equal(optionalStep.match(/update\("message", event\.target\.value\)/gu)?.length, 1);
-  assert.ok(
-    optionalStep.indexOf('id="entry-session-note"') <
-      optionalStep.indexOf('className="entry-optional-disclosure"'),
-    "the session note must be visible before the disclosure for other optional details",
-  );
-  assert.match(
-    app,
-    /const optionalHasContent = \[draft\.body, draft\.thoughts, draft\.urge\]/u,
-  );
+  const form = app.slice(app.indexOf("function EntryForm("), app.indexOf("function EntryDetails("));
+  const detailsStep = form.match(/<section className="entry-step entry-step-details"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  const sessionStep = form.match(/<section className="entry-step entry-step-optional"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  const shortcut = form.match(/<div className="optional-save-shortcut">[\s\S]*?<\/div>/u)?.[0] ?? "";
+  assert.match(shortcut, /O restante é opcional/u);
+  assert.match(shortcut, /título e a situação/u);
+  assert.match(shortcut, /pode salvar agora ou continuar abaixo/u);
+  assert.match(shortcut, /type="submit"/u);
+  assert.match(shortcut, /Salvar agora como privado/u);
+  assert.match(shortcut, /Salvar alterações agora/u);
+  assert.match(shortcut, /Este registro continuará compartilhado com Mateus/u);
+  assert.match(shortcut, /Este registro continuará privado/u);
+  assert.doesNotMatch(form, /optionalOpen|optionalHasContent|entry-optional-disclosure|Quer parar por aqui\?/u);
+  assert.match(detailsStep, /aria-labelledby="entry-step-three"/u);
+  assert.match(detailsStep, /Corpo, pensamentos e vontade/u);
+  assert.match(detailsStep, /O que percebeu no corpo\?/u);
+  assert.match(detailsStep, /Quais pensamentos apareceram\?/u);
+  assert.match(detailsStep, /O que teve vontade de fazer\?/u);
+  assert.doesNotMatch(detailsStep, /<details/u);
+  assert.equal(detailsStep.match(/<textarea /gu)?.length, 3);
+  for (const field of ["body", "thoughts", "urge"]) {
+    assert.equal(detailsStep.match(new RegExp(`update\\("${field}", e\\.target\\.value\\)`, "gu"))?.length, 1);
+  }
+  assert.match(sessionStep, /aria-labelledby="entry-step-four"/u);
+  assert.match(sessionStep, /id="entry-session-note"/u);
+  assert.match(sessionStep, /O que quero levar/u);
+  assert.match(sessionStep, /O que ficou presente desde a última sessão\?/u);
+  assert.match(sessionStep, /O que gostaria de levar para a próxima sessão\?/u);
+  assert.match(sessionStep, /Nada é compartilhado automaticamente/u);
+  assert.equal(sessionStep.match(/update\("message", event\.target\.value\)/gu)?.length, 1);
+  const steps = ["entry-step-situation", "optional-save-shortcut", "entry-step-emotion", "entry-step-details", "entry-step-optional"];
+  for (let index = 1; index < steps.length; index += 1) {
+    assert.ok(form.indexOf(steps[index - 1]) >= 0 && form.indexOf(steps[index - 1]) < form.indexOf(steps[index]),
+      `${steps[index - 1]} must precede ${steps[index]}`);
+  }
   assert.match(app, /status session-note">Para a próxima sessão/u);
   assert.match(styles, /\.session-note-block\{/u);
   assert.match(styles, /\.optional-save-shortcut\{/u);
-  assert.match(styles, /\.entry-optional-disclosure>summary\{/u);
-  assert.match(
-    styles,
-    /@media\(max-width:560px\)\{[\s\S]*?\.optional-save-shortcut\{align-items:stretch;flex-direction:column\}/u,
-  );
+  assert.match(styles, /\.optional-fields\{/u);
+  assert.doesNotMatch(styles, /\.entry-optional-disclosure/u);
 });
 
 test("patient dynamic states announce changes and restore focus after filters disappear", async () => {

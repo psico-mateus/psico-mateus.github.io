@@ -1527,9 +1527,6 @@ function EntryForm({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const [originalDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
-  const optionalHasContent = [draft.body, draft.thoughts, draft.urge]
-    .some((value) => Boolean(value.trim()));
-  const [optionalOpen, setOptionalOpen] = useState(() => optionalHasContent);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const submissionInFlight = useRef(false);
@@ -1600,10 +1597,29 @@ function EntryForm({
         </label>
       </section>
 
+      <div className="optional-save-shortcut">
+        <p>
+          <strong>O restante é opcional</strong>
+          <span>Se já escreveu o título e a situação, pode salvar agora ou continuar abaixo.</span>
+          {initial ? (
+            <span>{remainsShared ? "Este registro continuará compartilhado com Mateus." : "Este registro continuará privado."}</span>
+          ) : null}
+        </p>
+        <button className="secondary-button" type="submit" disabled={busy}>
+          {busy ? "Salvando…" : initial ? "Salvar alterações agora" : "Salvar agora como privado"}
+        </button>
+      </div>
+
       <section className="entry-step entry-step-emotion" aria-labelledby="entry-step-two">
         <div className="entry-step-heading">
           <span aria-hidden="true">02</span>
-          <div><h2 id="entry-step-two">O que você sentiu?</h2><p>Se não souber nomear a emoção, pode deixar o campo em branco.</p></div>
+          <div>
+            <div className="optional-heading-line">
+              <h2 id="entry-step-two">O que você sentiu?</h2>
+              <span className="optional-badge">Opcional</span>
+            </div>
+            <p>Se não souber nomear a emoção, pode deixar o campo em branco.</p>
+          </div>
         </div>
         <div className="emotion-row">
           <div className="field">
@@ -1645,12 +1661,42 @@ function EntryForm({
         </div>
       </section>
 
-      <section className="entry-step entry-step-optional" aria-labelledby="entry-step-three">
+      <section className="entry-step entry-step-details" aria-labelledby="entry-step-three">
         <div className="entry-step-heading">
           <span aria-hidden="true">03</span>
           <div>
             <div className="optional-heading-line">
-              <h2 id="entry-step-three">Levar para a próxima sessão</h2>
+              <h2 id="entry-step-three">Corpo, pensamentos e vontade</h2>
+              <span className="optional-badge">Opcional</span>
+            </div>
+            <p>Responda só o que lembrar. Não precisa preencher os três campos.</p>
+          </div>
+        </div>
+        <div className="two-columns optional-fields">
+          <label className="field">
+            <span>O que percebeu no corpo?</span>
+            <textarea value={draft.body} maxLength={1500} rows={3} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} aria-describedby="entry-body-character-limit" />
+            <CharacterLimit id="entry-body-character-limit" value={draft.body} maxLength={1500} />
+          </label>
+          <label className="field">
+            <span>Quais pensamentos apareceram?</span>
+            <textarea value={draft.thoughts} maxLength={1500} rows={3} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} aria-describedby="entry-thoughts-character-limit" />
+            <CharacterLimit id="entry-thoughts-character-limit" value={draft.thoughts} maxLength={1500} />
+          </label>
+          <label className="field">
+            <span>O que teve vontade de fazer?</span>
+            <textarea value={draft.urge} maxLength={1500} rows={3} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} aria-describedby="entry-urge-character-limit" />
+            <CharacterLimit id="entry-urge-character-limit" value={draft.urge} maxLength={1500} />
+          </label>
+        </div>
+      </section>
+
+      <section className="entry-step entry-step-optional" aria-labelledby="entry-step-four">
+        <div className="entry-step-heading">
+          <span aria-hidden="true">04</span>
+          <div>
+            <div className="optional-heading-line">
+              <h2 id="entry-step-four">Levar para a próxima sessão</h2>
               <span className="optional-badge">Opcional</span>
             </div>
             <p>Se quiser, use este espaço para organizar algo que gostaria de retomar. Você não precisa responder todas as perguntas.</p>
@@ -1691,54 +1737,6 @@ function EntryForm({
             Este campo não envia mensagem nem pedido de resposta imediata.
           </p>
         </div>
-        <div className="optional-save-shortcut">
-          <p>
-            <strong>Quer parar por aqui?</strong>
-            <span>
-              {remainsShared
-                ? "Este registro continuará compartilhado com Mateus."
-                : initial
-                  ? "O restante é opcional e o registro continuará privado."
-                  : "O restante é opcional e o registro será salvo como privado."}
-            </span>
-          </p>
-          <button className="secondary-button" type="submit" disabled={busy}>
-            {busy ? "Salvando…" : initial ? "Salvar alterações agora" : "Salvar agora como privado"}
-          </button>
-        </div>
-        <details
-          className="entry-optional-disclosure"
-          open={optionalOpen}
-          onToggle={(event) => setOptionalOpen(event.currentTarget.open)}
-        >
-          <summary>
-            <span>
-              <strong>{optionalOpen ? "Ocultar outros detalhes" : "Adicionar outros detalhes"}</strong>
-              <small>
-                {optionalHasContent
-                  ? "Você já preencheu parte desta etapa. Fechar não apaga suas respostas."
-                  : "Três perguntas opcionais sobre corpo, pensamentos e vontade."}
-              </small>
-            </span>
-          </summary>
-          <div className="two-columns optional-fields">
-            <label className="field">
-              <span>O que percebeu no corpo?</span>
-              <textarea value={draft.body} maxLength={1500} rows={4} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} aria-describedby="entry-body-character-limit" />
-              <CharacterLimit id="entry-body-character-limit" value={draft.body} maxLength={1500} />
-            </label>
-            <label className="field">
-              <span>Quais pensamentos apareceram?</span>
-              <textarea value={draft.thoughts} maxLength={1500} rows={4} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} aria-describedby="entry-thoughts-character-limit" />
-              <CharacterLimit id="entry-thoughts-character-limit" value={draft.thoughts} maxLength={1500} />
-            </label>
-            <label className="field">
-              <span>O que teve vontade de fazer?</span>
-              <textarea value={draft.urge} maxLength={1500} rows={4} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} aria-describedby="entry-urge-character-limit" />
-              <CharacterLimit id="entry-urge-character-limit" value={draft.urge} maxLength={1500} />
-            </label>
-          </div>
-        </details>
       </section>
 
       {message ? <Notice tone="error" message={message} /> : null}

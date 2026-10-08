@@ -900,8 +900,8 @@ input[type="range"]{accent-color:#9a6d27}
 .field-help-link{
   width:fit-content;
   min-height:44px;
-  display:inline-flex;
-  align-items:center;
+  display:block;
+  padding:.55rem 0;
   color:var(--green-2);
   font-size:.82rem;
   text-decoration:underline;
@@ -1028,7 +1028,7 @@ input[type="range"]{accent-color:#9a6d27}
   align-items:center;
   justify-content:space-between;
   gap:1rem;
-  margin-top:.25rem;
+  margin-top:1.15rem;
   border:1px solid rgba(53,105,91,.16);
   border-left:3px solid var(--green-2);
   border-radius:12px;
@@ -1039,56 +1039,19 @@ input[type="range"]{accent-color:#9a6d27}
 .optional-save-shortcut strong{font-size:.88rem}
 .optional-save-shortcut span{color:var(--muted);font-size:.8rem;line-height:1.45}
 .optional-save-shortcut .secondary-button{flex:0 0 auto;white-space:nowrap}
-.entry-optional-disclosure{
-  margin-top:.65rem;
-  border:1px solid rgba(121,90,35,.18);
-  border-radius:14px;
-  background:#faf6f0;
-  overflow:hidden;
-}
-.entry-optional-disclosure>summary{
-  min-height:56px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:1rem;
-  padding:.72rem .9rem;
-  color:var(--ink);
-  cursor:pointer;
-  list-style:none;
-}
-.entry-optional-disclosure>summary::-webkit-details-marker{display:none}
-.entry-optional-disclosure>summary::after{
-  content:"+";
-  flex:0 0 auto;
-  width:1.7rem;
-  height:1.7rem;
-  display:grid;
-  place-items:center;
-  border-radius:50%;
-  background:#e9dfd1;
-  color:#644c27;
-  font-size:1.05rem;
-  font-weight:800;
-}
-.entry-optional-disclosure[open]>summary::after{content:"−"}
-.entry-optional-disclosure>summary>span{display:grid;gap:.12rem}
-.entry-optional-disclosure>summary strong{font-size:.88rem}
-.entry-optional-disclosure>summary small{color:var(--muted);font-size:.8rem;line-height:1.45}
-.entry-optional-disclosure[open]>summary{border-bottom:1px solid rgba(121,90,35,.12)}
 .optional-fields{
   grid-template-columns:repeat(2,minmax(0,1fr));
   margin:0;
-  padding:.9rem;
+  padding:0;
 }
 .optional-fields .field{
   align-content:start;
   min-width:0;
 }
 .optional-fields textarea{
-  min-height:128px;
-  background:#fff;
+  min-height:112px;
 }
+.optional-fields .field:last-child{grid-column:1/-1}
 .form-finish{
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
