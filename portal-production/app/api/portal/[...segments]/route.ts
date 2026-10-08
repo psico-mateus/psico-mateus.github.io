@@ -12,6 +12,8 @@ import {
   identifier,
   normalizeEmail,
   passwordMatches,
+  randomToken,
+  sha256,
   totpUri,
   verifyTotp,
 } from "@/lib/crypto";
@@ -26,6 +28,7 @@ import {
 import {
   PRIVACY_VERSION,
   PortalError,
+  SESSION_SECONDS,
   audit,
   checkRateLimit,
   checkReauthenticationRateLimit,
@@ -40,6 +43,7 @@ import {
   requireCsrf,
   requireSession,
   requireTrustedOrigin,
+  sessionCookie,
   userByEmail,
   validateEmail,
   validateEntry,
@@ -65,21 +69,44 @@ import {
   type PatientExportCareAccessRow,
   type PatientExportEntryRow,
 } from "@/lib/patient-data-export";
+import { exportPatientNotices, handlePatientNotices } from "@/lib/patient-notices";
 import {
   createMfaTransferTicket,
   isValidMfaTransferTicket,
 } from "@/lib/mfa-transfer";
+import {
+  createProfessionalMfaRecoverySet,
+  createProfessionalMfaRecoveryTicket,
+  hashProfessionalMfaRecoveryCode,
+  openProfessionalMfaRecoveryTicket,
+  type ProfessionalMfaRecoverySet,
+} from "@/lib/professional-mfa-recovery";
 
 type RouteContext = { params: Promise<{ segments?: string[] }> };
 type Input = Record<string, unknown>;
 type EntryQueryRow = Record<string, unknown> & EntryThoughtReviewJoinedColumns;
 type PatientExportEntryDatabaseRow = Omit<PatientExportEntryRow, "thought_review"> &
   EntryThoughtReviewJoinedColumns;
+type ProfessionalMfaRecoveryUserRow = UserRow & {
+  mfa_recovery_set_id: string | null;
+};
+type ProfessionalMfaRecoveryCodeRow = {
+  id: string;
+  user_id: string;
+  set_id: string;
+  code_hash: string;
+  created_at: string;
+  used_at: string | null;
+  invalidated_at: string | null;
+};
 
 // Valores públicos e sem relação com contas reais. Eles mantêm o mesmo custo de
 // PBKDF2 quando o e-mail não existe, reduzindo o risco de revelar cadastros pelo tempo de resposta.
 const DUMMY_PASSWORD_SALT = "AAAAAAAAAAAAAAAAAAAAAAAA";
 const DUMMY_PASSWORD_HASH = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const DUMMY_TOTP_SECRET = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const PROFESSIONAL_MFA_RECOVERY_ERROR =
+  "Não foi possível recuperar o acesso profissional.";
 
 class PortalOperationError extends Error {
   operation: string;
@@ -126,8 +153,11 @@ function technicalRoute(path: string): string {
     "/login",
     "/register",
     "/recover",
+    "/recover/mfa/start",
+    "/recover/mfa/confirm",
     "/logout",
     "/entries",
+    "/notices",
     "/map-draft",
     "/map-sharing",
     "/export",
@@ -137,12 +167,16 @@ function technicalRoute(path: string): string {
     "/account/recovery-code",
     "/account/mfa-transfer",
     "/account/mfa-transfer/confirm",
+    "/account/mfa-recovery-codes",
     "/account/sessions",
     "/professional/patients",
     "/professional/accesses",
   ]);
   if (staticRoutes.has(path)) return path;
   const dynamicRoutes: Array<[RegExp, string]> = [
+    [/^\/notices\/[A-Za-z0-9_-]+\/read$/u, "/notices/:noticeId/read"],
+    [/^\/professional\/patients\/[A-Za-z0-9_-]+\/notices$/u, "/professional/patients/:patientId/notices"],
+    [/^\/professional\/patients\/[A-Za-z0-9_-]+\/notices\/[A-Za-z0-9_-]+$/u, "/professional/patients/:patientId/notices/:noticeId"],
     [
       /^\/entries\/[A-Za-z0-9_-]+\/thought-review$/u,
       "/entries/:entryId/thought-review",
@@ -241,18 +275,532 @@ function pathOf(segments: string[] | undefined): string {
 }
 
 async function consumeActiveTherapistTotpCounter(
-  user: Pick<UserRow, "id" | "last_totp_counter">,
+  user: Pick<UserRow, "id" | "last_totp_counter" | "password_hash" | "totp_secret">,
   counter: number,
 ): Promise<boolean> {
   const { DB } = getPortalEnv();
+  // O contador pode coincidir depois de uma troca do MFA. A reautenticação
+  // deve continuar vinculada às credenciais verificadas, não só ao número.
   const result = await DB.prepare(
     `UPDATE users SET last_totp_counter = ?
      WHERE id = ? AND role = 'therapist' AND status = 'active'
-       AND totp_enabled = 1 AND last_totp_counter IS ?`,
+       AND totp_enabled = 1 AND last_totp_counter IS ?
+       AND password_hash = ? AND totp_secret = ?`,
   )
-    .bind(counter, user.id, user.last_totp_counter)
+    .bind(counter, user.id, user.last_totp_counter, user.password_hash, user.totp_secret)
     .run();
   return result.meta.changes === 1;
+}
+
+async function professionalMfaRecoveryCodeStatus(
+  request: Request,
+): Promise<Response> {
+  const { DB } = getPortalEnv();
+  const session = await requireSession(request, "therapist");
+  const status = await DB.prepare(
+    `SELECT COUNT(codes.id) AS total,
+            COALESCE(SUM(
+              CASE
+                WHEN codes.id IS NOT NULL
+                  AND codes.used_at IS NULL AND codes.invalidated_at IS NULL THEN 1
+                ELSE 0
+              END
+            ), 0) AS remaining,
+            MIN(codes.created_at) AS generated_at
+     FROM users
+     LEFT JOIN professional_mfa_recovery_codes AS codes
+       ON codes.user_id = users.id
+      AND codes.set_id = users.mfa_recovery_set_id
+     WHERE users.id = ? AND users.role = 'therapist' AND users.status = 'active'`,
+  )
+    .bind(session.userId)
+    .first<{ total: number; remaining: number; generated_at: string | null }>();
+  return json({
+    remaining: Number(status?.remaining ?? 0),
+    total: Number(status?.total ?? 0),
+    generated_at: status?.generated_at ?? null,
+  });
+}
+
+function prepareRecoveryCodeInsertStatements(
+  database: D1Database,
+  recoverySet: ProfessionalMfaRecoverySet,
+  userId: string,
+  guard: {
+    setId: string;
+    totpCiphertext: string;
+    totpCounter: number;
+  },
+): D1PreparedStatement[] {
+  return recoverySet.records.map((record) =>
+    database
+      .prepare(
+        `INSERT INTO professional_mfa_recovery_codes
+           (id, user_id, set_id, position, code_hash, created_at)
+         SELECT ?, ?, ?, ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND role = 'therapist' AND status = 'active'
+             AND mfa_recovery_set_id = ? AND totp_secret = ?
+             AND last_totp_counter = ?
+         )`,
+      )
+      .bind(
+        record.id,
+        userId,
+        recoverySet.setId,
+        record.position,
+        record.codeHash,
+        recoverySet.generatedAt,
+        userId,
+        guard.setId,
+        guard.totpCiphertext,
+        guard.totpCounter,
+      ),
+  );
+}
+
+async function generateProfessionalMfaRecoveryCodes(
+  request: Request,
+  input: Input,
+): Promise<Response> {
+  const { DB, APP_SECRET } = getPortalEnv();
+  const session = await requireSession(request, "therapist");
+  requireCsrf(request, session);
+  await checkReauthenticationRateLimit(session);
+  const user = await DB.prepare("SELECT * FROM users WHERE id = ?")
+    .bind(session.userId)
+    .first<ProfessionalMfaRecoveryUserRow>();
+  if (!user) throw new PortalError(401, "Faça login para continuar.");
+  if (
+    !(await passwordMatches(
+      String(input.current_password ?? ""),
+      user.password_salt,
+      user.password_hash,
+      user.password_iterations,
+    ))
+  ) {
+    throw new PortalError(400, "A senha atual não confere.");
+  }
+  if (!user.totp_secret || !user.totp_enabled) {
+    throw new PortalError(400, "O MFA profissional não está configurado.");
+  }
+  const verification = await verifyTotp(
+    await decrypt(APP_SECRET, user.totp_secret),
+    String(input.totp ?? ""),
+    user.last_totp_counter,
+  );
+  if (!verification.valid || verification.counter === null) {
+    throw new PortalError(400, "O código do autenticador não confere.");
+  }
+
+  const recoverySet = await createProfessionalMfaRecoverySet(
+    APP_SECRET,
+    user.id,
+  );
+  const codeStatements = prepareRecoveryCodeInsertStatements(
+    DB,
+    recoverySet,
+    user.id,
+    {
+      setId: recoverySet.setId,
+      totpCiphertext: user.totp_secret,
+      totpCounter: verification.counter,
+    },
+  );
+  const operationResults = await DB.batch([
+    DB.prepare(
+      `UPDATE users
+       SET last_totp_counter = ?, mfa_recovery_set_id = ?
+       WHERE id = ? AND role = 'therapist' AND status = 'active'
+         AND totp_enabled = 1 AND totp_secret = ?
+         AND last_totp_counter IS ? AND mfa_recovery_set_id IS ?
+         AND password_hash = ?
+         AND EXISTS (
+           SELECT 1 FROM sessions
+           WHERE token_hash = ? AND user_id = users.id AND expires_at > ?
+         )`,
+    ).bind(
+      verification.counter,
+      recoverySet.setId,
+      user.id,
+      user.totp_secret,
+      user.last_totp_counter,
+      user.mfa_recovery_set_id,
+      user.password_hash,
+      session.tokenHash,
+      now(),
+    ),
+    DB.prepare(
+      `UPDATE professional_mfa_recovery_codes
+       SET invalidated_at = ?
+       WHERE user_id = ? AND used_at IS NULL AND invalidated_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND mfa_recovery_set_id = ? AND totp_secret = ?
+             AND last_totp_counter = ?
+         )`,
+    ).bind(
+      recoverySet.generatedAt,
+      user.id,
+      user.id,
+      recoverySet.setId,
+      user.totp_secret,
+      verification.counter,
+    ),
+    ...codeStatements,
+    DB.prepare(
+      `INSERT INTO access_logs
+         (id, user_id, action, resource_type, resource_id, created_at)
+       SELECT ?, ?, 'generate_professional_mfa_recovery_codes', 'account', ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM users
+         WHERE id = ? AND mfa_recovery_set_id = ? AND totp_secret = ?
+           AND last_totp_counter = ?
+       )`,
+    ).bind(
+      identifier("log"),
+      user.id,
+      recoverySet.setId,
+      recoverySet.generatedAt,
+      user.id,
+      recoverySet.setId,
+      user.totp_secret,
+      verification.counter,
+    ),
+  ]);
+  const insertedCodes = operationResults.slice(2, 2 + recoverySet.records.length);
+  if (
+    operationResults[0]?.meta.changes !== 1 ||
+    insertedCodes.some((result) => result.meta.changes !== 1)
+  ) {
+    throw new PortalError(400, "O código do autenticador não confere.");
+  }
+  return json({
+    recovery_codes: recoverySet.codes,
+    generated_at: recoverySet.generatedAt,
+  });
+}
+
+async function startProfessionalMfaRecovery(
+  request: Request,
+  input: Input,
+): Promise<Response> {
+  const { DB, APP_SECRET } = getPortalEnv();
+  const normalizedEmail = normalizeEmail(input.email).slice(0, 181);
+  await checkRateLimit(
+    request,
+    "professional-mfa-recovery-start",
+    normalizedEmail || "invalid",
+    { limit: 5, windowSeconds: 60 * 60, ipLimit: 30 },
+  );
+  // O limite por conta também vale quando a origem muda de IP.
+  await checkRateLimit(
+    new Request(request.url),
+    "professional-mfa-recovery-account",
+    normalizedEmail || "invalid",
+    { limit: 5, windowSeconds: 60 * 60 },
+  );
+  const user = (await userByEmail(
+    normalizedEmail,
+  )) as ProfessionalMfaRecoveryUserRow | null;
+  const lookupUserId = user?.id ?? "therapist_missing";
+  const [passwordValid, emergencyCodeHash] = await Promise.all([
+    passwordMatches(
+      String(input.password ?? ""),
+      user?.password_salt ?? DUMMY_PASSWORD_SALT,
+      user?.password_hash ?? DUMMY_PASSWORD_HASH,
+      user?.password_iterations ?? PASSWORD_ITERATIONS,
+    ),
+    hashProfessionalMfaRecoveryCode(
+      APP_SECRET,
+      lookupUserId,
+      String(input.recovery_code ?? "").slice(0, 128),
+    ),
+  ]);
+  const recoveryCode = await DB.prepare(
+    `SELECT codes.id, codes.user_id, codes.set_id, codes.code_hash,
+            codes.created_at, codes.used_at, codes.invalidated_at
+     FROM professional_mfa_recovery_codes AS codes
+     JOIN users ON users.id = codes.user_id
+     WHERE codes.user_id = ? AND codes.set_id = ? AND codes.code_hash = ?
+       AND codes.used_at IS NULL AND codes.invalidated_at IS NULL
+       AND users.mfa_recovery_set_id = codes.set_id
+       AND users.role = 'therapist' AND users.status = 'active'
+       AND users.totp_enabled = 1`,
+  )
+    .bind(
+      lookupUserId,
+      user?.mfa_recovery_set_id ?? "mfa_set_missing",
+      emergencyCodeHash,
+    )
+    .first<ProfessionalMfaRecoveryCodeRow>();
+  if (
+    !user ||
+    user.role !== "therapist" ||
+    user.status !== "active" ||
+    !user.totp_secret ||
+    !user.totp_enabled ||
+    !user.mfa_recovery_set_id ||
+    !passwordValid ||
+    !recoveryCode
+  ) {
+    throw new PortalError(400, PROFESSIONAL_MFA_RECOVERY_ERROR);
+  }
+  const recovery = await createProfessionalMfaRecoveryTicket(APP_SECRET, {
+    userId: user.id,
+    recoveryCodeId: recoveryCode.id,
+    expectedRecoverySetId: recoveryCode.set_id,
+    expectedCodeHash: recoveryCode.code_hash,
+    expectedPasswordHash: user.password_hash,
+    expectedOldTotpCiphertext: user.totp_secret,
+  });
+  return json({
+    ticket: recovery.ticket,
+    totp_secret: recovery.totpSecret,
+    expires_at: recovery.expiresAt,
+  });
+}
+
+async function confirmProfessionalMfaRecovery(
+  request: Request,
+  input: Input,
+): Promise<Response> {
+  const { DB, APP_SECRET } = getPortalEnv();
+  const ticketInput = String(input.ticket ?? "").slice(0, 8_001);
+  await checkRateLimit(
+    request,
+    "professional-mfa-recovery-confirm",
+    await sha256(ticketInput),
+    { limit: 8, windowSeconds: 15 * 60, ipLimit: 30 },
+  );
+  const ticket = await openProfessionalMfaRecoveryTicket(
+    APP_SECRET,
+    ticketInput,
+  );
+  if (ticket) {
+    await checkRateLimit(
+      new Request(request.url),
+      "professional-mfa-recovery-ticket",
+      ticket.jti,
+      { limit: 8, windowSeconds: 15 * 60 },
+    );
+  }
+  const lookupUserId = ticket?.userId ?? "therapist_missing";
+  const [user, recoveryCode, verification] = await Promise.all([
+    DB.prepare(
+      `SELECT * FROM users
+       WHERE id = ? AND role = 'therapist' AND status = 'active'
+         AND totp_enabled = 1 AND password_hash = ? AND totp_secret = ?
+         AND mfa_recovery_set_id = ?`,
+    )
+      .bind(
+        lookupUserId,
+        ticket?.expectedPasswordHash ?? DUMMY_PASSWORD_HASH,
+        ticket?.expectedOldTotpCiphertext ?? "totp_missing",
+        ticket?.expectedRecoverySetId ?? "mfa_set_missing",
+      )
+      .first<ProfessionalMfaRecoveryUserRow>(),
+    DB.prepare(
+      `SELECT id, user_id, set_id, code_hash, created_at, used_at, invalidated_at
+       FROM professional_mfa_recovery_codes
+       WHERE id = ? AND user_id = ? AND set_id = ? AND code_hash = ?
+         AND used_at IS NULL AND invalidated_at IS NULL`,
+    )
+      .bind(
+        ticket?.recoveryCodeId ?? "mfa_recovery_missing",
+        lookupUserId,
+        ticket?.expectedRecoverySetId ?? "mfa_set_missing",
+        ticket?.expectedCodeHash ?? "hash_missing",
+      )
+      .first<ProfessionalMfaRecoveryCodeRow>(),
+    verifyTotp(
+      ticket?.newTotpSecret ?? DUMMY_TOTP_SECRET,
+      String(input.totp ?? ""),
+      null,
+    ),
+  ]);
+  if (
+    !ticket ||
+    !user ||
+    !recoveryCode ||
+    !verification.valid ||
+    verification.counter === null
+  ) {
+    throw new PortalError(400, PROFESSIONAL_MFA_RECOVERY_ERROR);
+  }
+
+  const recoveredAt = now();
+  if (ticket.expiresAt <= recoveredAt) {
+    throw new PortalError(400, PROFESSIONAL_MFA_RECOVERY_ERROR);
+  }
+  const consumptionNonce = identifier("mfa_recovery_use");
+  const replacementSet = await createProfessionalMfaRecoverySet(
+    APP_SECRET,
+    user.id,
+  );
+  const sessionToken = randomToken(32);
+  const sessionTokenHash = await sha256(sessionToken);
+  const csrfToken = randomToken(24);
+  const sessionExpiresAt = new Date(
+    Date.now() + SESSION_SECONDS * 1_000,
+  ).toISOString();
+  const codeStatements = prepareRecoveryCodeInsertStatements(
+    DB,
+    replacementSet,
+    user.id,
+    {
+      setId: replacementSet.setId,
+      totpCiphertext: ticket.replacementTotpCiphertext,
+      totpCounter: verification.counter,
+    },
+  );
+  const operationResults = await DB.batch([
+    DB.prepare(
+      `UPDATE professional_mfa_recovery_codes
+       SET used_at = ?, consumption_nonce = ?
+       WHERE id = ? AND user_id = ? AND set_id = ? AND code_hash = ?
+         AND used_at IS NULL AND invalidated_at IS NULL
+         AND consumption_nonce IS NULL
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND role = 'therapist' AND status = 'active'
+             AND password_hash = ? AND totp_secret = ?
+             AND mfa_recovery_set_id = ? AND totp_enabled = 1
+         )`,
+    ).bind(
+      recoveredAt,
+      consumptionNonce,
+      recoveryCode.id,
+      user.id,
+      ticket.expectedRecoverySetId,
+      ticket.expectedCodeHash,
+      user.id,
+      ticket.expectedPasswordHash,
+      ticket.expectedOldTotpCiphertext,
+      ticket.expectedRecoverySetId,
+    ),
+    DB.prepare(
+      `UPDATE users
+       SET totp_secret = ?, totp_enabled = 1, last_totp_counter = ?,
+           mfa_recovery_set_id = ?, last_login_at = ?
+       WHERE id = ? AND role = 'therapist' AND status = 'active'
+         AND password_hash = ? AND totp_secret = ?
+         AND mfa_recovery_set_id = ? AND totp_enabled = 1
+         AND EXISTS (
+           SELECT 1 FROM professional_mfa_recovery_codes
+           WHERE id = ? AND user_id = ? AND consumption_nonce = ?
+             AND used_at = ?
+         )`,
+    ).bind(
+      ticket.replacementTotpCiphertext,
+      verification.counter,
+      replacementSet.setId,
+      recoveredAt,
+      user.id,
+      ticket.expectedPasswordHash,
+      ticket.expectedOldTotpCiphertext,
+      ticket.expectedRecoverySetId,
+      recoveryCode.id,
+      user.id,
+      consumptionNonce,
+      recoveredAt,
+    ),
+    DB.prepare(
+      `UPDATE professional_mfa_recovery_codes
+       SET invalidated_at = ?
+       WHERE user_id = ? AND set_id = ? AND id <> ?
+         AND used_at IS NULL AND invalidated_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND mfa_recovery_set_id = ? AND totp_secret = ?
+             AND last_totp_counter = ?
+         )`,
+    ).bind(
+      recoveredAt,
+      user.id,
+      ticket.expectedRecoverySetId,
+      recoveryCode.id,
+      user.id,
+      replacementSet.setId,
+      ticket.replacementTotpCiphertext,
+      verification.counter,
+    ),
+    DB.prepare(
+      `DELETE FROM sessions
+       WHERE user_id = ?
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND mfa_recovery_set_id = ? AND totp_secret = ?
+             AND last_totp_counter = ?
+         )`,
+    ).bind(
+      user.id,
+      user.id,
+      replacementSet.setId,
+      ticket.replacementTotpCiphertext,
+      verification.counter,
+    ),
+    DB.prepare(
+      `INSERT INTO sessions
+         (token_hash, user_id, csrf_token, expires_at, created_at, last_seen_at)
+       SELECT ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM users
+         WHERE id = ? AND mfa_recovery_set_id = ? AND totp_secret = ?
+           AND last_totp_counter = ?
+       )`,
+    ).bind(
+      sessionTokenHash,
+      user.id,
+      csrfToken,
+      sessionExpiresAt,
+      recoveredAt,
+      recoveredAt,
+      user.id,
+      replacementSet.setId,
+      ticket.replacementTotpCiphertext,
+      verification.counter,
+    ),
+    ...codeStatements,
+    DB.prepare(
+      `INSERT INTO access_logs
+         (id, user_id, action, resource_type, resource_id, created_at)
+       SELECT ?, ?, 'recover_professional_mfa', 'account', ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM users
+         WHERE id = ? AND mfa_recovery_set_id = ? AND totp_secret = ?
+           AND last_totp_counter = ?
+       )`,
+    ).bind(
+      identifier("log"),
+      user.id,
+      replacementSet.setId,
+      recoveredAt,
+      user.id,
+      replacementSet.setId,
+      ticket.replacementTotpCiphertext,
+      verification.counter,
+    ),
+  ]);
+  const insertedCodes = operationResults.slice(5, 5 + replacementSet.records.length);
+  if (
+    operationResults[0]?.meta.changes !== 1 ||
+    operationResults[1]?.meta.changes !== 1 ||
+    operationResults[4]?.meta.changes !== 1 ||
+    insertedCodes.some((result) => result.meta.changes !== 1)
+  ) {
+    throw new PortalError(400, PROFESSIONAL_MFA_RECOVERY_ERROR);
+  }
+  return json(
+    {
+      user: { id: user.id, name: user.display_name, role: user.role },
+      csrf: csrfToken,
+      recovery_codes: replacementSet.codes,
+    },
+    200,
+    { "Set-Cookie": sessionCookie(request, sessionToken) },
+  );
 }
 
 async function setupStatus() {
@@ -397,9 +945,52 @@ async function login(request: Request, input: Input): Promise<Response> {
       user.last_totp_counter,
     );
     if (!verification.valid || verification.counter === null) throw genericError;
-    if (!(await consumeActiveTherapistTotpCounter(user, verification.counter))) {
+    const sessionToken = randomToken(32);
+    const sessionTokenHash = await sha256(sessionToken);
+    const csrfToken = randomToken(24);
+    const createdAt = now();
+    const expiresAt = new Date(Date.now() + SESSION_SECONDS * 1_000).toISOString();
+    // A inserção da sessão e o consumo do TOTP compartilham a transação.
+    // Uma recuperação que ganhar a corrida invalida estas credenciais; se o
+    // login ganhar, a recuperação remove a sessão que acabou de ser criada.
+    const results = await DB.batch([
+      DB.prepare(
+        `INSERT INTO sessions
+           (token_hash, user_id, csrf_token, expires_at, created_at, last_seen_at)
+         SELECT ?, ?, ?, ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND role = 'therapist' AND status = 'active'
+             AND password_hash = ? AND totp_secret = ? AND totp_enabled = 1
+             AND last_totp_counter IS ?
+         )`,
+      ).bind(
+        sessionTokenHash, user.id, csrfToken, expiresAt, createdAt, createdAt,
+        user.id, user.password_hash, user.totp_secret, user.last_totp_counter,
+      ),
+      DB.prepare(
+        `UPDATE users SET last_totp_counter = ?, last_login_at = ?
+         WHERE id = ? AND EXISTS (
+           SELECT 1 FROM sessions WHERE token_hash = ? AND user_id = users.id
+         )`,
+      ).bind(verification.counter, createdAt, user.id, sessionTokenHash),
+      DB.prepare(
+        `INSERT INTO access_logs
+           (id, user_id, action, resource_type, resource_id, created_at)
+         SELECT ?, ?, 'login', 'session', NULL, ?
+         WHERE EXISTS (
+           SELECT 1 FROM sessions WHERE token_hash = ? AND user_id = ?
+         )`,
+      ).bind(identifier("log"), user.id, createdAt, sessionTokenHash, user.id),
+    ]);
+    if (results[0]?.meta.changes !== 1 || results[1]?.meta.changes !== 1) {
       throw genericError;
     }
+    return json(
+      { user: { id: user.id, name: user.display_name, role: user.role }, csrf: csrfToken },
+      200,
+      { "Set-Cookie": sessionCookie(request, sessionToken) },
+    );
   }
   const session = await createSession(request, user);
   await DB.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(now(), user.id).run();
@@ -600,10 +1191,17 @@ async function recoverAccount(request: Request, input: Input): Promise<Response>
   const passwordRecord = await derivePassword(newPassword);
   const newRecoveryCode = createRecoveryCode();
   const recoveryRecord = await derivePassword(newRecoveryCode);
-  await DB.batch([
+  const recoveryResults = await DB.batch([
     DB.prepare(
       `UPDATE users SET password_salt = ?, password_hash = ?, password_iterations = ?,
-        recovery_salt = ?, recovery_hash = ? WHERE id = ?`,
+        recovery_salt = ?, recovery_hash = ?
+       WHERE id = ? AND status = 'active'
+         AND recovery_salt = ? AND recovery_hash = ?
+         AND password_iterations = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM assisted_recovery_grants
+           WHERE user_id = users.id AND expires_at <= ?
+         )`,
     ).bind(
       passwordRecord.salt,
       passwordRecord.hash,
@@ -611,11 +1209,58 @@ async function recoverAccount(request: Request, input: Input): Promise<Response>
       recoveryRecord.salt,
       recoveryRecord.hash,
       user.id,
+      user.recovery_salt,
+      user.recovery_hash,
+      user.password_iterations,
+      now(),
     ),
-    DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
-    DB.prepare("DELETE FROM assisted_recovery_grants WHERE user_id = ?").bind(user.id),
+    DB.prepare(
+      `DELETE FROM sessions
+       WHERE user_id = ?
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND password_salt = ? AND password_hash = ?
+             AND recovery_salt = ? AND recovery_hash = ?
+         )`,
+    ).bind(
+      user.id,
+      user.id,
+      passwordRecord.salt,
+      passwordRecord.hash,
+      recoveryRecord.salt,
+      recoveryRecord.hash,
+    ),
+    DB.prepare(
+      `DELETE FROM assisted_recovery_grants
+       WHERE user_id = ?
+         AND EXISTS (
+           SELECT 1 FROM users
+           WHERE id = ? AND password_salt = ? AND password_hash = ?
+             AND recovery_salt = ? AND recovery_hash = ?
+         )`,
+    ).bind(
+      user.id,
+      user.id,
+      passwordRecord.salt,
+      passwordRecord.hash,
+      recoveryRecord.salt,
+      recoveryRecord.hash,
+    ),
+    DB.prepare(
+      `INSERT INTO access_logs
+         (id, user_id, action, resource_type, resource_id, created_at)
+       SELECT ?, ?, 'recover_account', 'account', NULL, ?
+       WHERE EXISTS (
+         SELECT 1 FROM users
+         WHERE id = ? AND password_salt = ? AND password_hash = ?
+           AND recovery_salt = ? AND recovery_hash = ?
+       )`,
+    ).bind(
+      identifier("log"), user.id, now(), user.id,
+      passwordRecord.salt, passwordRecord.hash, recoveryRecord.salt, recoveryRecord.hash,
+    ),
   ]);
-  await audit(user.id, "recover_account", "account");
+  if (recoveryResults[0]?.meta.changes !== 1) throw genericError;
   return json({ ok: true, recovery_code: newRecoveryCode });
 }
 
@@ -895,6 +1540,9 @@ async function handleGet(request: Request, path: string): Promise<Response> {
         : { user: null },
     );
   }
+  if (path === "/account/mfa-recovery-codes") {
+    return professionalMfaRecoveryCodeStatus(request);
+  }
   if (path === "/entries") {
     const session = await requireSession(request);
     return json({ entries: await listEntries(session) });
@@ -967,7 +1615,7 @@ async function handleGet(request: Request, path: string): Promise<Response> {
   }
   if (path === "/export") {
     const session = await requireSession(request, "patient");
-    const [account, careAccess, entryResult, patientMapDraft, patientMapShares] =
+    const [account, careAccess, entryResult, patientMapDraft, patientMapShares, notices] =
       await Promise.all([
         DB.prepare(
           `SELECT display_name, role, status, privacy_version,
@@ -1011,6 +1659,7 @@ async function handleGet(request: Request, path: string): Promise<Response> {
           .all<PatientExportEntryDatabaseRow>(),
         readPatientMapDraft(DB, session.userId),
         listPatientMapShareCopies(DB, session.userId),
+        exportPatientNotices(DB, session.userId),
       ]);
     if (!account) throw new PortalError(404, "Conta não encontrada.");
     const exportedAt = now();
@@ -1023,6 +1672,7 @@ async function handleGet(request: Request, path: string): Promise<Response> {
       ),
       patientMapDraft,
       patientMapShares,
+      notices,
     });
     await audit(session.userId, "export", "patient_data");
     return json(
@@ -1045,6 +1695,15 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (path === "/login") return login(request, input);
   if (path === "/register") return register(request, input);
   if (path === "/recover") return recoverAccount(request, input);
+  if (path === "/recover/mfa/start") {
+    return startProfessionalMfaRecovery(request, input);
+  }
+  if (path === "/recover/mfa/confirm") {
+    return confirmProfessionalMfaRecovery(request, input);
+  }
+  if (path === "/account/mfa-recovery-codes") {
+    return generateProfessionalMfaRecoveryCodes(request, input);
+  }
   if (path === "/account/mfa-transfer") {
     const session = await requireSession(request, "therapist");
     requireCsrf(request, session);
@@ -1734,6 +2393,8 @@ async function route(request: Request, context: RouteContext): Promise<Response>
         logMaintenanceFailure(error);
       }
     }
+    const noticesResponse = await handlePatientNotices(request, path);
+    if (noticesResponse) return noticesResponse;
     if (request.method === "GET") return await handleGet(request, path);
     requireTrustedOrigin(request);
     if (request.method === "POST") return await handlePost(request, path);

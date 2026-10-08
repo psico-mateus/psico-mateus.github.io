@@ -16,14 +16,15 @@ export default function PrivacyPage() {
       <h1 style={{ fontSize: "clamp(2.7rem,7vw,5rem)" }}>
         Seus registros, suas escolhas.
       </h1>
-      <p className="lead">Versão de 20 de agosto de 2026.</p>
+      <p className="lead">Versão de 8 de outubro de 2026.</p>
       <section className="panel stack">
         <h2>O que este espaço guarda</h2>
         <p>
           Ao criar uma conta, são guardados um identificador técnico do seu
           e-mail, seu nome de preferência, credenciais protegidas, os registros
           que você escrever, as revisões opcionais que salvar junto deles e o
-          conteúdo que decidir guardar no “Meu mapa”. O e-mail não é armazenado
+          conteúdo que decidir guardar no “Meu mapa”, além dos avisos individuais
+          enviados por Mateus e da data em que você os marcar como lidos. O e-mail não é armazenado
           em texto legível.
         </p>
         <h2>Para que os dados são usados</h2>
@@ -72,6 +73,16 @@ export default function PrivacyPage() {
           automaticamente ou transformar o conteúdo em prontuário. Você pode limpar
           todo o mapa pelo próprio recurso; excluir a conta também remove esse conteúdo.
         </p>
+        <h2>Avisos individuais</h2>
+        <p>
+          Mateus pode deixar um aviso destinado apenas a você, por exemplo, uma
+          orientação sobre o uso deste espaço. Os avisos ficam disponíveis no
+          início da sua área e no painel de Mateus, durante o vínculo ativo.
+          Você escolhe quando marcar um aviso como lido; abrir a página não registra
+          uma leitura automaticamente. Mateus pode consultar essa confirmação e
+          retirar um aviso, apagando seu texto. Não há respostas ou conversa por
+          aqui, e nenhum texto do aviso aparece em notificações do aparelho.
+        </p>
         <h2>Conteúdos de apoio e buscas</h2>
         <p>
           A área “Leitura complementar” reúne materiais de psicoeducação. O portal
@@ -90,14 +101,15 @@ export default function PrivacyPage() {
         <p>
           Na área “Conta e privacidade”, você pode baixar uma cópia dos dados básicos
           da conta, dos registros e das revisões anexadas, do rascunho completo do
-          “Meu mapa” e das partes do mapa que estiverem compartilhadas. Ela também
+          “Meu mapa”, das partes do mapa que estiverem compartilhadas e dos avisos
+          que ainda estiverem disponíveis para você. Ela também
           informa quando Mateus marcou
           um conteúdo compartilhado como visualizado, com a explicação de que isso não
           significa resposta nem acompanhamento em tempo real. A cópia não inclui senha,
           códigos de recuperação, sessões ou credenciais. Você também pode
           alterar sua senha, gerar novo código de recuperação, encerrar a conta em
           todos os dispositivos, controlar os compartilhamentos e excluir
-          permanentemente sua conta, seus registros e seu mapa.
+          permanentemente sua conta, seus registros, seu mapa e seus avisos.
         </p>
         <p>
           Se você perder a senha e o código de recuperação, pode pedir a Mateus uma
@@ -110,7 +122,9 @@ export default function PrivacyPage() {
           termina. Isso encerra as sessões abertas e impede novas entradas, mas não
           apaga automaticamente a conta nem os registros. Com o vínculo encerrado,
           Mateus deixa de acessar também os registros que estavam compartilhados,
-          e as cópias compartilhadas do “Meu mapa” são apagadas.
+          e as cópias compartilhadas do “Meu mapa” são apagadas. Os avisos também
+          deixam de estar acessíveis; seu conteúdo permanece vinculado à conta até
+          ser retirado por Mateus ou até a exclusão da conta.
           Para pedir uma cópia ou a exclusão dos dados depois da desativação, use os
           meios de contato indicados abaixo.
         </p>

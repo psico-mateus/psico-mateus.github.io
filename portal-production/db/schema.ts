@@ -25,6 +25,7 @@ export const users = sqliteTable(
     totpSecret: text("totp_secret"),
     totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
     lastTotpCounter: integer("last_totp_counter"),
+    mfaRecoverySetId: text("mfa_recovery_set_id"),
     privacyVersion: text("privacy_version").notNull(),
     adultConfirmedAt: text("adult_confirmed_at"),
     createdAt: text("created_at").notNull(),
@@ -49,6 +50,28 @@ export const patientLinks = sqliteTable(
   (table) => [
     uniqueIndex("patient_links_unique_idx").on(table.therapistId, table.patientId),
     index("patient_links_patient_idx").on(table.patientId, table.status),
+  ],
+);
+
+export const patientNotices = sqliteTable(
+  "patient_notices",
+  {
+    id: text("id").primaryKey(),
+    patientId: text("patient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    therapistId: text("therapist_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    createdAt: text("created_at").notNull(),
+    readAt: text("read_at"),
+    clientRequestId: text("client_request_id"),
+    deletedAt: text("deleted_at"),
+  },
+  (table) => [
+    uniqueIndex("patient_notices_request_idx").on(table.therapistId, table.patientId, table.clientRequestId),
+    index("patient_notices_patient_created_idx").on(table.patientId, table.deletedAt, table.createdAt, table.id),
+    index("patient_notices_therapist_patient_created_idx").on(table.therapistId, table.patientId, table.createdAt),
+    check("patient_notices_content_check", sql`(${table.deletedAt} IS NULL AND length(${table.title}) BETWEEN 1 AND 100 AND length(${table.body}) BETWEEN 1 AND 2000) OR (${table.deletedAt} IS NOT NULL AND ${table.title} = '' AND ${table.body} = '')`),
+    check("patient_notices_request_id_check", sql`${table.clientRequestId} IS NULL OR length(${table.clientRequestId}) BETWEEN 16 AND 80`),
   ],
 );
 
@@ -285,6 +308,50 @@ export const sessions = sqliteTable(
     lastSeenAt: text("last_seen_at").notNull(),
   },
   (table) => [index("sessions_user_idx").on(table.userId), index("sessions_expiry_idx").on(table.expiresAt)],
+);
+
+/**
+ * Códigos emergenciais exclusivos do MFA profissional.
+ *
+ * O texto entregue ao profissional nunca é persistido. `codeHash` guarda
+ * somente um HMAC vinculado ao usuário; `mfaRecoverySetId` em `users` aponta
+ * para o conjunto vigente e torna todos os conjuntos anteriores inválidos.
+ */
+export const professionalMfaRecoveryCodes = sqliteTable(
+  "professional_mfa_recovery_codes",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    setId: text("set_id").notNull(),
+    position: integer("position").notNull(),
+    codeHash: text("code_hash").notNull(),
+    createdAt: text("created_at").notNull(),
+    usedAt: text("used_at"),
+    invalidatedAt: text("invalidated_at"),
+    consumptionNonce: text("consumption_nonce"),
+  },
+  (table) => [
+    uniqueIndex("professional_mfa_recovery_codes_hash_idx").on(table.codeHash),
+    uniqueIndex("professional_mfa_recovery_codes_set_position_idx").on(
+      table.setId,
+      table.position,
+    ),
+    uniqueIndex("professional_mfa_recovery_codes_consumption_nonce_idx")
+      .on(table.consumptionNonce)
+      .where(sql`${table.consumptionNonce} IS NOT NULL`),
+    index("professional_mfa_recovery_codes_user_status_idx").on(
+      table.userId,
+      table.setId,
+      table.usedAt,
+      table.invalidatedAt,
+    ),
+    check(
+      "professional_mfa_recovery_codes_position_check",
+      sql`${table.position} BETWEEN 1 AND 8`,
+    ),
+  ],
 );
 
 export const assistedRecoveryGrants = sqliteTable(

@@ -30,6 +30,7 @@ import {
 import { copyText } from "./copy-text";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
 import { ThoughtReviewReadOnly } from "./ThoughtReview";
+import { ProfessionalPatientNotices } from "./ProfessionalPatientNotices";
 
 type User = { id: string; name: string; role: "therapist" };
 type NoticeTone = "info" | "error" | "success";
@@ -39,6 +40,7 @@ type ProfessionalDashboardProps = {
   csrf: string;
   accountPanel: ReactNode;
   onSessionLost: () => void;
+  onDraftStateChange?: (dirty: boolean) => void;
 };
 
 type IssuedRecovery = {
@@ -1041,6 +1043,10 @@ function PatientRecordsView({
 
 function PatientAccessView({
   patients,
+  csrf,
+  onSessionLost,
+  onDraftStateChange,
+  confirmDraftDiscard,
   loading,
   error,
   query,
@@ -1051,6 +1057,10 @@ function PatientAccessView({
   onGenerateRecovery,
 }: {
   patients: PatientAccess[];
+  csrf: string;
+  onSessionLost: () => void;
+  onDraftStateChange: (dirty: boolean) => void;
+  confirmDraftDiscard: () => boolean;
   loading: boolean;
   error: string;
   query: string;
@@ -1063,6 +1073,7 @@ function PatientAccessView({
     trigger: HTMLButtonElement,
   ) => void;
 }) {
+  const [noticePatientId, setNoticePatientId] = useState<string | null>(null);
   const [visiblePatientLimit, setVisiblePatientLimit] = useState(
     PATIENT_LIST_PAGE_SIZE,
   );
@@ -1080,6 +1091,8 @@ function PatientAccessView({
   ).length;
 
   function changeQuery(value: string) {
+    if (noticePatientId && !confirmDraftDiscard()) return;
+    setNoticePatientId(null);
     setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
     onQueryChange(value);
   }
@@ -1179,7 +1192,8 @@ function PatientAccessView({
             const active = patient.access_status === "active";
             const updating = updatingIds.has(patient.patient_id);
             return (
-              <article className="patient-access-card" key={patient.patient_id}>
+              <div className="patient-access-notice-group" key={patient.patient_id}>
+              <article className="patient-access-card">
                 <div className="patient-access-copy">
                   <div className="patient-access-title">
                     <h3>{displayedPatientName(patient.patient_name)}</h3>
@@ -1208,6 +1222,22 @@ function PatientAccessView({
                 <div className="patient-access-actions">
                   {active ? (
                     <button
+                      className="secondary-button notices-access-toggle"
+                      type="button"
+                      aria-label={`Avisos para ${displayedPatientName(patient.patient_name)}`}
+                      aria-expanded={noticePatientId === patient.patient_id}
+                      aria-controls={`patient-notices-${patient.patient_id}`}
+                      onClick={() => {
+                        if (!confirmDraftDiscard()) return;
+                        setNoticePatientId((current) => current === patient.patient_id ? null : patient.patient_id);
+                      }}
+                      disabled={updating || loading}
+                    >
+                      {noticePatientId === patient.patient_id ? "Fechar avisos" : "Avisos"}
+                    </button>
+                  ) : null}
+                  {active ? (
+                    <button
                       className="secondary-button"
                       type="button"
                       aria-label={`Gerar recuperação para ${displayedPatientName(patient.patient_name)}`}
@@ -1234,6 +1264,18 @@ function PatientAccessView({
                   </button>
                 </div>
               </article>
+              {active && noticePatientId === patient.patient_id ? (
+                <div id={`patient-notices-${patient.patient_id}`}>
+                  <ProfessionalPatientNotices
+                    patientId={patient.patient_id}
+                    patientName={displayedPatientName(patient.patient_name)}
+                    csrf={csrf}
+                    onSessionLost={onSessionLost}
+                    onDraftStateChange={onDraftStateChange}
+                  />
+                </div>
+              ) : null}
+              </div>
             );
           })}
           </div>
@@ -1522,6 +1564,7 @@ export function ProfessionalDashboard({
   csrf,
   accountPanel,
   onSessionLost,
+  onDraftStateChange,
 }: ProfessionalDashboardProps) {
   const [privacyMode, setPrivacyMode] = useState(false);
   const [area, setArea] = useState<ProfessionalArea>("records");
@@ -1579,6 +1622,17 @@ export function ProfessionalDashboard({
   const revokeInvitationLocks = useRef<Set<string>>(new Set());
   const privacyToggleRef = useRef<HTMLButtonElement>(null);
   const recoveryTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const noticeDraftDirty = useRef(false);
+  const handleNoticeDraftStateChange = useCallback((dirty: boolean) => {
+    noticeDraftDirty.current = dirty;
+    onDraftStateChange?.(dirty);
+  }, [onDraftStateChange]);
+
+  function confirmNoticeDraftDiscard() {
+    return !noticeDraftDirty.current || window.confirm(
+      "Descartar o aviso que ainda não foi enviado? O título e o texto serão perdidos.",
+    );
+  }
 
   function restoreRecoveryTriggerFocus() {
     const trigger = recoveryTriggerRef.current;
@@ -2140,6 +2194,7 @@ export function ProfessionalDashboard({
   }
 
   function showPrivacyMode() {
+    if (!confirmNoticeDraftDiscard()) return;
     patientRequest.current?.abort();
     patientRequestSequence.current += 1;
     setEntriesLoading(false);
@@ -2248,6 +2303,7 @@ export function ProfessionalDashboard({
         activePatientCount={activePatientCount}
         activeInvitationCount={activeInvitationCount}
         onChange={(nextArea) => {
+          if (nextArea !== area && !confirmNoticeDraftDiscard()) return;
           if (nextArea !== "invitations") setLatestCode("");
           setArea(nextArea);
           setNotice(null);
@@ -2291,6 +2347,10 @@ export function ProfessionalDashboard({
       ) : area === "accesses" ? (
         <PatientAccessView
           patients={patientAccesses}
+          csrf={csrf}
+          onSessionLost={expireSession}
+          onDraftStateChange={handleNoticeDraftStateChange}
+          confirmDraftDiscard={confirmNoticeDraftDiscard}
           loading={patientAccessesLoading}
           error={patientAccessesError}
           query={accessQuery}

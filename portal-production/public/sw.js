@@ -1,8 +1,14 @@
+const APP_BUILD_ID = "__CLIENT_BUILD_ID__";
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "GET_BUILD_ID") {
+    event.ports?.[0]?.postMessage({ buildId: APP_BUILD_ID });
+    return;
+  }
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }

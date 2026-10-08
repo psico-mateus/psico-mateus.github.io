@@ -1701,24 +1701,6 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-account-panel .account-links{display:grid;gap:.25rem}
 }
 
-.app-update-notice{
-  position:fixed;
-  z-index:40;
-  right:clamp(.75rem,3vw,2rem);
-  bottom:clamp(.75rem,3vw,2rem);
-  display:flex;
-  align-items:center;
-  gap:1.25rem;
-  width:min(620px,calc(100vw - 1.5rem));
-  border:1px solid rgba(36,36,35,.18);
-  border-left:4px solid var(--gold);
-  border-radius:16px;
-  background:#fffdfa;
-  padding:1rem 1.1rem;
-  box-shadow:0 18px 60px rgba(36,36,35,.18);
-}
-.app-update-notice>div:first-child{display:grid;gap:.15rem;min-width:0}
-.app-update-notice span{color:var(--muted);font-size:.82rem;line-height:1.45}
 .app-update-actions{display:flex;align-items:center;gap:.35rem;flex:0 0 auto}
 .app-update-actions button{min-height:44px;white-space:nowrap}
 
@@ -1741,14 +1723,6 @@ input[type="range"]{accent-color:#9a6d27}
 }
 
 @media(max-width:560px){
-  .app-update-notice{
-    right:.65rem;
-    bottom:.65rem;
-    display:grid;
-    gap:.85rem;
-    width:calc(100vw - 1.3rem);
-    padding:1rem;
-  }
   .app-update-actions{display:grid;grid-template-columns:minmax(0,1fr) auto}
   .app-update-actions .primary-button{width:100%}
 }
@@ -3867,6 +3841,17 @@ input[type="range"]{accent-color:#9a6d27}
   .patient-map-save-dot{border:1px solid ButtonText}
 }
 
+.app-updates-panel{width:calc(100% - 2rem);max-width:1120px;margin:0 auto 2rem;border:1px solid var(--line);border-radius:14px;background:#faf7f1;color:var(--ink)}
+.app-updates-panel>summary{min-height:48px;padding:.8rem 1rem;cursor:pointer;font-size:.87rem;font-weight:700;overflow-wrap:anywhere}
+.app-updates-panel>summary small{display:inline-block;margin-left:.7rem;border-radius:20px;padding:.2rem .6rem;background:#e6eee8;color:#2d5c4a;font-size:.75rem;font-weight:650}
+.app-updates-content{padding:0 1rem 1rem}
+.app-updates-content>p{margin:0 0 .85rem;max-width:62ch;color:var(--muted);font-size:.87rem}
+.app-updates-content .app-update-actions{flex-wrap:wrap}
+.app-updates-content .app-updates-status{margin:.85rem 0 0}
+.app-updates-panel>summary:focus-visible{outline:2px solid #72541f;outline-offset:3px;border-radius:12px}
+@media(max-width:480px){.app-updates-panel>summary small{display:block;width:fit-content;margin:.5rem 0 0}.app-updates-content .app-update-actions{display:flex}}
+@media print{.app-updates-panel{display:none!important}}
+
 /* Preparação segura do acesso profissional para uma troca de celular. */
 body.mfa-transfer-open{overflow:hidden}
 .professional-mfa-transfer{
@@ -4001,4 +3986,234 @@ body.mfa-transfer-open{overflow:hidden}
     color:#000!important;
   }
   body.mfa-transfer-open .mfa-transfer-print-note{text-align:left}
+}
+
+/* Recuperação profissional independente de um aparelho específico. */
+body.professional-mfa-recovery-open,
+body.recovery-codes-open{overflow:hidden}
+
+.professional-mfa-recovery-trigger{
+  min-height:44px;
+  margin:.15rem 0 0;
+  padding:.55rem .25rem;
+  text-align:left;
+  text-decoration:underline;
+  text-underline-offset:.2em;
+}
+.professional-mfa-recovery-dialog,
+.recovery-codes-dialog{
+  width:min(760px,calc(100vw - 2rem));
+  max-width:760px;
+  max-height:calc(100vh - 2rem);
+  max-height:calc(100dvh - 2rem);
+  overflow:auto;
+  overscroll-behavior:contain;
+  padding:clamp(1.25rem,4vw,2rem);
+}
+.professional-mfa-recovery-heading,
+.recovery-codes-heading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+}
+.professional-mfa-recovery-heading h2,
+.recovery-codes-heading h2{
+  margin:0;
+  font-size:clamp(1.9rem,5vw,3rem);
+}
+.professional-mfa-recovery-heading h2:focus,
+.recovery-codes-heading h2:focus{
+  border-radius:5px;
+  outline:2px solid rgba(140,106,51,.72);
+  outline-offset:4px;
+}
+.professional-mfa-recovery-heading .eyebrow,
+.recovery-codes-heading .eyebrow{margin-bottom:.35rem}
+.professional-mfa-recovery-heading .icon-button,
+.recovery-codes-heading .icon-button{
+  width:44px;
+  height:44px;
+  display:grid;
+  flex:0 0 auto;
+  place-items:center;
+  border:1px solid var(--line);
+  background:#fffefa;
+  line-height:1;
+}
+.professional-mfa-recovery-intro,
+.recovery-codes-intro{
+  max-width:660px;
+  margin:1rem 0;
+  color:#514d47;
+  line-height:1.65;
+}
+.professional-mfa-recovery-form{margin-top:1rem}
+.professional-mfa-recovery-form .button-row{margin-top:.25rem}
+.professional-mfa-recovery-secret .secondary-button{
+  width:100%;
+  margin-top:.75rem;
+}
+
+.professional-recovery-codes{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(300px,.82fr);
+  gap:clamp(1.2rem,3vw,2rem);
+  margin:1rem 0;
+  border:1px solid rgba(140,106,51,.26);
+  border-radius:18px;
+  background:linear-gradient(135deg,#f5eee3 0%,#f8f5ef 58%,#eef3ef 100%);
+  padding:clamp(1.15rem,3vw,1.6rem);
+}
+.professional-recovery-codes-copy h3{
+  margin:.5rem 0 .45rem;
+  font-size:1.45rem;
+}
+.professional-recovery-codes-copy>p:not(.mfa-status-line){
+  margin:0;
+  color:#514d47;
+  font-size:.9rem;
+  line-height:1.62;
+}
+.professional-recovery-codes-copy .professional-recovery-codes-safety{
+  margin-top:.75rem!important;
+  color:var(--muted)!important;
+  font-size:.8rem!important;
+}
+.professional-recovery-codes-status{
+  display:grid;
+  gap:.15rem;
+  width:max-content;
+  max-width:100%;
+  margin:.9rem 0 0;
+  border:1px solid rgba(53,105,91,.18);
+  border-radius:12px;
+  background:rgba(255,254,250,.74);
+  padding:.7rem .85rem;
+}
+.professional-recovery-codes-status strong{
+  color:#27594c;
+  font-size:.88rem;
+}
+.professional-recovery-codes-status span,
+.professional-recovery-codes-status small{
+  color:var(--muted);
+  font-size:.77rem;
+}
+.professional-recovery-codes form{align-content:start;min-width:0}
+.professional-recovery-codes form .primary-button{width:100%;min-height:46px}
+.professional-recovery-codes-feedback{grid-column:1/-1}
+.professional-recovery-codes-feedback .notice{margin:0 0 .35rem}
+.professional-recovery-codes-feedback .quiet-button{min-height:44px;padding:.55rem 0}
+
+.recovery-codes-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:.65rem;
+  margin:1rem 0;
+  padding:0;
+  list-style:none;
+  counter-reset:none;
+}
+.recovery-codes-list li{
+  display:grid;
+  grid-template-columns:1.7rem minmax(0,1fr);
+  align-items:center;
+  gap:.55rem;
+  min-width:0;
+  border:1px solid rgba(36,36,35,.13);
+  border-radius:12px;
+  background:#f7f2eb;
+  padding:.7rem .75rem;
+}
+.recovery-codes-list li>span{
+  display:grid;
+  width:1.7rem;
+  height:1.7rem;
+  place-items:center;
+  border-radius:50%;
+  background:#eadcc6;
+  color:#604820;
+  font-size:.72rem;
+  font-weight:850;
+}
+.recovery-codes-list code{
+  min-width:0;
+  overflow-wrap:anywhere;
+  color:var(--ink);
+  font-size:.9rem;
+  font-weight:800;
+  letter-spacing:.08em;
+  user-select:all;
+  -webkit-user-select:all;
+}
+.recovery-codes-actions{justify-content:flex-start;margin-top:1rem}
+.recovery-codes-actions .quiet-button{min-height:46px}
+.recovery-codes-done{width:100%;margin-top:.5rem}
+.recovery-codes-print-note{display:none}
+
+@media(max-width:760px){
+  .professional-recovery-codes{grid-template-columns:1fr}
+  .professional-recovery-codes-feedback{grid-column:auto}
+}
+
+@media(max-width:560px){
+  .professional-mfa-recovery-dialog,
+  .recovery-codes-dialog{
+    width:calc(100vw - 1rem);
+    max-height:calc(100vh - 1rem);
+    max-height:calc(100dvh - 1rem);
+    padding:1.1rem;
+  }
+  .professional-mfa-recovery-heading h2,
+  .recovery-codes-heading h2{font-size:2rem}
+  .professional-mfa-recovery-form .button-row,
+  .recovery-codes-actions{display:grid;grid-template-columns:1fr}
+  .professional-mfa-recovery-form .button-row>*,
+  .recovery-codes-actions>*{width:100%}
+  .recovery-codes-list{grid-template-columns:1fr}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .professional-mfa-recovery-dialog,
+  .recovery-codes-dialog{scroll-behavior:auto}
+}
+
+@media print{
+  body.recovery-codes-open{overflow:visible}
+  body.recovery-codes-open *{visibility:hidden!important}
+  body.recovery-codes-open .recovery-codes-backdrop,
+  body.recovery-codes-open .recovery-codes-backdrop *{visibility:visible!important}
+  body.recovery-codes-open .recovery-codes-backdrop{
+    position:absolute;
+    inset:0;
+    display:block;
+    background:#fff;
+    padding:0;
+  }
+  body.recovery-codes-open .recovery-codes-dialog{
+    width:100%;
+    max-width:none;
+    max-height:none;
+    border:0;
+    background:#fff;
+    box-shadow:none;
+    overflow:visible;
+  }
+  body.recovery-codes-open .recovery-codes-heading .icon-button,
+  body.recovery-codes-open .recovery-codes-actions,
+  body.recovery-codes-open .recovery-codes-done,
+  body.recovery-codes-open .notice{display:none!important}
+  body.recovery-codes-open .recovery-codes-list li{
+    break-inside:avoid;
+    border-color:#000;
+    background:#fff;
+  }
+  body.recovery-codes-open .recovery-codes-list code{color:#000}
+  body.recovery-codes-open .recovery-codes-print-note{
+    display:block;
+    margin-top:1rem;
+    color:#000;
+    font-size:.8rem;
+  }
 }

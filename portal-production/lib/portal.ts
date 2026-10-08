@@ -15,7 +15,7 @@ export {
   sessionCookie,
 } from "@/lib/session-cookie";
 
-export const PRIVACY_VERSION = "2026-08-20";
+export const PRIVACY_VERSION = "2026-10-08";
 
 export class PortalError extends Error {
   status: number;

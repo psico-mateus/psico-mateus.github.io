@@ -43,7 +43,7 @@ test("preparação da troca mantém MFA profissional e autorização no servidor
   assert.match(route, /"\/account\/mfa-transfer\/confirm"/u);
 });
 
-test("chave temporária fica apenas em memória e a interface confirma o Mac", async () => {
+test("chave temporária fica apenas em memória e a interface confirma o segundo autenticador", async () => {
   const app = await readFile(APP_URL, "utf8");
   const card = app.match(
     /function MfaTransferCard[\s\S]*?(?=\nfunction SetupPanel)/u,
@@ -53,8 +53,8 @@ test("chave temporária fica apenas em memória e a interface confirma o Mac", a
   )?.[0] ?? "";
   const styles = await readFile(STYLES_URL, "utf8");
 
-  assert.match(card, /Guarde o acesso também no Mac/u);
-  assert.match(card, /Código de 6 dígitos mostrado no Mac/u);
+  assert.match(card, /Prepare um segundo autenticador/u);
+  assert.match(card, /Código de 6 dígitos do segundo autenticador/u);
   assert.match(card, /\/account\/mfa-transfer\/confirm/u);
   assert.match(card, /copyText\(details\.secret\)/u);
   assert.match(card, /aria-modal="true"/u);
@@ -62,11 +62,11 @@ test("chave temporária fica apenas em memória e a interface confirma o Mac", a
   assert.match(card, /document\.addEventListener\("focusin", restoreDialogFocus\)/u);
   assert.match(card, /document\.body\.classList\.add\("mfa-transfer-open"\)/u);
   assert.match(card, /window\.setTimeout\(onExpired/u);
-  assert.match(card, /Quando o iPhone novo chegar/u);
+  assert.match(card, /Se perder todos os autenticadores/u);
   assert.match(card, /window\.confirm/u);
   assert.doesNotMatch(card, /localStorage|sessionStorage|indexedDB/iu);
 
-  assert.match(accountPanel, /Preparar troca de celular/u);
+  assert.match(accountPanel, /Preparar segundo autenticador/u);
   assert.match(accountPanel, /\/account\/mfa-transfer/u);
   assert.match(accountPanel, /role === "therapist"/u);
   assert.match(accountPanel, /Código para recuperar a senha/u);

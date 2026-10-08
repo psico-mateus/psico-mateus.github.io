@@ -86,7 +86,7 @@ async function stampServiceWorker(directory) {
   const buildId = fingerprint.digest("hex").slice(0, 16);
   await writeFile(
     serviceWorkerPath,
-    `// area-do-paciente-client-build:${buildId}\n${unstampedWorker}`,
+    `// area-do-paciente-client-build:${buildId}\n${unstampedWorker.replace(/const APP_BUILD_ID = "(?:__CLIENT_BUILD_ID__|[a-f0-9]{16})";/u, `const APP_BUILD_ID = "${buildId}";`)}`,
     "utf8",
   );
 }

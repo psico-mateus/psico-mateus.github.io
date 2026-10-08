@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { AppUpdateManager } from "./AppUpdateManager";
+import { PatientNotices } from "./PatientNotices";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import {
@@ -419,6 +420,472 @@ type MfaTransferDetails = {
   expiresAt: string;
 };
 
+type MfaRecoveryCodeStatus = {
+  remaining: number;
+  total: number;
+  generatedAt: string | null;
+};
+
+type ProfessionalMfaRecoveryDetails = {
+  secret: string;
+  ticket: string;
+  expiresAt: string;
+};
+
+function downloadPrivateTextFile(filename: string, content: string) {
+  const url = URL.createObjectURL(
+    new Blob([content], { type: "text/plain;charset=utf-8" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function RecoveryCodesCard({
+  codes,
+  onClose,
+}: {
+  codes: string[];
+  onClose: () => void;
+}) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const text = codes.join("\n");
+
+  const requestClose = useCallback(() => {
+    const confirmed = window.confirm(
+      "Depois de fechar, estes códigos não serão mostrados novamente. Confirma que já guardou uma cópia segura?",
+    );
+    if (confirmed) onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      requestClose();
+    }
+    function restoreDialogFocus(event: FocusEvent) {
+      if (event.target instanceof Node && !dialogRef.current?.contains(event.target)) {
+        // WebKit can focus the background ancestor on pointerdown. Keep the
+        // scroll position so the matching pointerup still hits the button.
+        titleRef.current?.focus({ preventScroll: true });
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("focusin", restoreDialogFocus);
+    document.body.classList.add("recovery-codes-open");
+    titleRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("focusin", restoreDialogFocus);
+      document.body.classList.remove("recovery-codes-open");
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [requestClose]);
+
+  function keepFocusInside(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), a[href]",
+      ) ?? [],
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (
+      event.shiftKey &&
+      (document.activeElement === first || document.activeElement === titleRef.current)
+    ) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  async function copyAll() {
+    try {
+      await copyText(text);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  }
+
+  function download() {
+    const confirmed = window.confirm(
+      "O arquivo dará acesso de emergência à sua conta. Baixe somente em um dispositivo particular e guarde-o separado da sua senha. Continuar?",
+    );
+    if (!confirmed) return;
+    downloadPrivateTextFile(
+      "codigos-emergenciais-area-do-paciente.txt",
+      `Códigos emergenciais do autenticador — Área do paciente\n\n${text}\n\nCada código funciona uma única vez. Guarde separado da sua senha.\n`,
+    );
+  }
+
+  function print() {
+    const confirmed = window.confirm(
+      "Imprima somente em uma impressora particular. Não salve como PDF compartilhado e guarde a folha separada da sua senha. Continuar?",
+    );
+    if (confirmed) window.print();
+  }
+
+  return (
+    <div className="modal-backdrop recovery-codes-backdrop" role="presentation">
+      <section
+        ref={dialogRef}
+        className="modal recovery-codes-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recovery-codes-title"
+        aria-describedby="recovery-codes-description"
+        onKeyDown={keepFocusInside}
+      >
+        <header className="recovery-codes-heading">
+          <div>
+            <p className="eyebrow">GUARDE AGORA</p>
+            <h2 id="recovery-codes-title" ref={titleRef} tabIndex={-1}>
+              Seus códigos emergenciais
+            </h2>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={requestClose}
+            aria-label="Fechar códigos emergenciais"
+          >
+            ×
+          </button>
+        </header>
+        <p id="recovery-codes-description" className="recovery-codes-intro">
+          Use um deles se perder o celular ou ficar sem o aplicativo autenticador.
+          Cada código funciona uma única vez e esta lista só aparece agora.
+        </p>
+        <Notice
+          tone="info"
+          message="Guarde os códigos em um lugar privado e separado da sua senha. Quem tiver a senha e um destes códigos poderá entrar no painel profissional."
+        />
+        <ol className="recovery-codes-list" aria-label="Oito códigos emergenciais">
+          {codes.map((code, index) => (
+            <li key={`${index}-${code}`}>
+              <span aria-hidden="true">{index + 1}</span>
+              <code>{code}</code>
+            </li>
+          ))}
+        </ol>
+        <div className="button-row recovery-codes-actions">
+          <button className="secondary-button" type="button" onClick={() => void copyAll()}>
+            {copyStatus === "copied" ? "Códigos copiados" : "Copiar todos"}
+          </button>
+          <button className="secondary-button" type="button" onClick={download}>
+            Baixar arquivo TXT
+          </button>
+          <button className="quiet-button" type="button" onClick={print}>
+            Imprimir cópia privada
+          </button>
+        </div>
+        <p
+          className={copyStatus === "error" ? "copy-error" : "sr-status"}
+          role={copyStatus === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {copyStatus === "copied"
+            ? "Todos os códigos emergenciais foram copiados."
+            : copyStatus === "error"
+              ? "O navegador bloqueou a cópia. Selecione os códigos e copie manualmente."
+              : ""}
+        </p>
+        <button className="primary-button recovery-codes-done" type="button" onClick={onClose}>
+          Já guardei em segurança
+        </button>
+        <p className="recovery-codes-print-note">
+          Cópia privada de emergência. Cada código funciona uma única vez. Mantenha esta lista separada da senha.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function ProfessionalMfaRecovery({
+  onClose,
+  onRecovered,
+}: {
+  onClose: () => void;
+  onRecovered: (user: User, csrf: string, recoveryCodes: string[]) => void;
+}) {
+  const [details, setDetails] = useState<ProfessionalMfaRecoveryDetails | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"info" | "error">("info");
+  const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const requestInFlight = useRef(false);
+
+  const requestClose = useCallback(() => {
+    if (!details) {
+      onClose();
+      return;
+    }
+    const confirmed = window.confirm(
+      "Se fechar agora, a nova chave deixará de aparecer. Sua conta atual não será alterada. Deseja sair desta recuperação?",
+    );
+    if (confirmed) onClose();
+  }, [details, onClose]);
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      requestClose();
+    }
+    function restoreDialogFocus(event: FocusEvent) {
+      if (event.target instanceof Node && !dialogRef.current?.contains(event.target)) {
+        titleRef.current?.focus({ preventScroll: true });
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("focusin", restoreDialogFocus);
+    document.body.classList.add("professional-mfa-recovery-open");
+    titleRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("focusin", restoreDialogFocus);
+      document.body.classList.remove("professional-mfa-recovery-open");
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [requestClose]);
+
+  useEffect(() => {
+    if (!details) return;
+    const remaining = Date.parse(details.expiresAt) - Date.now();
+    const timeout = window.setTimeout(() => {
+      setDetails(null);
+      setCopyStatus("idle");
+      setMessageTone("info");
+      setMessage(
+        "O tempo desta tentativa terminou. Nada foi alterado. Use um novo código emergencial para começar de novo.",
+      );
+      window.requestAnimationFrame(() => titleRef.current?.focus());
+    }, Math.max(0, remaining));
+    return () => window.clearTimeout(timeout);
+  }, [details]);
+
+  function keepFocusInside(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled])",
+      ) ?? [],
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (
+      event.shiftKey &&
+      (document.activeElement === first || document.activeElement === titleRef.current)
+    ) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  async function start(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (requestInFlight.current) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    requestInFlight.current = true;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await portalRequest<{
+        ticket: string;
+        totp_secret: string;
+        expires_at: string;
+      }>("/recover/mfa/start", {
+        method: "POST",
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password"),
+          recovery_code: form.get("recovery_code"),
+        }),
+      });
+      formElement.reset();
+      setCopyStatus("idle");
+      setDetails({
+        secret: result.totp_secret,
+        ticket: result.ticket,
+        expiresAt: result.expires_at,
+      });
+      window.requestAnimationFrame(() => titleRef.current?.focus());
+    } catch (error) {
+      setMessageTone("error");
+      setMessage((error as Error).message);
+    } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function confirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!details || requestInFlight.current) return;
+    const form = new FormData(event.currentTarget);
+    requestInFlight.current = true;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await portalRequest<{
+        user: User;
+        csrf: string;
+        recovery_codes: string[];
+      }>("/recover/mfa/confirm", {
+        method: "POST",
+        body: JSON.stringify({ ticket: details.ticket, totp: form.get("totp") }),
+      });
+      setDetails(null);
+      onRecovered(result.user, result.csrf, result.recovery_codes);
+    } catch (error) {
+      setMessageTone("error");
+      setMessage((error as Error).message);
+    } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function copySecret() {
+    if (!details) return;
+    try {
+      await copyText(details.secret);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  }
+
+  return (
+    <div className="modal-backdrop professional-mfa-recovery-backdrop" role="presentation">
+      <section
+        ref={dialogRef}
+        className="modal professional-mfa-recovery-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="professional-mfa-recovery-title"
+        aria-describedby="professional-mfa-recovery-description"
+        onKeyDown={keepFocusInside}
+      >
+        <header className="professional-mfa-recovery-heading">
+          <div>
+            <p className="eyebrow">ACESSO PROFISSIONAL</p>
+            <h2 id="professional-mfa-recovery-title" ref={titleRef} tabIndex={-1}>
+              {details ? "Configure um novo autenticador" : "Recupere seu autenticador"}
+            </h2>
+          </div>
+          <button className="icon-button" type="button" onClick={requestClose} aria-label="Fechar recuperação do autenticador">×</button>
+        </header>
+        <p id="professional-mfa-recovery-description" className="professional-mfa-recovery-intro">
+          {details
+            ? "A confirmação abaixo é obrigatória. Você ainda não entrou e o autenticador anterior ainda não foi substituído."
+            : "Esta opção é exclusiva de Mateus. Use um código emergencial guardado anteriormente para recuperar o acesso sem depender do celular antigo, do Mac ou de atendimento externo."}
+        </p>
+
+        {!details ? (
+          <form className="stack professional-mfa-recovery-form" onSubmit={start} aria-busy={busy}>
+            <Notice
+              tone="info"
+              focusOnMount={false}
+              message="O código emergencial funciona uma única vez. Sua senha continua obrigatória."
+            />
+            <Field label="E-mail profissional" name="email" type="email" autoComplete="username" required />
+            <Field label="Senha" name="password" type="password" autoComplete="current-password" required />
+            <Field
+              label="Código emergencial"
+              name="recovery_code"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={64}
+              hint="Digite ou cole um dos códigos emergenciais que você guardou. Espaços e hífens são ignorados."
+              required
+            />
+            {message ? <Notice tone={messageTone} message={message} focusOnMount={messageTone === "error"} /> : null}
+            <div className="button-row">
+              <button className="quiet-button" type="button" onClick={requestClose}>Voltar ao login</button>
+              <button className="primary-button" disabled={busy}>{busy ? "Verificando…" : "Continuar"}</button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <Notice
+              tone="info"
+              focusOnMount={false}
+              message="A nova chave fica somente nesta tela e expira em até 15 minutos. Não a envie nem guarde junto da sua senha."
+            />
+            <div className="mfa-transfer-secret professional-mfa-recovery-secret">
+              <span>Chave para o novo autenticador</span>
+              <code className="secret-code">{details.secret}</code>
+              <button className="secondary-button" type="button" onClick={() => void copySecret()}>
+                {copyStatus === "copied" ? "Chave copiada" : "Copiar chave"}
+              </button>
+              <p
+                className={copyStatus === "error" ? "copy-error" : "sr-status"}
+                role={copyStatus === "error" ? "alert" : "status"}
+                aria-live="polite"
+              >
+                {copyStatus === "copied"
+                  ? "Chave copiada."
+                  : copyStatus === "error"
+                    ? "O navegador bloqueou a cópia. Selecione a chave e copie manualmente."
+                    : ""}
+              </p>
+            </div>
+            <ol className="mfa-transfer-steps professional-mfa-recovery-steps">
+              <li><span>1</span><div><strong>Abra o autenticador que preferir.</strong><p>Escolha adicionar uma conta manualmente ou usar uma chave de configuração.</p></div></li>
+              <li><span>2</span><div><strong>Cole a chave mostrada acima.</strong><p>Dê um nome fácil de reconhecer, como “Área do paciente”.</p></div></li>
+              <li><span>3</span><div><strong>Confirme um código novo.</strong><p>Digite abaixo os 6 números gerados pelo novo autenticador.</p></div></li>
+            </ol>
+            <form className="stack professional-mfa-recovery-form" onSubmit={confirm} aria-busy={busy}>
+              <Field
+                label="Código de 6 dígitos do novo autenticador"
+                name="totp"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={12}
+                hint="Espere o número mudar se ele estiver perto de expirar. Espaços e hífens são ignorados."
+                required
+              />
+              {message ? <Notice tone={messageTone} message={message} focusOnMount={messageTone === "error"} /> : null}
+              <div className="button-row">
+                <button className="quiet-button" type="button" onClick={requestClose}>Cancelar recuperação</button>
+                <button className="primary-button" disabled={busy}>{busy ? "Confirmando…" : "Confirmar e entrar"}</button>
+              </div>
+            </form>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function MfaTransferCard({
   details,
   csrf,
@@ -556,9 +1023,9 @@ function MfaTransferCard({
       >
         <header className="mfa-transfer-heading">
           <div>
-            <p className="eyebrow">PREPARAR TROCA DE CELULAR</p>
+            <p className="eyebrow">OPÇÃO PREVENTIVA</p>
             <h2 id="mfa-transfer-title" ref={titleRef} tabIndex={-1}>
-              Guarde o acesso também no Mac
+              Prepare um segundo autenticador
             </h2>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Fechar preparação">
@@ -566,8 +1033,9 @@ function MfaTransferCard({
           </button>
         </header>
         <p id="mfa-transfer-description" className="mfa-transfer-intro">
-          Você não precisa estar com os dois celulares ao mesmo tempo. Cadastre esta
-          chave no app Senhas do Mac e confirme abaixo que ele já gera os códigos.
+          Cadastre esta chave em outro autenticador confiável e confirme abaixo que
+          ele já gera os códigos. Pode ser outro celular, tablet, computador ou uma
+          cópia física privada — o Mac é apenas uma das opções.
         </p>
         <Notice
           tone="info"
@@ -597,21 +1065,21 @@ function MfaTransferCard({
           </p>
         </div>
         <ol className="mfa-transfer-steps">
-          <li><span>1</span><div><strong>Abra o app Senhas no Mac.</strong><p>Procure a Área do paciente pelo endereço do site e pelo seu e-mail profissional. Se não encontrar, crie uma entrada nova.</p></div></li>
-          <li><span>2</span><div><strong>Escolha Editar e depois Configurar código.</strong><p>Selecione “Chave de configuração” e cole a chave acima.</p></div></li>
-          <li><span>3</span><div><strong>Teste antes de entregar o iPhone antigo.</strong><p>Espere aparecer um código novo no Mac e digite-o abaixo.</p></div></li>
+          <li><span>1</span><div><strong>Abra outro autenticador confiável.</strong><p>Pode estar em outro celular, tablet ou computador que só você controla.</p></div></li>
+          <li><span>2</span><div><strong>Adicione uma conta pela chave.</strong><p>Escolha “Chave de configuração” ou a opção equivalente e cole a chave acima.</p></div></li>
+          <li><span>3</span><div><strong>Teste o segundo acesso.</strong><p>Espere aparecer um código novo nesse autenticador e digite-o abaixo.</p></div></li>
         </ol>
         <div className="mfa-transfer-new-phone">
-          <strong>Quando o iPhone novo chegar</strong>
+          <strong>Se perder todos os autenticadores</strong>
           <p>
-            O código pode aparecer no app Senhas pela mesma Conta Apple. Se não aparecer,
-            entre usando o código do Mac, abra novamente esta preparação e cadastre a chave
-            no aparelho novo.
+            Use um dos códigos emergenciais guardados em Segurança e conta. Eles são
+            independentes do Mac e permitem configurar um novo autenticador com sua
+            senha. Cada código funciona uma única vez.
           </p>
         </div>
         <form className="stack mfa-transfer-confirm" onSubmit={confirmMacCode} aria-busy={busy}>
           <Field
-            label="Código de 6 dígitos mostrado no Mac"
+            label="Código de 6 dígitos do segundo autenticador"
             name="totp"
             autoComplete="one-time-code"
             inputMode="numeric"
@@ -625,12 +1093,12 @@ function MfaTransferCard({
           <div className="button-row">
             <button className="quiet-button" type="button" onClick={onClose}>Fazer depois</button>
             <button className="primary-button" disabled={busy}>
-              {busy ? "Confirmando…" : "Confirmar código do Mac"}
+              {busy ? "Confirmando…" : "Confirmar segundo autenticador"}
             </button>
           </div>
         </form>
         <p className="mfa-transfer-print-note">
-          A cópia em papel é opcional. Se fizer uma, guarde-a em local privado e separado da sua senha.
+          Esta é uma prevenção adicional. A recuperação por código emergencial continua disponível sem depender deste segundo autenticador.
         </p>
       </section>
     </div>
@@ -763,13 +1231,20 @@ function Guest({
   sessionMessage,
   onAuthenticated,
   onRecoveryCode,
+  onProfessionalMfaRecovered,
 }: {
   config: Config;
   sessionMessage: string;
   onAuthenticated: (user: User, csrf: string, recovery?: string) => void;
   onRecoveryCode: (code: string) => void;
+  onProfessionalMfaRecovered: (
+    user: User,
+    csrf: string,
+    recoveryCodes: string[],
+  ) => void;
 }) {
   const [mode, setMode] = useState<"login" | "register" | "recover">("login");
+  const [professionalMfaRecoveryOpen, setProfessionalMfaRecoveryOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [invalidField, setInvalidField] = useState<"confirmation" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -942,6 +1417,13 @@ function Guest({
                     maxLength={12}
                     hint="Digite ou cole os 6 números. Espaços e hífens são ignorados."
                   />
+                  <button
+                    className="text-action professional-mfa-recovery-trigger"
+                    type="button"
+                    onClick={() => setProfessionalMfaRecoveryOpen(true)}
+                  >
+                    Não tenho mais acesso ao autenticador
+                  </button>
                 </div>
               </details>
             ) : null}
@@ -972,6 +1454,12 @@ function Guest({
         </section>
       </main>
       <EmergencyFooter config={config} />
+      {professionalMfaRecoveryOpen ? (
+        <ProfessionalMfaRecovery
+          onClose={() => setProfessionalMfaRecoveryOpen(false)}
+          onRecovered={onProfessionalMfaRecovered}
+        />
+      ) : null}
     </>
   );
 }
@@ -2042,6 +2530,8 @@ function PatientDashboard({
             </div>
           </section>
 
+          <PatientNotices patientId={user.id} csrf={csrf} onSessionLost={onSessionLost} />
+
           <section className="patient-start" aria-labelledby="patient-start-title">
             <header>
               <p className="eyebrow">ESCOLHA UM CAMINHO</p>
@@ -2446,6 +2936,14 @@ function AccountPanel({
   >(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [mfaRecoveryCodesBusy, setMfaRecoveryCodesBusy] = useState(false);
+  const [mfaRecoveryCodesStatus, setMfaRecoveryCodesStatus] =
+    useState<MfaRecoveryCodeStatus | null>(null);
+  const [mfaRecoveryCodesStatusBusy, setMfaRecoveryCodesStatusBusy] = useState(
+    role === "therapist",
+  );
+  const [mfaRecoveryCodesStatusError, setMfaRecoveryCodesStatusError] = useState("");
+  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState<string[]>([]);
   const [mfaTransferBusy, setMfaTransferBusy] = useState(false);
   const [mfaTransfer, setMfaTransfer] = useState<MfaTransferDetails | null>(null);
   const [mfaTransferFeedback, setMfaTransferFeedback] = useState<{
@@ -2478,9 +2976,69 @@ function AccountPanel({
   } | null>(null);
   const passwordRequestInFlight = useRef(false);
   const recoveryRequestInFlight = useRef(false);
+  const mfaRecoveryCodesRequestInFlight = useRef(false);
   const mfaTransferRequestInFlight = useRef(false);
   const endSessionsRequestInFlight = useRef(false);
   const deleteAccountRequestInFlight = useRef(false);
+
+  const loadMfaRecoveryCodesStatus = useCallback(async () => {
+    if (role !== "therapist") return;
+    setMfaRecoveryCodesStatusBusy(true);
+    setMfaRecoveryCodesStatusError("");
+    try {
+      const result = await portalRequest<{
+        remaining: number;
+        total: number;
+        generated_at: string | null;
+      }>("/account/mfa-recovery-codes");
+      setMfaRecoveryCodesStatus({
+        remaining: result.remaining,
+        total: result.total,
+        generatedAt: result.generated_at,
+      });
+    } catch (error) {
+      if (isSessionExpiredError(error)) {
+        onSessionsEnded();
+        return;
+      }
+      setMfaRecoveryCodesStatusError((error as Error).message);
+    } finally {
+      setMfaRecoveryCodesStatusBusy(false);
+    }
+  }, [onSessionsEnded, role]);
+
+  useEffect(() => {
+    if (role !== "therapist") return;
+    let active = true;
+    void portalRequest<{
+      remaining: number;
+      total: number;
+      generated_at: string | null;
+    }>("/account/mfa-recovery-codes")
+      .then((result) => {
+        if (!active) return;
+        setMfaRecoveryCodesStatus({
+          remaining: result.remaining,
+          total: result.total,
+          generatedAt: result.generated_at,
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (isSessionExpiredError(error)) {
+          onSessionsEnded();
+          return;
+        }
+        setMfaRecoveryCodesStatusError((error as Error).message);
+      })
+      .finally(() => {
+        if (active) setMfaRecoveryCodesStatusBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [onSessionsEnded, role]);
+
   function handleAccountError(error: unknown) {
     if (isSessionExpiredError(error)) {
       onSessionsEnded();
@@ -2527,6 +3085,54 @@ function AccountPanel({
     finally {
       recoveryRequestInFlight.current = false;
       setRecoveryBusy(false);
+    }
+  }
+  async function rotateMfaRecoveryCodes(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (mfaRecoveryCodesRequestInFlight.current) return;
+    const confirmed = window.confirm(
+      "Criar uma nova lista? Todos os códigos emergenciais anteriores deixarão de funcionar. Sua senha e o autenticador atual não serão alterados.",
+    );
+    if (!confirmed) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    mfaRecoveryCodesRequestInFlight.current = true;
+    setMfaRecoveryCodesBusy(true);
+    setMfaRecoveryCodesStatusError("");
+    try {
+      const result = await portalRequest<{
+        recovery_codes: string[];
+        generated_at: string;
+      }>(
+        "/account/mfa-recovery-codes",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            current_password: form.get("current_password"),
+            totp: form.get("totp"),
+          }),
+        },
+        csrf,
+      );
+      if (!Array.isArray(result.recovery_codes) || result.recovery_codes.length === 0) {
+        throw new Error("A nova lista não pôde ser exibida. Tente novamente.");
+      }
+      formElement.reset();
+      setMfaRecoveryCodesStatus({
+        remaining: result.recovery_codes.length,
+        total: result.recovery_codes.length,
+        generatedAt: result.generated_at,
+      });
+      setMfaRecoveryCodes(result.recovery_codes);
+    } catch (error) {
+      if (isSessionExpiredError(error)) {
+        onSessionsEnded();
+        return;
+      }
+      setMfaRecoveryCodesStatusError((error as Error).message);
+    } finally {
+      mfaRecoveryCodesRequestInFlight.current = false;
+      setMfaRecoveryCodesBusy(false);
     }
   }
   async function prepareMfaTransfer(event: FormEvent<HTMLFormElement>) {
@@ -2731,17 +3337,87 @@ function AccountPanel({
         </form>
       </div>
       {role === "therapist" ? (
+        <section
+          className="professional-recovery-codes"
+          aria-labelledby="professional-recovery-codes-title"
+          aria-busy={mfaRecoveryCodesStatusBusy || mfaRecoveryCodesBusy}
+        >
+          <div className="professional-recovery-codes-copy">
+            <p className="mfa-status-line"><span aria-hidden="true" /> Recuperação independente</p>
+            <h3 id="professional-recovery-codes-title">Códigos emergenciais do autenticador</h3>
+            <p>
+              Eles permitem recuperar o painel se você perder o celular e ficar sem
+              qualquer autenticador. Você ainda precisará da sua senha. Cada código
+              funciona uma única vez.
+            </p>
+            <div className="professional-recovery-codes-status" role="status" aria-live="polite">
+              {mfaRecoveryCodesStatusBusy ? (
+                <span>Consultando seus códigos…</span>
+              ) : mfaRecoveryCodesStatus ? (
+                <>
+                  <strong>
+                    {mfaRecoveryCodesStatus.remaining} de {mfaRecoveryCodesStatus.total} disponíveis
+                  </strong>
+                  <small>
+                    {mfaRecoveryCodesStatus.generatedAt
+                      ? `Lista criada em ${formatDate(mfaRecoveryCodesStatus.generatedAt)}.`
+                      : "Crie sua primeira lista e guarde-a antes de precisar dela."}
+                  </small>
+                </>
+              ) : (
+                <span>Status indisponível no momento.</span>
+              )}
+            </div>
+            <p className="professional-recovery-codes-safety">
+              Criar uma lista nova invalida todos os códigos anteriores. A nova lista
+              aparece uma única vez e não fica salva no navegador.
+            </p>
+          </div>
+          <form className="stack" onSubmit={rotateMfaRecoveryCodes} aria-busy={mfaRecoveryCodesBusy}>
+            <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
+            <Field
+              label="Código atual do autenticador"
+              name="totp"
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={12}
+              hint="Digite ou cole os 6 números. Espaços e hífens são ignorados."
+              required
+            />
+            <button className="primary-button" disabled={mfaRecoveryCodesBusy}>
+              {mfaRecoveryCodesBusy ? "Criando lista…" : "Criar 8 novos códigos"}
+            </button>
+          </form>
+          {mfaRecoveryCodesStatusError ? (
+            <div className="professional-recovery-codes-feedback">
+              <Notice tone="error" message={mfaRecoveryCodesStatusError} focusOnMount />
+              {!mfaRecoveryCodesBusy ? (
+                <button
+                  className="quiet-button"
+                  type="button"
+                  onClick={() => void loadMfaRecoveryCodesStatus()}
+                >
+                  Consultar novamente
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+      {role === "therapist" ? (
         <section className="professional-mfa-transfer" aria-labelledby="professional-mfa-transfer-title">
           <div className="professional-mfa-transfer-copy">
-            <p className="mfa-status-line"><span aria-hidden="true" /> Aplicativo autenticador · proteção ativa</p>
-            <h3 id="professional-mfa-transfer-title">Vai trocar de celular?</h3>
+            <p className="mfa-status-line"><span aria-hidden="true" /> Prevenção opcional</p>
+            <h3 id="professional-mfa-transfer-title">Quer preparar um segundo autenticador?</h3>
             <p>
-              Prepare o acesso antes de entregar o iPhone antigo. Seu Mac pode guardar
-              os códigos e servir de ponte até o aparelho novo chegar — sem precisar
-              estar com os dois celulares ao mesmo tempo.
+              Cadastre a mesma chave em outro aparelho confiável. Pode ser celular,
+              tablet, computador ou uma cópia física privada. O Mac é apenas uma opção,
+              não uma dependência para recuperar o acesso.
             </p>
             <p className="professional-mfa-transfer-safety">
-              Isso não muda sua conta, não encerra sessões e não toca em pacientes ou registros.
+              Isso não muda sua conta. Se perder todos os autenticadores, use um código emergencial no login.
             </p>
           </div>
           <form className="stack" onSubmit={prepareMfaTransfer} aria-busy={mfaTransferBusy}>
@@ -2758,7 +3434,7 @@ function AccountPanel({
               required
             />
             <button className="primary-button" disabled={mfaTransferBusy}>
-              {mfaTransferBusy ? "Preparando…" : "Preparar troca de celular"}
+              {mfaTransferBusy ? "Preparando…" : "Preparar segundo autenticador"}
             </button>
           </form>
           {mfaTransferFeedback ? (
@@ -2854,6 +3530,12 @@ function AccountPanel({
         onSessionEnded={onSessionsEnded}
       />
     ) : null}
+    {mfaRecoveryCodes.length > 0 ? (
+      <RecoveryCodesCard
+        codes={mfaRecoveryCodes}
+        onClose={() => setMfaRecoveryCodes([])}
+      />
+    ) : null}
     </>
   );
 }
@@ -2880,6 +3562,7 @@ export function PortalApp() {
   const [user, setUser] = useState<User | null>(null);
   const [csrf, setCsrf] = useState("");
   const [recovery, setRecovery] = useState("");
+  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState<string[]>([]);
   const [fatal, setFatal] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
   const [hasUnsavedDraft, setHasUnsavedDraft] = useState(false);
@@ -2897,6 +3580,7 @@ export function PortalApp() {
   const clear = useCallback((message = "", preserveMapRecovery = false) => {
     setUser(null);
     setCsrf("");
+    setMfaRecoveryCodes([]);
     setHasUnsavedDraft(false);
     if (!preserveMapRecovery) setPatientMapRecovery(null);
     setSessionMessage(message);
@@ -2958,6 +3642,13 @@ export function PortalApp() {
     if (nextRecovery) setRecovery(nextRecovery);
     scrollPageToTop();
   }, []);
+  const professionalMfaRecovered = useCallback(
+    (nextUser: User, token: string, recoveryCodes: string[]) => {
+      authenticated(nextUser, token);
+      setMfaRecoveryCodes(recoveryCodes);
+    },
+    [authenticated],
+  );
   async function logout() {
     if (logoutInFlight.current) return;
     if (
@@ -3007,17 +3698,24 @@ export function PortalApp() {
           sessionMessage={sessionMessage}
           onAuthenticated={authenticated}
           onRecoveryCode={setRecovery}
+          onProfessionalMfaRecovered={professionalMfaRecovered}
         />
       );
     }
-    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>
-      <AppUpdateManager hasUnsavedDraft={hasUnsavedDraft} />
       <SlowMutationStatus />
       {content}
+      <AppUpdateManager hasUnsavedDraft={hasUnsavedDraft} />
       {recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}
+      {mfaRecoveryCodes.length > 0 ? (
+        <RecoveryCodesCard
+          codes={mfaRecoveryCodes}
+          onClose={() => setMfaRecoveryCodes([])}
+        />
+      ) : null}
     </>
   );
 }

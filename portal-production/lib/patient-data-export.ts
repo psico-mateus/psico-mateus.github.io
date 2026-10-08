@@ -10,7 +10,15 @@ import type { PatientMapShareCopy } from "@/lib/patient-map-sharing";
 import type { EntryThoughtReview } from "@/lib/entry-thought-review";
 
 export const PATIENT_DATA_EXPORT_FORMAT = "area-do-paciente-export" as const;
-export const PATIENT_DATA_EXPORT_VERSION = 3 as const;
+export const PATIENT_DATA_EXPORT_VERSION = 4 as const;
+
+export type PatientExportNotice = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+};
 
 export type PatientExportAccountRow = {
   display_name: string;
@@ -214,6 +222,7 @@ export function createPatientDataExport({
   entries,
   patientMapDraft,
   patientMapShares,
+  notices = [],
 }: {
   exportedAt: string;
   account: PatientExportAccountRow;
@@ -221,6 +230,7 @@ export function createPatientDataExport({
   entries: PatientExportEntryRow[];
   patientMapDraft: PatientMapDraftPayload;
   patientMapShares: PatientMapShareCopy[];
+  notices?: PatientExportNotice[];
 }) {
   return {
     format: PATIENT_DATA_EXPORT_FORMAT,
@@ -246,6 +256,13 @@ export function createPatientDataExport({
     },
     // Mantido no nível principal para preservar compatibilidade com as cópias anteriores.
     entries: entries.map(exportEntry),
+    notices: notices.map((notice) => ({
+      id: notice.id,
+      title: notice.title,
+      body: notice.body,
+      created_at: notice.created_at,
+      read_at: notice.read_at,
+    })),
     patient_map: {
       draft: exportPatientMapDraft(patientMapDraft),
       sharing: {
