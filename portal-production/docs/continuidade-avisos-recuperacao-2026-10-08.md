@@ -2,11 +2,12 @@
 
 ## Estado e limites
 
-Trabalho local na branch `agent/prepara-troca-celular-20260824`, a partir de
-`7df9599`. O remoto `origin/main`, conferido com fetch nesta revisão, está em
-`5aa12ae`. Nenhum push, merge, deploy ou alteração do banco remoto foi feito.
-Os commits locais anteriores de preparação do autenticador também ainda precisam
-entrar na revisão da publicação.
+Trabalho na branch `agent/prepara-troca-celular-20260824`, a partir de `7df9599`.
+O remoto `origin/main`, conferido com fetch nesta revisão, permanece em `5aa12ae`.
+O lote foi aprovado e publicado em 8 de outubro de 2026, incluindo os commits
+anteriores de preparação do autenticador. O ajuste final do service worker está
+em `bf16711`. IDs dos deployments, backup e comandos de retorno estão em
+`rollback-avisos-recuperacao-2026-10-08.md`. Não houve merge em `main`.
 
 Não há serviço novo pago, envio de e-mail, chat, push, IA clínica ou alteração de
 domínio. Os recursos usam o Worker/D1 já existentes. Os limites gratuitos da
@@ -41,6 +42,14 @@ preço eterno de terceiros.
   recusada mostra erro e não uma confirmação falsa.
 - Envio de avisos compatível também com navegadores que têm aleatoriedade segura
   mas ainda não oferecem `randomUUID`.
+- Navegações de documentos ficam com o navegador, sem encaminhamento pelo
+  service worker. A checagem pública reproduziu um travamento no WebKit com o
+  handler de navegação pré-existente, mesmo sem interceptação do Playwright.
+  A guarda de `request.mode === "navigate"` preserva mensagens, GETs da API,
+  instalação, ausência de cache clínico e ativação somente por escolha do usuário.
+- O identificador da versão agora inclui também o corpo normalizado do service
+  worker. Assim, uma correção só no worker é reconhecida como nova versão mesmo
+  quando o usuário dispensou uma atualização anterior.
 - Exportação do paciente versão 4 inclui avisos disponíveis por lista explícita
   de campos. Aviso de privacidade atualizado; aceites anteriores não são forjados
   nem sobrescritos.
@@ -71,6 +80,19 @@ foi adicionado ao repositório ou usado nos testes.
   contas/credenciais/registros pelas novas migrações.
 - Build público sanitizado e empacotamento `--dry-run` dos dois Workers aprovados,
   sem upload ou execução remota de migrações.
+- Após o ajuste de navegação: **194 testes automatizados aprovados**, lint limpo,
+  novo build público e os dois empacotamentos `--dry-run` aprovados, sem arquivos
+  de ambiente nem valores de segredos no artefato.
+- Worker local isolado, sem dados reais: fluxo público completo em Chromium
+  1366×900 e WebKit 390×844, com controlador de service worker ativo e sem
+  interceptação de rede. Três ciclos de privacidade/retorno por engine passaram.
+- Atualização real de service workers em Chromium e WebKit: versão anterior
+  dispensada → hotfix com outro ID → ativação explícita → uma recarga de documento
+  → navegação de privacidade funcionando. Só GETs e console limpo.
+- Checagem pública final aprovada nos dois endereços: fluxo completo de telas
+  anônimas nos dois engines e mais 12 ciclos de privacidade/retorno, sempre com
+  controlador de SW ativo, sem interceptação de rede, erros de console ou cortes
+  horizontais. Smoke HTTP de site, Guia, portais e healths aprovado.
 
 WebKit automatizado não substitui teste em iPhone físico. Clipboard do sistema,
 sincronização de autenticadores e instalação PWA física têm limites de automação.
