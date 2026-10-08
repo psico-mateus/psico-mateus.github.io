@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
 import "./notices.css";
 
@@ -39,11 +39,14 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
   const [readingIds, setReadingIds] = useState<Set<string>>(new Set());
   const [readErrors, setReadErrors] = useState<Record<string, string>>({});
   const [confirmation, setConfirmation] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const headingId = useId();
+  const listId = useId();
   const active = useRef(false);
   const sessionLost = useRef(onSessionLost);
   const listRequest = useRef<AbortController | null>(null);
   const readRequests = useRef(new Map<string, AbortController>());
-  const panelSummary = useRef<HTMLElement | null>(null);
+  const panelSummary = useRef<HTMLHeadingElement | null>(null);
   const noticeSummaries = useRef(new Map<string, HTMLElement>());
 
   useEffect(() => {
@@ -154,24 +157,34 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
     }
   }
 
+  const visibleNotices = showAll ? notices : notices.slice(0, 2);
+
+  function expandNotices() {
+    setShowAll(true);
+    window.requestAnimationFrame(() => {
+      if (!active.current) return;
+      const firstAdditional = notices[2];
+      const target = firstAdditional ? noticeSummaries.current.get(firstAdditional.id) : panelSummary.current;
+      target?.focus({ preventScroll: true });
+    });
+  }
+
   return (
-    <details className="patient-notices notice-panel">
-      <summary ref={panelSummary} className="notices-main-summary">
-        <span className="notices-summary-copy">
-          <span className="notices-title">Avisos de Mateus</span>
+    <section className="patient-notices notice-panel" aria-labelledby={headingId}>
+      <header className="patient-notices-heading">
+        <svg className="patient-notices-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+          <path d="M10 21h4M12 2V1" />
+        </svg>
+        <div className="notices-summary-copy">
+          <h2 id={headingId} ref={panelSummary} className="notices-title" tabIndex={-1}>Avisos de Mateus</h2>
           <span className="notices-subtitle">Comunicados individuais para você</span>
-        </span>
-        {loaded && unreadCount > 0 ? (
-          <span className="notices-count">{unreadCount} {unreadCount === 1 ? "não lido" : "não lidos"}</span>
-        ) : <span className="notices-summary-action">Ver avisos</span>}
-      </summary>
-      <div className="notices-panel-content">
-        <div className="notices-toolbar">
-          <p>Este espaço é só para leitura de avisos, sem respostas pelo portal.</p>
-          <button className="secondary-button compact-button" type="button" onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
-            {loading ? "Carregando…" : "Atualizar avisos"}
-          </button>
         </div>
+        {loaded && unreadCount > 0 ? (
+          <span className="notices-count" aria-live="polite">{unreadCount} {unreadCount === 1 ? "não lido" : "não lidos"}</span>
+        ) : null}
+      </header>
+      <div className="notices-panel-content">
         {error ? (
           <div className="notices-error">
             <p role="alert">{error}</p>
@@ -179,9 +192,10 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
           </div>
         ) : null}
         {loading && !loaded ? <p className="notices-empty" role="status">Carregando seus avisos…</p> : null}
-        {loaded && notices.length === 0 ? <p className="notices-empty">Nenhum aviso por aqui no momento.</p> : null}
-        <div className="notices-list">
-          {notices.map((notice) => (
+        {loaded && !error && notices.length === 0 ? <p className="notices-empty">Nenhum aviso por aqui no momento.</p> : null}
+        {loaded && !error && notices.length > 0 && unreadCount === 0 ? <p className="patient-notices-all-read" role="status">Você já confirmou a leitura de todos os avisos.</p> : null}
+        <div className="notices-list" id={listId}>
+          {visibleNotices.map((notice) => (
             <details className={`notice-item${notice.read_at ? "" : " is-unread"}`} key={notice.id}>
               <summary
                 className="notice-item-summary"
@@ -190,11 +204,12 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
                   else noticeSummaries.current.delete(notice.id);
                 }}
               >
+                <span className="patient-notice-marker" aria-hidden="true" />
                 <span className="notices-summary-copy">
                   <span className="notice-item-heading">{notice.title}</span>
                   <span className="notice-item-meta">{formatDate(notice.created_at)} · {notice.read_at ? "Lido" : "Não lido"}</span>
                 </span>
-                <span className="notices-summary-action"><span className="notice-closed-label">Ler aviso</span><span className="notice-open-label">Fechar</span></span>
+                <span className="notices-summary-action"><span className="notice-closed-label">Ler aviso</span><span className="notice-open-label">Fechar</span><svg className="patient-notice-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" /></svg></span>
               </summary>
               <div className="notice-item-content">
                 <p className="notice-body">{notice.body}</p>
@@ -211,9 +226,17 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
             </details>
           ))}
         </div>
-        {nextCursor ? <button className="secondary-button notices-more" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(nextCursor)}>{loading ? "Carregando…" : "Ver avisos anteriores"}</button> : null}
+        {!showAll && (notices.length > 2 || nextCursor) ? <button className="secondary-button patient-notices-expand" type="button" aria-controls={listId} aria-expanded={false} onClick={expandNotices}>Ver todos os avisos ({notices.length}{nextCursor ? "+" : ""})</button> : null}
+        {showAll && nextCursor ? <button className="secondary-button notices-more" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(nextCursor)}>{loading ? "Carregando…" : "Ver avisos anteriores"}</button> : null}
         <p className="sr-status" role="status" aria-live="polite">{confirmation}</p>
       </div>
-    </details>
+      <footer className="patient-notices-footer">
+        <p>Este espaço é só para leitura de avisos, sem respostas pelo portal.</p>
+        <button className="secondary-button patient-notices-refresh" type="button" onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2-5" /></svg>
+          {loading ? "Carregando…" : "Atualizar avisos"}
+        </button>
+      </footer>
+    </section>
   );
 }

@@ -66,7 +66,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     await browser?.close();
   });
 
-  async function openPortal(role, viewport = { width: 1440, height: 1000 }) {
+  async function openPortal(role, viewport = { width: 1440, height: 1000 }, initialControls = {}) {
     const context = await browser.newContext({ viewport, serviceWorkers: "block" });
     contexts.add(context);
     const page = await context.newPage();
@@ -83,12 +83,14 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       runtimeErrors: [],
       expectedHttpFailures: [],
       harnessWarnings: [],
+      listRequests: [],
       sentByRequestId: new Map(),
       professionalNotices: new Map([
         [firstPatientId, [structuredClone(noticeOne)]],
         [secondPatientId, []],
       ]),
     };
+    Object.assign(controls, initialControls);
     page.on("pageerror", (error) => controls.runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (!["error", "warning"].includes(message.type())) return;
@@ -131,6 +133,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
         { patient_id: "synthetic-revoked", patient_name: "Paciente Sintético Revogado", access_status: "revoked", created_at: timestamp, revoked_at: timestamp, last_login_at: null, shared_count: 0 },
       ] });
       if (path === "/notices" && method === "GET") {
+        controls.listRequests.push(url.searchParams.get("cursor"));
         if (controls.listFailure) return respond({ error: "Falha sintética ao carregar os avisos." }, controls.listFailure);
         return respond({ notices: url.searchParams.has("cursor") ? controls.earlierNotices : controls.notices, unread_count: controls.notices.filter((notice) => !notice.read_at).length, next_cursor: url.searchParams.has("cursor") ? null : controls.nextCursor });
       }
@@ -180,6 +183,19 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     });
     await page.goto(baseUrl);
     await expect(page.locator("main")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: role === "patient" ? "Olá, Paciente Sintético." : "Olá, Mateus.", exact: true })).toBeVisible();
+    if (role === "patient") {
+      const inbox = page.locator(".patient-notices");
+      await expect(inbox.getByRole("heading", { name: "Avisos de Mateus", exact: true })).toBeVisible();
+      await expect(inbox.getByRole("button", { name: "Atualizar avisos", exact: true })).toBeEnabled();
+      if (controls.listFailure) {
+        await expect(inbox.getByRole("alert")).toBeVisible();
+      } else if (controls.notices.length > 0) {
+        await expect(inbox.locator(".notice-item-heading").first()).toBeVisible();
+      } else {
+        await expect(inbox.getByText("Nenhum aviso por aqui no momento.", { exact: true })).toBeVisible();
+      }
+    }
     await expect(page).toHaveTitle(/Área do paciente/u);
     assert.equal(new URL(page.url()).origin, new URL(baseUrl).origin);
     await expect(page.locator("vite-error-overlay, nextjs-portal")).toHaveCount(0);
@@ -206,18 +222,20 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     }
   }
 
-  for (const [label, viewport] of [["desktop", { width: 1440, height: 1000 }], ["mobile", { width: 390, height: 844 }]]) {
+  for (const [label, viewport] of [["desktop", { width: 1440, height: 1000 }], ["mobile", { width: 390, height: 844 }], ["narrow-mobile", { width: 320, height: 740 }]]) {
     test(`patient ${label}: opening is read-only; explicit mark-read survives failure and preserves focus`, async () => {
       const { page, controls } = await openPortal("patient", viewport);
       const inbox = page.locator(".patient-notices");
       await expect(inbox.locator(".notices-count")).toHaveText("1 não lido");
-      await expect(inbox).not.toHaveAttribute("open", "");
+      await expect(inbox.getByRole("heading", { name: "Avisos de Mateus" })).toBeVisible();
+      await expect(inbox.locator(".notice-item-heading").first()).toBeVisible();
       assert.equal(controls.mutations.length, 0);
-      await inbox.locator(":scope > summary").click();
       const notice = inbox.locator(".notice-item").first();
+      await expect(notice.locator(".notice-body")).not.toBeVisible();
       await notice.locator("summary").click();
       await expect(notice.locator(".notice-body")).toContainText("<img src=x onerror=alert(1)>");
       await expect(notice.locator("img")).toHaveCount(0);
+      assert.ok((await notice.locator(".notice-item-heading").boundingBox()).width >= 120, "Expanded notice titles keep a readable column instead of collapsing beside a legacy disclosure marker.");
       assert.equal(controls.mutations.length, 0, "Opening/rendering never marks a notice read.");
       controls.readFailure = 503;
       await notice.getByRole("button", { name: "Marcar como lido" }).click();
@@ -226,6 +244,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       await notice.getByRole("button", { name: "Marcar como lido" }).click();
       await expect(notice.locator(".notice-item-meta").last()).toContainText("Leitura confirmada");
       await expect(inbox.locator(".notices-count")).toHaveCount(0);
+      await expect(inbox.getByText("Você já confirmou a leitura de todos os avisos.")).toBeVisible();
       await expect(notice.locator("summary")).toBeFocused();
       assert.equal(controls.mutations.length, 2);
       assert.ok(controls.mutations.every((mutation) => mutation.csrf === "synthetic-csrf" && mutation.method === "POST"));
@@ -234,13 +253,64 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     });
   }
 
+  test("patient: an initial list failure is visible without opening a panel and retry is read-only", async () => {
+    const { page, controls } = await openPortal("patient", { width: 390, height: 844 }, { listFailure: 503 });
+    const inbox = page.locator(".patient-notices");
+    await expect(inbox.getByRole("heading", { name: "Avisos de Mateus" })).toBeVisible();
+    await expect(inbox.getByRole("alert")).toHaveText("Falha sintética ao carregar os avisos.");
+    await expect(inbox.getByRole("button", { name: "Tentar novamente" })).toBeVisible();
+    await expect(inbox.getByText("Nenhum aviso por aqui no momento.")).toHaveCount(0);
+    await expect(inbox.getByText("Você já confirmou a leitura de todos os avisos.")).toHaveCount(0);
+    await expect(inbox.locator(".notices-count")).toHaveCount(0);
+    controls.listFailure = 0;
+    await inbox.getByRole("button", { name: "Tentar novamente" }).click();
+    await expect(inbox.locator(".notice-item-heading")).toHaveCount(2);
+    await expect(inbox.locator(".notices-count")).toHaveText("1 não lido");
+    assert.equal(controls.mutations.length, 0);
+    await checkHealthy(page, controls, "patient-initial-failure-retry-mobile");
+  });
+
+  test("patient: preview shows two titles; expanding and paging never mark notices read", async () => {
+    const additional = { ...noticeTwo, id: "synthetic-third", title: "Terceiro aviso sintético" };
+    const earlier = { ...noticeTwo, id: "synthetic-earlier-preview", title: "Aviso de outra página" };
+    const { page, controls } = await openPortal("patient", { width: 390, height: 844 }, {
+      notices: [structuredClone(noticeOne), structuredClone(noticeTwo), additional],
+      earlierNotices: [structuredClone(noticeTwo), earlier],
+      nextCursor: "synthetic-preview-cursor",
+    });
+    const inbox = page.locator(".patient-notices");
+    await expect(inbox.locator(".notice-item")).toHaveCount(2);
+    await expect(inbox.getByRole("button", { name: "Ver avisos anteriores" })).toHaveCount(0);
+    await expect(inbox.getByText(additional.title)).toHaveCount(0);
+    await inbox.getByRole("button", { name: "Ver todos os avisos (3+)" }).click();
+    await expect(inbox.locator(".notice-item")).toHaveCount(3);
+    await expect(inbox.getByText(additional.title)).toBeVisible();
+    await expect(inbox.locator(".notice-item").nth(2).locator("summary")).toBeFocused();
+    const firstNotice = inbox.locator(".notice-item").first();
+    await firstNotice.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(firstNotice.locator(".notice-body")).toBeVisible();
+    assert.equal(controls.mutations.length, 0, "Opening, expanding and reading are read-only.");
+    await firstNotice.getByRole("button", { name: "Marcar como lido" }).click();
+    await expect(firstNotice.locator("summary")).toBeFocused();
+    await expect(inbox.locator(".notice-item")).toHaveCount(3);
+    await expect(firstNotice.locator(".notice-body")).toBeVisible();
+    await inbox.getByRole("button", { name: "Ver avisos anteriores" }).click();
+    await expect(inbox.locator(".notice-item")).toHaveCount(4);
+    await expect(inbox.getByText(earlier.title)).toBeVisible();
+    assert.deepEqual(controls.listRequests, [null, "synthetic-preview-cursor"]);
+    assert.equal(controls.mutations.length, 1, "Only the explicit mark-read button mutates data.");
+    await checkHealthy(page, controls, "patient-expanded-preview-mobile");
+  });
+
   test("patient: pagination deduplicates, refresh recovers errors, and empty state is clear", async () => {
     const { page, controls } = await openPortal("patient");
     const inbox = page.locator(".patient-notices");
-    await inbox.locator(":scope > summary").click();
     controls.nextCursor = "synthetic-cursor";
     controls.earlierNotices = [structuredClone(noticeTwo), { ...noticeTwo, id: "synthetic-earlier", title: "Aviso mais antigo" }];
     await inbox.getByRole("button", { name: "Atualizar avisos" }).click();
+    await expect(inbox.getByRole("button", { name: "Ver avisos anteriores" })).toHaveCount(0);
+    await inbox.getByRole("button", { name: "Ver todos os avisos (2+)" }).click();
     await inbox.getByRole("button", { name: "Ver avisos anteriores" }).click();
     await expect(inbox.locator(".notice-item")).toHaveCount(3);
     controls.listFailure = 503;
@@ -260,11 +330,11 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
   test("patient: unavailable notice removes stale text; expired session returns to login", async () => {
     const { page, controls } = await openPortal("patient");
     const inbox = page.locator(".patient-notices");
-    await inbox.locator(":scope > summary").click();
     await inbox.locator(".notice-item").first().locator("summary").click();
     controls.readFailure = 404;
     await inbox.getByRole("button", { name: "Marcar como lido" }).click();
     await expect(inbox.getByRole("alert")).toContainText("não está mais disponível");
+    await expect(inbox.getByRole("heading", { name: "Avisos de Mateus" })).toBeFocused();
     await expect(inbox.locator(".notice-item-heading").filter({ hasText: noticeOne.title })).toHaveCount(0);
     await inbox.getByRole("button", { name: "Atualizar avisos" }).click();
     await expect(inbox.locator(".notice-item-heading").first()).toHaveText(noticeOne.title);

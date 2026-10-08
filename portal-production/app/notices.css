@@ -46,3 +46,48 @@
 .patient-access-notice-group .patient-access-actions{flex-wrap:wrap;max-width:520px}
 .patient-access-actions>.notices-access-toggle[aria-expanded="true"]{background:var(--mint);border-color:var(--gold)}
 @media(max-width:640px){.notices-main-summary{padding:1rem;flex-wrap:wrap;gap:.65rem}.notices-main-summary>.notices-summary-copy{flex:1 1 calc(100% - 3rem)}.notices-main-summary>.notices-count,.notices-main-summary>.notices-summary-action{margin-left:2.25rem}.notices-panel-content{padding:1rem}.notices-toolbar,.notices-professional-heading{flex-direction:column;gap:.75rem}.notices-title{font-size:1.3rem}.notice-item-summary{padding:.85rem;gap:.7rem;flex-wrap:wrap}.notice-item-summary>.notices-summary-copy{flex:1 1 calc(100% - 3rem)}.notice-item-summary>.notices-summary-action{margin-left:2.3rem}.notice-item-content{padding:.85rem}.notice-read-action,.notice-compose-footer{align-items:stretch;flex-direction:column}.notice-read-action>.secondary-button,.notice-compose-footer>.primary-button{width:100%}.professional-patient-notices{padding:1rem}.notices-professional-heading h3{font-size:1.3rem}}
+
+/* Patient notices stay visible on the home screen; professional styles above remain unchanged. */
+.patient-notices{display:flex;flex-direction:column;gap:1.2rem;margin:0;padding:1.3rem;min-width:0;border-radius:14px;background:var(--card);box-shadow:none}
+.patient-notices-heading{display:grid;grid-template-columns:2rem minmax(0,1fr) auto;align-items:start;gap:.8rem}
+.patient-notices-bell{width:2rem;height:2rem;margin-top:.15rem;color:var(--green-2)}
+.patient-notices .notices-title{margin:0;font:500 clamp(1.45rem,2.2vw,1.8rem)/1.2 var(--serif);letter-spacing:-.025em;overflow-wrap:anywhere}
+.patient-notices .notices-title:focus{outline:3px solid #6e4e16;outline-offset:5px;border-radius:3px}
+.patient-notices .notices-subtitle{font-size:1rem;line-height:1.5}
+.patient-notices .notices-count{align-self:center;padding:0;border-radius:0;background:none;color:var(--green-2);font-size:1rem;font-weight:700;line-height:1.4;text-align:right;white-space:normal}
+.patient-notices .notices-panel-content{display:grid;gap:.85rem;border:0;padding:0;min-width:0}
+.patient-notices .notices-error{margin:0;font-size:1rem;line-height:1.6}
+.patient-notices .notices-error .secondary-button{font-size:1rem;min-height:44px;white-space:normal}
+.patient-notices .notices-list{gap:.75rem}
+.patient-notices .notice-item{border-radius:10px;background:var(--card)}
+.patient-notices .notice-item.is-unread{border-color:var(--line);box-shadow:none}
+.patient-notices .notice-item-summary{display:grid;grid-template-columns:.65rem minmax(0,1fr) auto;align-items:center;gap:.7rem;min-height:90px;padding:1rem;flex-wrap:nowrap}
+.patient-notices .notice-item-summary:before,.patient-notices .notice-item[open]>.notice-item-summary:before{display:none;content:none}
+.patient-notice-marker{width:.65rem;height:.65rem;border-radius:50%;background:#8a8884}
+.patient-notices .is-unread .patient-notice-marker{background:var(--green-2)}
+.patient-notices .notice-item-summary>.notices-summary-copy{margin:0;min-width:0}
+.patient-notices .notice-item-heading{font-size:1rem;font-weight:700;line-height:1.5}
+.patient-notices .notice-item-meta{font-size:.9rem;line-height:1.5}
+.patient-notices .notices-summary-action{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;margin:0;font-size:1rem;font-weight:650;color:var(--green-2)}
+.patient-notice-chevron{flex:0 0 auto;width:1.25rem;height:1.25rem}
+.patient-notices .notice-item[open]>.notice-item-summary .patient-notice-chevron{transform:rotate(180deg)}
+.patient-notices .notice-item-content{padding:1rem}
+.patient-notices .notice-body{font-size:1rem;line-height:1.7}
+.patient-notices .notice-read-action>span{font-size:.9rem;line-height:1.5}
+.patient-notices .notice-read-action>.secondary-button{min-height:44px;font-size:1rem;white-space:normal}
+.patient-notices .notices-empty,.patient-notices-all-read{margin:0;padding:.4rem 0;color:var(--muted);font-size:1rem;line-height:1.6}
+.patient-notices .notices-more,.patient-notices-expand{width:100%;min-height:48px;margin:0;font-size:1rem;white-space:normal}
+.patient-notices-footer{display:grid;gap:.8rem;margin-top:auto;padding-top:.15rem}
+.patient-notices-footer>p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.5}
+.patient-notices .patient-notices-refresh{display:flex;align-items:center;justify-content:center;gap:.55rem;min-height:48px;width:100%;border:1px solid #8b6429;border-radius:8px;font-size:1rem;color:var(--green-2);white-space:normal}
+.patient-notices-refresh svg{width:1.25rem;height:1.25rem;flex:0 0 auto}
+.patient-notices :where(button,summary){transition:none;animation:none}
+@media(max-width:700px){
+  .patient-notices{padding:1rem;gap:1rem}
+  .patient-notices-heading{grid-template-columns:1.75rem minmax(0,1fr);gap:.65rem}
+  .patient-notices-bell{width:1.75rem;height:1.75rem}
+  .patient-notices .notices-count{grid-column:2;justify-self:start;text-align:left;margin-top:-.2rem}
+  .patient-notices .notice-item-summary{padding:.9rem;gap:.45rem .6rem;grid-template-columns:.6rem minmax(0,1fr)}
+  .patient-notices .notices-summary-action{grid-column:2;justify-content:space-between;width:100%;min-width:0;gap:.5rem}
+}
+@media(forced-colors:active){.patient-notice-marker{border:1px solid currentColor}.patient-notices .notice-item.is-unread{border:2px solid Highlight}}
