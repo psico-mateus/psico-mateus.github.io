@@ -3,8 +3,9 @@
 ## Estado e escopo
 
 Branch `agent/refino-paciente-inclusivo-20261008`, criada a partir de `6b9e199`.
-Lote **local, ainda não publicado**. A versão ativa e os caminhos de retorno
-anteriores estão em `rollback-avisos-recuperacao-2026-10-08.md`.
+Lote aprovado e publicado em **8 de outubro de 2026**, com código `4dec3c4`.
+As versões ativas e o retorno rápido deste lote estão em
+`rollback-refino-paciente-2026-10-08.md`. Não houve merge nem push Git.
 
 Objetivo: tornar o início mais legível, previsível e simples para adultos de
 diferentes idades, familiaridades digitais e necessidades de leitura, atenção,
@@ -112,7 +113,7 @@ instalação PWA física, Firefox e testes de compreensão com pessoas reais nã
 foram executados. No WebKit, Option-Tab inclui botões nativos conforme a
 preferência de navegação por teclado do Safari.
 
-## Preservação e publicação futura
+## Preservação e publicação
 
 Não foram alterados API, banco, migrações, autenticação, segredos, cookies, URLs,
 service bindings ou service worker. Conta antiga, MFA obrigatório, convites,
@@ -123,11 +124,13 @@ não foram editados; o Guia segue sem conta e com rascunho local.
 Nenhum serviço ou dependência foi adicionado. Não há ativação de custo novo.
 As limitações gratuitas de terceiros continuam aplicáveis.
 
-Publicar somente após aprovação final. Não há migração a executar para este lote.
-Antes de publicar, reconfirmar versões ativas dos dois Workers, guardar os IDs de
-retorno, gerar build público sanitizado e verificar os dois empacotamentos.
-Depois, smoke público e conferência em aparelho real autorizado. O rollback
-normal é do deployment, **não** restauração do banco nem revogação de contas.
+Após a aprovação final, foram reconfirmadas e guardadas as versões ativas dos
+dois Workers. Build público sanitizado e dry-run dos dois empacotamentos
+aprovados; publicação manteve as variáveis remotas e os bindings existentes.
+Não há migração a executar para este lote. O rollback normal é do deployment,
+**não** restauração do banco nem revogação de contas. Resultados das checagens
+públicas pós-publicação estão no documento de retorno acima. Conferência em
+aparelho físico segue como limitação, não como teste realizado.
 
 Próxima melhoria só após observar necessidade: teste físico/assistivo, linguagem
 ou campo que cause dúvida real. Não criar funções novas apenas para preencher
@@ -154,7 +157,8 @@ muito semelhante. O refinamento mantém a estrutura e os mesmos destinos:
   A regra global existente de duração reduzida não passa a animar esse ícone.
 
 Este incremento não modifica requisições, sessão, rascunhos, persistência ou
-permissões. Não acrescenta biblioteca, serviço, notificação ou chat. Segue local.
+permissões. Não acrescenta biblioteca, serviço, notificação ou chat. Foi incluído
+na publicação aprovada de 8 de outubro de 2026.
 
 Repetidos neste incremento: lint, typecheck, build sanitizado, 194 testes, 9 testes
 de início por engine e os 12 casos de avisos por engine; Chromium e WebKit. Novas
