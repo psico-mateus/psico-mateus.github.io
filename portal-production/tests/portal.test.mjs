@@ -379,13 +379,13 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     readFile(new URL("../worker/security.ts", import.meta.url), "utf8"),
   ]);
   assert.match(app, /Nada é compartilhado automaticamente/);
-  assert.match(app, /As outras perguntas podem ficar em branco/);
+  assert.match(app, /O restante é opcional/);
   assert.match(app, /O registro começa privado/);
   assert.match(app, /Você escolhe se quer compartilhar/);
   assert.match(app, /Levar para a próxima sessão/);
   assert.match(app, /className="optional-badge">Opcional/);
   assert.match(app, /Este campo não envia mensagem nem pedido de resposta imediata/);
-  assert.match(app, /preencha somente “Título breve” e “O que aconteceu\?”/);
+  assert.match(app, /Para salvar, bastam dois campos:[\s\S]*?“Título breve” e “O que aconteceu\?”/);
   assert.match(app, /className="field-label-line"[\s\S]*?Necessário/);
   assert.match(app, /className="entry-step entry-step-details"/);
   assert.match(app, /Corpo, pensamentos e vontade/);
@@ -1041,7 +1041,7 @@ test("record and map forms associate near-limit counts with their fields", async
   assert.match(app, /Limite de caracteres atingido/);
   assert.match(app, /hidden=\{remaining === null\}/);
   assert.match(app, /CharacterLimit id="entry-happened-character-limit" value=\{draft\.happened\} maxLength=\{2000\}/);
-  assert.match(app, /aria-describedby=\{guidance \? "education-entry-guidance entry-title-character-limit" : "entry-title-character-limit"\}/);
+  assert.match(app, /aria-describedby=\{\[guidance \? "education-entry-guidance" : "", "entry-title-help", "entry-title-character-limit", validationError\?\.field === "title" \? "entry-title-error" : ""\]\.filter\(Boolean\)\.join\(" "\)\}/);
   assert.match(app, /aria-describedby="entry-session-note-help entry-session-note-privacy entry-session-note-character-limit"/);
   assert.match(patientMap, /aria-describedby="patient-map-synthesis-character-limit"/);
   assert.match(patientMap, /id="patient-map-synthesis-character-limit"/);
@@ -1294,8 +1294,8 @@ test("record form keeps optional fields visible and offers early save immediatel
   const sessionStep = form.match(/<section className="entry-step entry-step-optional"[\s\S]*?<\/section>/u)?.[0] ?? "";
   const shortcut = form.match(/<div className="optional-save-shortcut">[\s\S]*?<\/div>/u)?.[0] ?? "";
   assert.match(shortcut, /O restante é opcional/u);
-  assert.match(shortcut, /título e a situação/u);
-  assert.match(shortcut, /pode salvar agora ou continuar abaixo/u);
+  assert.match(form, /Para salvar, bastam dois campos:[\s\S]*?“Título breve” e “O que aconteceu\?”/u);
+  assert.match(shortcut, /Você pode salvar aqui ou continuar com os campos abaixo/u);
   assert.match(shortcut, /type="submit"/u);
   assert.match(shortcut, /Salvar agora como privado/u);
   assert.match(shortcut, /Salvar alterações agora/u);
@@ -1320,8 +1320,9 @@ test("record form keeps optional fields visible and offers early save immediatel
   assert.match(sessionStep, /Nada é compartilhado automaticamente/u);
   assert.equal(sessionStep.match(/update\("message", event\.target\.value\)/gu)?.length, 1);
   const steps = ["entry-step-situation", "optional-save-shortcut", "entry-step-emotion", "entry-step-details", "entry-step-optional"];
+  const markup = form.slice(form.indexOf('<form className="entry-form'));
   for (let index = 1; index < steps.length; index += 1) {
-    assert.ok(form.indexOf(steps[index - 1]) >= 0 && form.indexOf(steps[index - 1]) < form.indexOf(steps[index]),
+    assert.ok(markup.indexOf(steps[index - 1]) >= 0 && markup.indexOf(steps[index - 1]) < markup.indexOf(steps[index]),
       `${steps[index - 1]} must precede ${steps[index]}`);
   }
   assert.match(app, /status session-note">Para a próxima sessão/u);

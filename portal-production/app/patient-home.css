@@ -217,6 +217,15 @@
 .patient-dashboard .patient-account-panel > summary small { font-size: .9rem; line-height: 1.5; }
 .patient-dashboard :where(button, summary, a):focus-visible { outline: 3px solid var(--green-2); outline-offset: 4px; }
 .patient-record-card > summary:focus-visible { outline-offset: -4px; }
+.patient-dashboard .patient-record-summary-copy .status {
+  width: fit-content;
+  max-width: 100%;
+  font-size: 1rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.patient-dashboard .patient-record-summary-copy > small,
+.patient-dashboard .patient-record-toggle { font-size: 1rem; line-height: 1.6; }
 
 /* Keep search and sharing filters together, ahead of the optional Guide link. */
 .patient-dashboard .patient-record-finder {

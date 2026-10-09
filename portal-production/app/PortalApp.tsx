@@ -13,6 +13,8 @@ import { AppUpdateManager } from "./AppUpdateManager";
 import { PatientNotices } from "./PatientNotices";
 import { PatientHomeActions, PatientQuickRecordAction } from "./PatientHomeActions";
 import "./patient-home.css";
+import "./patient-record-editor.css";
+import "./patient-account.css";
 import { copyText } from "./copy-text";
 import { InstallAppButton } from "./InstallAppButton";
 import {
@@ -1508,8 +1510,12 @@ function EntryForm({
 }) {
   const [originalDraft] = useState<EntryDraft>(() => entryDraftFrom(initial));
   const [message, setMessage] = useState("");
+  const [saveErrorLocation, setSaveErrorLocation] = useState<"early" | "final">("final");
+  const [validationError, setValidationError] = useState<{ field: "title" | "happened"; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const submissionInFlight = useRef(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const happenedRef = useRef<HTMLTextAreaElement>(null);
   const dirty = (Object.keys(originalDraft) as Array<keyof EntryDraft>).some(
     (key) => draft[key] !== originalDraft[key],
   );
@@ -1517,15 +1523,33 @@ function EntryForm({
   useEffect(() => {
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
+  useEffect(() => {
+    if (!validationError) return;
+    const field = validationError.field === "title" ? titleRef.current : happenedRef.current;
+    field?.focus();
+  }, [validationError]);
   function update(name: keyof EntryDraft, value: string | number) {
+    if (validationError?.field === name) setValidationError(null);
     onDraftChange({ ...draft, [name]: value });
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (submissionInFlight.current) return;
+    setMessage("");
+    // Test presence only: never trim or rewrite the patient's draft.
+    if (!draft.title.trim()) {
+      setValidationError({ field: "title", message: "Escreva um título breve para identificar este registro." });
+      return;
+    }
+    if (!draft.happened.trim()) {
+      setValidationError({ field: "happened", message: "Conte o que aconteceu. Pode ser uma frase curta." });
+      return;
+    }
+    setValidationError(null);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    setSaveErrorLocation(submitter instanceof HTMLElement && submitter.closest(".optional-save-shortcut") ? "early" : "final");
     submissionInFlight.current = true;
     setBusy(true);
-    setMessage("");
     try { await onSave(draft); } catch (error) { setMessage(entrySaveErrorMessage(error)); } finally {
       submissionInFlight.current = false;
       setBusy(false);
@@ -1542,7 +1566,7 @@ function EntryForm({
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
           <h1 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h1>
-          <p>Comece pelo que estiver mais claro agora.</p>
+          <p>Escreva sobre uma situação do seu dia.</p>
         </div>
         <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário" disabled={busy}>
           <span aria-hidden="true">×</span>
@@ -1557,30 +1581,32 @@ function EntryForm({
             : "Você decide depois se quer compartilhar."}
       </p>
       <p className="form-requirements-note">
-        <strong>Para salvar:</strong> preencha somente “Título breve” e “O que aconteceu?”. As outras perguntas podem ficar em branco.
+        <strong>Para salvar, bastam dois campos:</strong> “Título breve” e “O que aconteceu?”. O restante é opcional.
       </p>
 
       <section className="entry-step entry-step-situation" aria-labelledby="entry-step-one">
         <div className="entry-step-heading">
-          <span aria-hidden="true">01</span>
-          <div><h2 id="entry-step-one">Comece pela situação</h2><p>Uma frase curta já basta para localizar esse momento depois.</p></div>
+          <div><h2 id="entry-step-one">A situação</h2></div>
         </div>
-        <label className="field">
-          <span className="field-label-line"><span>Título breve</span><small>Necessário</small></span>
-          <input id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required disabled={busy} aria-describedby={guidance ? "education-entry-guidance entry-title-character-limit" : "entry-title-character-limit"} />
+        <div className="field">
+          <label className="field-label-line" htmlFor="entry-title"><span>Título breve</span><small>Necessário</small></label>
+          <input ref={titleRef} id="entry-title" value={draft.title} maxLength={120} placeholder="Ex.: conversa no trabalho" onChange={(e) => update("title", e.target.value)} required disabled={busy} aria-invalid={validationError?.field === "title" || undefined} aria-describedby={[guidance ? "education-entry-guidance" : "", "entry-title-help", "entry-title-character-limit", validationError?.field === "title" ? "entry-title-error" : ""].filter(Boolean).join(" ")} />
+          <small className="entry-field-help" id="entry-title-help">Uma frase curta para encontrar este registro depois.</small>
+          {validationError?.field === "title" ? <small className="entry-field-error" id="entry-title-error" role="alert">{validationError.message}</small> : null}
           <CharacterLimit id="entry-title-character-limit" value={draft.title} maxLength={120} />
-        </label>
-        <label className="field">
-          <span className="field-label-line"><span>O que aconteceu?</span><small>Necessário</small></span>
-          <textarea value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito, sem precisar organizar perfeitamente." onChange={(e) => update("happened", e.target.value)} required disabled={busy} aria-describedby="entry-happened-character-limit" />
+        </div>
+        <div className="field">
+          <label className="field-label-line" htmlFor="entry-happened"><span>O que aconteceu?</span><small>Necessário</small></label>
+          <textarea ref={happenedRef} id="entry-happened" value={draft.happened} maxLength={2000} rows={5} placeholder="Conte do seu jeito. Não precisa escrever muito." onChange={(e) => update("happened", e.target.value)} required disabled={busy} aria-invalid={validationError?.field === "happened" || undefined} aria-describedby={validationError?.field === "happened" ? "entry-happened-character-limit entry-happened-error" : "entry-happened-character-limit"} />
+          {validationError?.field === "happened" ? <small className="entry-field-error" id="entry-happened-error" role="alert">{validationError.message}</small> : null}
           <CharacterLimit id="entry-happened-character-limit" value={draft.happened} maxLength={2000} />
-        </label>
+        </div>
       </section>
 
       <div className="optional-save-shortcut">
         <p>
           <strong>O restante é opcional</strong>
-          <span>Se já escreveu o título e a situação, pode salvar agora ou continuar abaixo.</span>
+          <span>Você pode salvar aqui ou continuar com os campos abaixo.</span>
           {initial ? (
             <span>{remainsShared ? "Este registro continuará compartilhado com Mateus." : "Este registro continuará privado."}</span>
           ) : null}
@@ -1589,16 +1615,16 @@ function EntryForm({
           {busy ? "Salvando…" : initial ? "Salvar alterações agora" : "Salvar agora como privado"}
         </button>
       </div>
+      {message && saveErrorLocation === "early" ? <Notice tone="error" message={message} /> : null}
 
       <section className="entry-step entry-step-emotion" aria-labelledby="entry-step-two">
         <div className="entry-step-heading">
-          <span aria-hidden="true">02</span>
           <div>
             <div className="optional-heading-line">
               <h2 id="entry-step-two">O que você sentiu?</h2>
               <span className="optional-badge">Opcional</span>
             </div>
-            <p>Se não souber nomear a emoção, pode deixar o campo em branco.</p>
+            <p>Se não souber, pode deixar em branco.</p>
           </div>
         </div>
         <div className="emotion-row">
@@ -1612,7 +1638,7 @@ function EntryForm({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Não sabe como nomear? Abrir o Guia de Emoções
+              Consultar o Guia de Emoções
               <span className="external-link-note"> (nova aba)</span>
             </a>
           </div>
@@ -1643,48 +1669,46 @@ function EntryForm({
 
       <section className="entry-step entry-step-details" aria-labelledby="entry-step-three">
         <div className="entry-step-heading">
-          <span aria-hidden="true">03</span>
           <div>
             <div className="optional-heading-line">
               <h2 id="entry-step-three">Corpo, pensamentos e vontade</h2>
               <span className="optional-badge">Opcional</span>
             </div>
-            <p>Responda só o que lembrar. Não precisa preencher os três campos.</p>
+            <p>Preencha só o que fizer sentido para essa situação.</p>
           </div>
         </div>
         <div className="two-columns optional-fields">
-          <label className="field">
-            <span>O que percebeu no corpo?</span>
-            <textarea value={draft.body} maxLength={1500} rows={3} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} aria-describedby="entry-body-character-limit" />
+          <div className="field">
+            <label htmlFor="entry-body">O que percebeu no corpo?</label>
+            <textarea id="entry-body" value={draft.body} maxLength={1500} rows={3} placeholder="Ex.: aperto no peito, tensão, calor ou cansaço." onChange={(e) => update("body", e.target.value)} disabled={busy} aria-describedby="entry-body-character-limit" />
             <CharacterLimit id="entry-body-character-limit" value={draft.body} maxLength={1500} />
-          </label>
-          <label className="field">
-            <span>Quais pensamentos apareceram?</span>
-            <textarea value={draft.thoughts} maxLength={1500} rows={3} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} aria-describedby="entry-thoughts-character-limit" />
+          </div>
+          <div className="field">
+            <label htmlFor="entry-thoughts">Quais pensamentos apareceram?</label>
+            <textarea id="entry-thoughts" value={draft.thoughts} maxLength={1500} rows={3} placeholder="Escreva as frases ou ideias que vieram à mente." onChange={(e) => update("thoughts", e.target.value)} disabled={busy} aria-describedby="entry-thoughts-character-limit" />
             <CharacterLimit id="entry-thoughts-character-limit" value={draft.thoughts} maxLength={1500} />
-          </label>
-          <label className="field">
-            <span>O que teve vontade de fazer?</span>
-            <textarea value={draft.urge} maxLength={1500} rows={3} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} aria-describedby="entry-urge-character-limit" />
+          </div>
+          <div className="field">
+            <label htmlFor="entry-urge">O que teve vontade de fazer?</label>
+            <textarea id="entry-urge" value={draft.urge} maxLength={1500} rows={3} placeholder="Ex.: evitar, responder, sair, pedir ajuda ou ficar em silêncio." onChange={(e) => update("urge", e.target.value)} disabled={busy} aria-describedby="entry-urge-character-limit" />
             <CharacterLimit id="entry-urge-character-limit" value={draft.urge} maxLength={1500} />
-          </label>
+          </div>
         </div>
       </section>
 
       <section className="entry-step entry-step-optional" aria-labelledby="entry-step-four">
         <div className="entry-step-heading">
-          <span aria-hidden="true">04</span>
           <div>
             <div className="optional-heading-line">
               <h2 id="entry-step-four">Levar para a próxima sessão</h2>
               <span className="optional-badge">Opcional</span>
             </div>
-            <p>Se quiser, use este espaço para organizar algo que gostaria de retomar. Você não precisa responder todas as perguntas.</p>
+            <p>Anote um assunto ou uma dúvida que queira conversar na sessão.</p>
           </div>
         </div>
         <div className={`session-note-block ${remainsShared ? "shared" : "private"}`}>
-          <label className="field session-note-field" htmlFor="entry-session-note">
-            <span>O que quero levar</span>
+          <div className="field session-note-field">
+            <label htmlFor="entry-session-note">O que quero levar</label>
             <textarea
               id="entry-session-note"
               value={draft.message}
@@ -1696,12 +1720,12 @@ function EntryForm({
               aria-describedby="entry-session-note-help entry-session-note-privacy entry-session-note-character-limit"
             />
             <small id="entry-session-note-help">
-              Escreva só o que ajudar. Você pode deixar partes em aberto e conversar sobre elas depois.
+              Não precisa organizar tudo agora. Você pode conversar sobre isso depois.
             </small>
             <CharacterLimit id="entry-session-note-character-limit" value={draft.message} maxLength={1500} />
-          </label>
+          </div>
           <details className="session-note-prompts">
-            <summary>Se estiver difícil começar, veja algumas perguntas</summary>
+            <summary>Precisa de uma ideia para começar?</summary>
             <ul>
               <li>O que ficou presente desde a última sessão?</li>
               <li>O que você não gostaria de esquecer?</li>
@@ -1719,7 +1743,7 @@ function EntryForm({
         </div>
       </section>
 
-      {message ? <Notice tone="error" message={message} /> : null}
+      {message && saveErrorLocation === "final" ? <Notice tone="error" message={message} /> : null}
       <div className={`form-finish ${remainsShared ? "shared" : "private"}`}>
         <div className="form-finish-copy">
           <span aria-hidden="true" />
@@ -3576,9 +3600,9 @@ function AccountPanel({
           >
             <div>
               <h3 id="account-data-copy-title">Baixar uma cópia</h3>
-              <p>Reúna seus registros, o Meu mapa e os dados básicos da conta em um arquivo para guardar com você.</p>
+              <p>Reúna seus registros, o Meu mapa, os avisos recebidos e os dados básicos da conta em um arquivo para guardar com você.</p>
             </div>
-            <p className="account-export-explanation">É uma cópia técnica para guardar ou encaminhar quando precisar. Para ler seus registros no dia a dia, use o Histórico.</p>
+            <p className="account-export-explanation">É uma cópia técnica para guardar ou encaminhar quando precisar. Para ler seus registros no dia a dia, use Meus registros.</p>
             <button
               className="secondary-button account-export-link"
               type="button"
@@ -3600,7 +3624,7 @@ function AccountPanel({
           </section>
           <section className="account-delete" aria-labelledby="account-delete-title">
             <h3 id="account-delete-title">Excluir conta</h3>
-            <p>Esta ação apaga permanentemente sua conta e todos os seus registros.</p>
+            <p>Esta ação apaga permanentemente sua conta, todos os seus registros, o Meu mapa e os avisos recebidos.</p>
             <form onSubmit={deleteAccount} aria-busy={deletingAccount}>
               <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
               <button className="danger-button" disabled={deletingAccount}>
@@ -3691,6 +3715,7 @@ export function PortalApp() {
   const clear = useCallback((message = "", preservePatientRecovery = false) => {
     setUser(null);
     setCsrf("");
+    setRecovery("");
     setMfaRecoveryCodes([]);
     setHasUnsavedDraft(false);
     if (!preservePatientRecovery) {

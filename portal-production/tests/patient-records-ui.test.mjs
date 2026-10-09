@@ -367,6 +367,10 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       }
       const viewed = page.locator("#record-synthetic-record-viewed .patient-view-summary");
       await expect(viewed).toBeVisible();
+      const historyText = await page.locator(".patient-record-summary-copy .status, .patient-record-summary-copy > small, .patient-record-toggle")
+        .evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).map(node => Number.parseFloat(getComputedStyle(node).fontSize)));
+      assert.ok(historyText.length > 0 && historyText.every(size => size >= 16),
+        "Sharing status, record metadata and the opening hint must stay readable.");
       await search.fill("visualizado");
       await expect(page.locator(".patient-record-card")).toHaveCount(1);
       await expect(viewed).toBeVisible();
@@ -379,6 +383,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       const form = await openNewEditor(fixture);
       await assertOptionalFieldsVisible(form);
       await expect(form.locator(".entry-step")).toHaveCount(4);
+      await expect(form.locator(".entry-step-heading > span")).toHaveCount(0);
       await expect(form.locator("input[required], textarea[required]")).toHaveCount(2);
       const shortcut = form.locator(".optional-save-shortcut");
       await expect(shortcut).toHaveCount(1);
@@ -406,6 +411,20 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
         if (["INPUT", "TEXTAREA"].includes(control.tag) || control.shortcut) {
           assert.ok(control.font >= 16, "Writing fields and the early save action must retain readable 16px text.");
         }
+      }
+      const readingText = await form.locator([
+        ".entry-form-heading > div > p:last-child", ".entry-privacy-note", ".form-requirements-note",
+        ".entry-step-heading p", ".field-label-line > span", ".field > span:not(.field-label-line)",
+        ".field > label", ".field-help-link", ".range-scale", ".optional-save-shortcut strong",
+        ".optional-save-shortcut p > span", ".session-note-field > small:not(.character-limit)",
+        ".session-note-prompts > summary", ".session-note-prompts li", ".session-note-privacy",
+        ".form-finish-copy p",
+      ].join(", ")).evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).map(node => ({
+        text: node.textContent.trim(), font: Number.parseFloat(getComputedStyle(node).fontSize),
+      })));
+      assert.ok(readingText.length > 0, "The form must retain visible labels and instructions.");
+      for (const text of readingText) {
+        assert.ok(text.font >= 16, `Labels, instructions and help must be readable at 16px or more: ${text.text}`);
       }
       const guideLink = await form.locator(".field-help-link").evaluate((link) => {
         const note = link.querySelector(".external-link-note");
@@ -522,6 +541,62 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     assert.equal(fixture.controls.mutations.length, 0);
     await checkHealthy(fixture, "records-early-save-required-fields");
   });
+
+  for (const action of ["early", "final"]) {
+    test(`${action} save: whitespace-only required answers are rejected locally without changing the draft`, async () => {
+      const fixture = await openRecords();
+      const form = await openNewEditor(fixture);
+      const title = form.getByLabel("Título breve");
+      const happened = form.getByLabel("O que aconteceu?");
+      const save = form.getByRole("button", {
+        name: action === "early" ? "Salvar agora como privado" : "Salvar registro privado", exact: true,
+      });
+      const originalTitle = "   ";
+      const originalHappened = " \n \n  ";
+      await title.fill(originalTitle);
+      await happened.fill(originalHappened);
+      await form.getByLabel("O que percebeu no corpo?").fill(optionalDraft.body);
+      await save.click();
+      await expect(title).toBeFocused();
+      await expect(title).toHaveAttribute("aria-invalid", "true");
+      await expect(form.locator("#entry-title-error")).toBeVisible();
+      assert.ok((await title.getAttribute("aria-describedby")).split(/\s+/u).includes("entry-title-error"),
+        "The title error must be linked to its field.");
+      await expect(happened).not.toHaveAttribute("aria-invalid", "true");
+      await expect(form.locator("#entry-happened-error")).toHaveCount(0);
+      await expect(title).toHaveValue(originalTitle);
+      await expect(happened).toHaveValue(originalHappened);
+      assert.equal(fixture.controls.mutations.length, 0, "Whitespace validation must happen before an API request.");
+
+      await form.getByLabel("O que percebeu no corpo?").fill(`${optionalDraft.body} Complemento sintético.`);
+      await expect(form.locator("#entry-title-error")).toBeVisible();
+      const validTitle = "  Título sintético com espaços preservados  ";
+      await title.fill(validTitle);
+      await expect(form.locator("#entry-title-error")).toHaveCount(0);
+      await expect(title).not.toHaveAttribute("aria-invalid", "true");
+      await expect(title).toHaveValue(validTitle);
+      await save.click();
+      await expect(happened).toBeFocused();
+      await expect(happened).toHaveAttribute("aria-invalid", "true");
+      await expect(form.locator("#entry-happened-error")).toBeVisible();
+      assert.ok((await happened.getAttribute("aria-describedby")).split(/\s+/u).includes("entry-happened-error"),
+        "The situation error must be linked to its field.");
+      await expect(title).toHaveValue(validTitle);
+      await expect(happened).toHaveValue(originalHappened);
+      assert.equal(fixture.controls.mutations.length, 0);
+
+      await title.fill(`${validTitle} Revisado.`);
+      await expect(form.locator("#entry-happened-error")).toBeVisible();
+      const validHappened = "   Texto de uma situação sintética.\n   ";
+      await happened.fill(validHappened);
+      await expect(form.locator("#entry-happened-error")).toHaveCount(0);
+      await expect(happened).not.toHaveAttribute("aria-invalid", "true");
+      await expect(happened).toHaveValue(validHappened);
+      await expect(form.getByLabel("O que percebeu no corpo?")).toHaveValue(`${optionalDraft.body} Complemento sintético.`);
+      assert.equal(fixture.controls.mutations.length, 0, "Correcting a field must not save automatically.");
+      await checkHealthy(fixture, `records-${action}-save-whitespace-required-fields`);
+    });
+  }
 
   for (const mode of ["private", "shared"]) {
     test(`editing ${mode}: visible optional values survive early save without changing sharing`, async () => {
@@ -901,9 +976,14 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     controls.saveFailure = 503;
     await form.getByRole("button", { name: "Salvar agora como privado", exact: true }).click();
     const alert = form.getByRole("alert");
+    await expect(alert).toHaveCount(1);
     await expect(alert).toContainText("Falha sintética ao salvar.");
     await expect(alert).toContainText("O que você escreveu continua nesta tela.");
     await expect(alert).toBeFocused();
+    assert.deepEqual(await alert.evaluate(node => ({
+      afterShortcut: node.previousElementSibling?.matches(".optional-save-shortcut") ?? false,
+      beforeEmotion: node.nextElementSibling?.matches(".entry-step-emotion") ?? false,
+    })), { afterShortcut: true, beforeEmotion: true }, "An early save error must stay next to the early save action.");
     await expect(form.getByLabel("Título breve")).toHaveValue("Rascunho sintético preservado");
     await expect(form.getByLabel("O que aconteceu?")).toHaveValue("Texto sintético e neutro que não deve desaparecer.");
     await expect(form.getByLabel("O que quero levar")).toHaveValue("Uma observação sintética para o teste.");
@@ -916,5 +996,57 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     assert.equal(controls.mutations[0].csrf, "synthetic-records-csrf");
     assert.equal(controls.entries.length, 3);
     await checkHealthy(fixture, "records-save-error-preserved");
+  });
+
+  test("failed final save keeps one nearby focused error, preserves every answer and supports one explicit retry", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    const form = await openNewEditor(fixture);
+    const draft = { title: "Rascunho sintético no fim do formulário", happened: "Situação sintética preservada após uma falha.",
+      ...optionalDraft };
+    for (const [label, value] of [
+      ["Título breve", draft.title], ["O que aconteceu?", draft.happened],
+      ["O que percebeu no corpo?", draft.body], ["Quais pensamentos apareceram?", draft.thoughts],
+      ["O que teve vontade de fazer?", draft.urge], ["Emoção principal, se souber", draft.emotion],
+      ["O que quero levar", draft.message],
+    ]) await form.getByLabel(label).fill(value);
+    await form.locator("#entry-intensity").press("ArrowLeft");
+    await form.locator("#entry-intensity").press("ArrowLeft");
+    await expect(form.locator("#entry-intensity")).toHaveValue(String(draft.intensity));
+    controls.saveFailure = 503;
+    const save = form.getByRole("button", { name: "Salvar registro privado", exact: true });
+    await save.click();
+    const alert = form.getByRole("alert");
+    await expect(alert).toHaveCount(1);
+    await expect(alert).toContainText("Falha sintética ao salvar.");
+    await expect(alert).toContainText("O que você escreveu continua nesta tela.");
+    await expect(alert).toBeFocused();
+    assert.deepEqual(await alert.evaluate(node => ({
+      afterOptionals: node.previousElementSibling?.matches(".entry-step-optional") ?? false,
+      beforeFinish: node.nextElementSibling?.matches(".form-finish") ?? false,
+    })), { afterOptionals: true, beforeFinish: true }, "A final save error must stay just before the final save actions.");
+    for (const [label, value] of [
+      ["Título breve", draft.title], ["O que aconteceu?", draft.happened],
+      ["O que percebeu no corpo?", draft.body], ["Quais pensamentos apareceram?", draft.thoughts],
+      ["O que teve vontade de fazer?", draft.urge], ["Emoção principal, se souber", draft.emotion],
+      ["O que quero levar", draft.message],
+    ]) await expect(form.getByLabel(label)).toHaveValue(value);
+    await expect(form.locator("#entry-intensity")).toHaveValue(String(draft.intensity));
+    await expect(save).toBeEnabled();
+    assert.deepEqual(controls.mutations, [{ path: "/entries", method: "POST", payload: draft, csrf: "synthetic-records-csrf" }]);
+    assert.equal(controls.entries.length, 3, "A failed save must not create an entry.");
+    await checkHealthy(fixture, "records-final-save-error-preserved");
+
+    controls.saveFailure = 0;
+    await save.click();
+    await expect(form).toHaveCount(0);
+    assert.equal(controls.mutations.length, 2, "Only the failed attempt and the explicit successful retry may mutate.");
+    assert.deepEqual(controls.mutations[1], { path: "/entries", method: "POST", payload: draft, csrf: "synthetic-records-csrf" });
+    assert.equal(controls.entries.length, 4, "The successful retry must create exactly one entry.");
+    const saved = controls.entries.at(-1);
+    for (const [field, value] of Object.entries(draft)) assert.equal(saved[field], value);
+    assert.equal(saved.shared_at, null);
+    await expect(page.locator(`#record-${saved.id} > summary`)).toBeFocused();
+    await checkHealthy(fixture, "records-final-save-retry-private");
   });
 });

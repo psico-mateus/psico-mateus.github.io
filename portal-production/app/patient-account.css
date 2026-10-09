@@ -1,0 +1,43 @@
+/* Account presentation is scoped to the patient; professional MFA is unchanged. */
+.patient-account-panel {
+  container: patient-account / inline-size;
+  border-color: #ded6cb;
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.patient-account-panel > summary { background: #f7f2e9; }
+.patient-dashboard .patient-account-panel > summary small { font-size: 1rem; line-height: 1.5; }
+.patient-account-panel .account-grid > form.stack.panel {
+  align-content: start;
+  border-radius: 16px;
+  border-color: #ded6cb;
+  box-shadow: none;
+}
+
+.patient-account-panel .field > label,
+.patient-account-panel .field > label > span,
+.patient-account-panel .field > span,
+.patient-account-panel .field > small,
+.patient-account-panel .account-grid > form > p,
+.patient-account-panel .account-sessions p,
+.patient-account-panel .patient-account-actions p,
+.patient-account-panel .account-data-copy small {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.patient-account-panel input,
+.patient-account-panel button { font-size: 1rem; }
+.patient-account-panel form > button { min-height: 48px; height: auto; line-height: 1.5; }
+.patient-account-panel h3 { line-height: 1.3; }
+
+@container patient-account (max-width: 48rem) {
+  .patient-account-panel .account-grid,
+  .patient-account-panel .account-sessions,
+  .patient-account-panel .patient-account-actions { grid-template-columns: minmax(0, 1fr); }
+  .patient-account-panel > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem .75rem; }
+  .patient-account-panel > summary span { grid-column: 1; grid-row: 1; }
+  .patient-account-panel > summary small { grid-column: 1; grid-row: 2; }
+  .patient-account-panel > summary::after { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+}
