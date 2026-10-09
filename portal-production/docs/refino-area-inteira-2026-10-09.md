@@ -1,5 +1,7 @@
 # Área do paciente — refinamento local de 9 de outubro de 2026
 
+Atualização de continuidade: a rechecagem pendente abaixo foi concluída em 9 de outubro de 2026. O refinamento seguinte de registro e conta, os testes finais e os cuidados de publicação estão em [refino-registro-conta-2026-10-09.md](./refino-registro-conta-2026-10-09.md). Ambos os lotes continuam sem publicação.
+
 ## Estado e limites
 
 - Branch: `agent/refino-area-inteira-20261009`.
@@ -32,7 +34,7 @@ Pontos preservados: quatro destinos principais claros, registro privado por padr
 
 Não foram modificados: catálogos clínicos, IDs/conteúdo do mapa, respostas salvas, síntese, registros, confirmação de leitura, regras de compartilhamento, convites, MFA, login, recuperação, sessões, exportação, exclusão, SQL, migrações, bindings, segredos ou dependências. Site profissional e Guia público não foram alterados.
 
-## Testes e pendência real
+## Testes da primeira etapa e pendência histórica
 
 - Antes da alteração: `pnpm test` aprovado; 227 testes aprovados.
 - Depois da primeira rodada de alterações: revisão visual completa aprovada nos sete cenários existentes, sem overflow horizontal ou violações automáticas axe A/AA encontradas.
@@ -41,12 +43,12 @@ Não foram modificados: catálogos clínicos, IDs/conteúdo do mapa, respostas s
 - O ambiente passou a impedir abertura de portas (`listen EPERM`) e encerrou o servidor local. Por isso os novos casos de interface e a rechecagem visual FINAL não foram executados. Não registrar como aprovados os testes apenas preparados.
 - Não foram utilizados pacientes ou credenciais reais. Nenhuma alteração foi feita em produção. Não foi realizada avaliação humana com leitores de tela nem teste em iPhone físico.
 
-## Próxima ação, sem reconstruir o trabalho
+## Pendência resolvida, sem reconstruir o trabalho
 
-1. Retomar o servidor local na porta 4390 quando a execução de localhost estiver permitida.
-2. Executar `tests/patient-home-ui.test.mjs`, `tests/patient-notices-ui.test.mjs` e `tests/patient-records-ui.test.mjs` em Chromium e WebKit, com as variáveis de URL específicas de cada suíte. As APIs devem continuar totalmente simuladas, com requisições externas bloqueadas.
-3. Executar novamente `tests/manual-visual-review.mjs`. Conferir principalmente avisos vazios/com novos comunicados, 320/390 px, histórico filtrado, contadores alinhados, recursos e texto ampliado a 200%.
-4. Reinspecionar as capturas. Preservar todas as funções; corrigir qualquer regressão antes de pedir aprovação.
-5. Só então apresentar o resultado final e pedir uma única autorização para publicar. Usar `pnpm build:worker` antes do deploy, não o build local. Conferir bindings, preparar o retorno à versão vigente, publicar somente o Worker principal autorizado e verificar a versão pública.
+1. Servidor na porta 4390 retomado; APIs simuladas e requisições externas bloqueadas.
+2. Home, avisos e registros executados em Chromium e WebKit. Os casos que estavam apenas preparados agora passaram.
+3. Revisão visual final repetida e capturas reinspecionadas, incluindo avisos, histórico, recursos, registro, mapa e texto ampliado.
+4. Código de registro/conta refinado na continuação `cf56fea`, com novos testes. Ver o documento seguinte para resultados e limites exatos.
+5. Apresentar a prévia final e pedir uma única autorização de publicação. Seguir as verificações de build, bindings e retorno do documento seguinte; nada foi publicado neste refinamento.
 
-As capturas de Recursos já correspondem ao código atual. Capturas de início/histórico da primeira rodada não são prova dos últimos ajustes de alinhamento.
+Capturas históricas da primeira rodada não devem substituir as capturas finais da continuação.
