@@ -607,12 +607,15 @@ async function review(browserType, label, viewport) {
     throw new Error(`${label}: o mapa vazio exibiu ações de compartilhamento sem tema elegível`);
   }
   await page.locator("#patient-map-view-overview").click();
-  await page.getByRole("heading", { name: "Por onde você quer começar?", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Escolha um tema para começar", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa`, `${label}-meu-mapa.png`);
   await page.locator("#patient-map-card-meu-jeito").click();
+  await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  await page.locator(".patient-map-note textarea").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Trocar de assunto", exact: true }).click();
   await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa-tema`, `${label}-meu-mapa-tema.png`);
-  await page.getByRole("button", { name: "Começar por energia e descanso", exact: true }).click();
+  await page.locator("#patient-map-theme-continue").click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
   await page.waitForFunction(() => document.activeElement?.id === "patient-map-question-title");
   const beforeAnswerScroll = await patientMapScrollState(page);
@@ -623,6 +626,7 @@ async function review(browserType, label, viewport) {
   await page.getByText("Salvo na sua conta", { exact: true }).waitFor();
   const savedScroll = await patientMapScrollState(page);
   assertStableMapScroll(beforeAnswerScroll, savedScroll, `${label}-meu-mapa-salvo`);
+  await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
 
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await page.getByRole("heading", { name: "Estar com alguém para recuperar energia", exact: true }).waitFor();
@@ -649,11 +653,21 @@ async function review(browserType, label, viewport) {
   await page.waitForFunction(() => document.activeElement?.id === "patient-map-clear-answer");
   await reviewScreen(page, `${label}-meu-mapa-item`, `${label}-meu-mapa-item.png`);
   const itemOptions = page.locator(".patient-map-item-options");
-  await itemOptions.getByText("Outras opções neste tema", { exact: true }).waitFor();
-  await itemOptions.locator(":scope > summary").click();
-  await itemOptions.getByRole("button", { name: "Ver o que marquei neste tema", exact: true }).click();
+  await itemOptions.getByText("Ver um exemplo preenchido", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Ver minhas respostas neste tema", exact: true }).click();
   await page.getByRole("heading", { name: "O que marquei em Meu jeito", exact: true }).waitFor();
+  const savedAnswerGroup = page.locator(".patient-map-answer-group").first();
+  await savedAnswerGroup.locator(":scope > summary").click();
+  await savedAnswerGroup.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  await savedAnswerGroup.locator(".patient-map-saved-response").getByText("Combina comigo", { exact: true }).waitFor();
   await reviewScreen(page, `${label}-meu-mapa-resumo`, `${label}-meu-mapa-resumo.png`);
+  await savedAnswerGroup.getByRole("button", { name: "Editar resposta de Ter tempo sozinho", exact: true }).click();
+  await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
+  if (!(await page.getByLabel("Combina comigo", { exact: true }).isChecked())) {
+    throw new Error(`${label}: editar pelo resumo não preservou a resposta do item`);
+  }
+  await page.getByRole("button", { name: "Ver minhas respostas neste tema", exact: true }).click();
+  await page.getByRole("heading", { name: "O que marquei em Meu jeito", exact: true }).waitFor();
   await page.getByRole("button", { name: "Voltar ao tema", exact: true }).click();
   await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
   await page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
@@ -693,8 +707,6 @@ async function review(browserType, label, viewport) {
   await reviewScreen(page, `${label}-meu-mapa-compartilhado`, `${label}-meu-mapa-compartilhado.png`);
   await page.locator("#patient-map-view-overview").click();
   await page.locator("#patient-map-card-meu-jeito").click();
-  await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Continuar de onde parei", exact: true }).click();
   await page.getByRole("heading", { name: "Ter tempo sozinho", exact: true }).waitFor();
   await page.getByRole("button", { name: "Apagar resposta deste item", exact: true }).click();
   await page.getByRole("button", { name: "Apagar agora", exact: true }).click();
@@ -706,8 +718,6 @@ async function review(browserType, label, viewport) {
     throw new Error(`${label}: o foco após apagar ficou fora da área visível`);
   }
   await page.getByText("Salvo na sua conta", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Voltar a Meu jeito", exact: true }).click();
-  await page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true }).waitFor();
   await page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
   await page.getByRole("heading", { name: "Meu mapa", exact: true }).waitFor();
   if (await page.getByText("A versão atual de “Meu jeito” foi enviada para Mateus.", { exact: true }).count()) {

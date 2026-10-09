@@ -74,8 +74,8 @@ test("map is private by default with explicit sharing while tools remain ephemer
     assert.match(mapCatalog, new RegExp(phrase, "u"));
   }
   assert.match(map, /type PatientMapView =[\s\S]*?"theme"[\s\S]*?"sharing"[\s\S]*?"synthesis"/u);
-  assert.match(map, /Uma coisa de cada vez/u);
-  assert.match(map, /Por onde você quer começar\?/u);
+  assert.match(map, /Escolha um tema para retomar/u);
+  assert.match(map, /Escolha um tema para começar/u);
   assert.match(map, /Qual opção chega mais perto do que você pensa hoje\?/u);
   assert.match(
     map,
@@ -124,6 +124,59 @@ test("map is private by default with explicit sharing while tools remain ephemer
   ]) {
     assert.equal(untrackedContentShells.includes(forbidden), false, forbidden);
   }
+});
+
+test("map starts directly at the saved item while secondary choices remain reachable", () => {
+  const openMap = map.slice(map.indexOf("  function openMap("), map.indexOf("  function openCurrentItem("));
+  assert.match(openMap, /draft\.positions\?\.\[mapId\]/u);
+  assert.match(openMap, /setSectionIndex\(nextSectionIndex\)/u);
+  assert.match(openMap, /setItemIndex\(nextItemIndex\)/u);
+  assert.match(openMap, /setView\("item"\)/u);
+  assert.doesNotMatch(openMap, /setView\("theme"\)/u);
+
+  const overview = map.slice(map.indexOf('{topLevelView === "overview" ? ('), map.indexOf('{topLevelView === "sharing" ? ('));
+  assert.ok(overview.indexOf("patient-map-theme-picker") >= 0);
+  assert.ok(overview.indexOf("patient-map-follow-up") > overview.indexOf("patient-map-theme-picker"));
+  assert.match(overview, /Depois, se quiser[\s\S]*?\{mapNavigation\}/u);
+  assert.match(map, /onClick=\{returnToTheme\}>Trocar de assunto/u);
+  assert.match(map, /id="patient-map-theme-continue"/u);
+});
+
+test("map keeps optional notes visible and puts navigation before secondary sharing controls", () => {
+  const workspace = map.slice(map.indexOf('<section className="patient-module patient-map-workspace"'));
+  assert.match(workspace, /<div className="patient-map-note"[\s\S]*?<textarea[\s\S]*?onChange=\{\(event\) => updateNote\(event\.target\.value\)\}/u);
+  assert.doesNotMatch(workspace, /<details[\s\S]*?className="patient-map-note"/u);
+  assert.doesNotMatch(map, /noteOpenByItem/u);
+  assert.match(workspace, /Quer acrescentar algo\?/u);
+  assert.match(workspace, /<small>\(opcional\)<\/small>/u);
+  assert.ok(workspace.indexOf("patient-map-item-navigation") > workspace.indexOf("patient-map-note"));
+  assert.ok(workspace.indexOf("patient-map-item-navigation") < workspace.indexOf("patient-map-item-sharing-state"));
+  assert.ok(workspace.indexOf("patient-map-item-navigation") < workspace.indexOf("patient-map-item-options"));
+  assert.match(workspace, /Ver minhas respostas neste tema/u);
+});
+
+test("map summary displays saved answers and edits the exact item without replacing draft content", () => {
+  const summary = map.slice(map.indexOf('if (view === "summary")'), map.indexOf("  if (!activeSection || !activeItem)"));
+  assert.match(summary, /Minhas respostas/u);
+  assert.match(summary, /patient-map-answer-group/u);
+  assert.match(summary, /draft\.answers!\[item\.id\]/u);
+  assert.match(summary, /patient-map-saved-response">\{response\.label\}/u);
+  assert.match(summary, /patient-map-saved-note">\{answer\.note\}/u);
+  assert.match(summary, /aria-label=\{`Editar resposta de \$\{item\.title\}`\}/u);
+  assert.match(summary, /openItem\(index, section\.items\.indexOf\(item\)\)/u);
+  const openItem = map.slice(map.indexOf("  function openItem("), map.indexOf("  function rememberPosition("));
+  assert.match(openItem, /rememberPosition\(nextSectionIndex, nextItemIndex\)/u);
+  assert.match(openItem, /setView\("item"\)/u);
+  assert.doesNotMatch(openItem, /answers:|synthesis:|onDraftChange/u);
+});
+
+test("choosing a map response does not auto-advance or scroll during autosave", () => {
+  const updateResponse = map.slice(map.indexOf("  function updateResponse("), map.indexOf("  function updateNote("));
+  assert.match(updateResponse, /\.\.\.draft\.answers/u);
+  assert.match(updateResponse, /note: currentAnswer\?\.note \?\? ""/u);
+  assert.doesNotMatch(updateResponse, /setView|setSectionIndex|setItemIndex|moveToNextItem|scrollPatientMapQuestionIntoView/u);
+  assert.match(map, /\}, \[activeMapId, itemIndex, sectionIndex, view\]\);/u);
+  assert.doesNotMatch(map, /\}, \[[^\]]*(?:saveState|draft)[^\]]*\]\);\s*\n\s*useEffect\(\(\) => \{\s*if \(view !== "synthesis"/u);
 });
 
 test("the workbook synthesis is one clearly global patient-map section", () => {
