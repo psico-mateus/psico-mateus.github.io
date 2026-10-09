@@ -469,6 +469,37 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     await checkHealthy(page, controls, "patient-empty-desktop");
   });
 
+  for (const width of [320, 390]) {
+    test(`patient ${width}px: compact empty notices still refresh and reveal a new notice`, async () => {
+      const { page, controls } = await openPortal("patient", { width, height: 844 }, { notices: [] });
+      const inbox = page.locator(".patient-notices");
+      const refresh = inbox.getByRole("button", { name: "Atualizar avisos", exact: true });
+      await expect(inbox).toHaveClass(/is-empty/u);
+      await expect(inbox.locator(".patient-notices-footer")).toHaveCount(0);
+      await expect(inbox.locator(".notices-list")).not.toBeVisible();
+      const bounds = await inbox.boundingBox();
+      assert.ok(bounds && bounds.height < 210,
+        "An empty notice panel must not take the space of a full message card at normal text size.");
+      await expect(refresh).toBeEnabled();
+      controls.listFailure = 503;
+      await refresh.click();
+      await expect(inbox.getByRole("alert")).toBeVisible();
+      await expect(inbox).not.toHaveClass(/is-empty/u);
+      await expect(inbox.getByText("Nenhum aviso por aqui no momento.")).toHaveCount(0);
+      controls.listFailure = 0;
+      controls.notices = [structuredClone(noticeOne)];
+      await inbox.getByRole("button", { name: "Tentar novamente" }).click();
+      await expect(inbox.locator(".notice-item-heading")).toHaveText(noticeOne.title);
+      await expect(inbox.locator(".notices-count")).toHaveText("1 não lido");
+      await expect(inbox).not.toHaveClass(/is-empty/u);
+      await expect(inbox.locator(".patient-notices-footer")).toContainText("não recebem respostas");
+      await inbox.locator(".notice-item > summary").click();
+      await expect(inbox.locator(".notice-body")).toHaveText(noticeOne.body);
+      assert.equal(controls.mutations.length, 0, "Refresh and opening a notice cannot confirm its reading.");
+      await checkHealthy(page, controls, `patient-empty-refresh-${width}`);
+    });
+  }
+
   test("patient: unavailable notice removes stale text; expired session returns to login", async () => {
     const { page, controls } = await openPortal("patient");
     const inbox = page.locator(".patient-notices");

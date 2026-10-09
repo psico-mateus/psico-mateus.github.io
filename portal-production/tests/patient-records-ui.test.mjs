@@ -341,6 +341,39 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     { width: 320, height: 844 }, { width: 390, height: 844 },
     { width: 640, height: 900 }, { width: 1366, height: 900 },
   ]) {
+    test(`history ${viewport.width}px: filters stay together, count baselines align and Guide follows the records`, async () => {
+      const fixture = await openRecords({ viewport });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const finder = page.locator(".patient-record-finder");
+      const search = page.getByLabel("Buscar nos meus registros");
+      await expect(finder.getByRole("group", { name: "Filtrar registros por compartilhamento" })).toBeVisible();
+      await expect(search).toHaveAccessibleDescription("A busca acontece somente nesta tela.");
+      const readingOrder = await page.evaluate(() => {
+        const finder = document.querySelector(".patient-record-finder");
+        const records = document.querySelector(".patient-record-list");
+        const guide = document.querySelector(".records-guide-callout");
+        return Boolean(finder && records && guide
+          && (finder.compareDocumentPosition(records) & Node.DOCUMENT_POSITION_FOLLOWING)
+          && (records.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING));
+      });
+      assert.equal(readingOrder, true, "Optional Guide promotion must not come before the history controls or records.");
+      if (viewport.width <= 390) {
+        const counts = await finder.locator(".patient-entry-toolbar button small").evaluateAll(nodes =>
+          nodes.map(node => node.getBoundingClientRect().top),
+        );
+        assert.ok(Math.max(...counts) - Math.min(...counts) <= 1,
+          "Sharing filter counts must align even when one label wraps.");
+      }
+      const viewed = page.locator("#record-synthetic-record-viewed .patient-view-summary");
+      await expect(viewed).toBeVisible();
+      await search.fill("visualizado");
+      await expect(page.locator(".patient-record-card")).toHaveCount(1);
+      await expect(viewed).toBeVisible();
+      assert.equal(controls.mutations.length, 0, "Organizing the history is read-only.");
+      await checkHealthy(fixture, `history-finder-${viewport.width}`);
+    });
+
     test(`editor ${viewport.width}px: optional questions are visible in a clear reading order`, async () => {
       const fixture = await openRecords({ viewport });
       const form = await openNewEditor(fixture);

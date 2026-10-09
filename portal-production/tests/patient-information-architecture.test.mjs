@@ -72,8 +72,9 @@ test("closed patient records keep their keyboard focus inside the clipped card",
 test("resources keep practical tools, readings and the public Guide distinct", () => {
   assert.match(resources, /Ferramentas do dia a dia/u);
   assert.match(resources, /Leitura complementar/u);
-  assert.match(resources, /Abrir uma ferramenta não salva atividade/u);
-  assert.match(resources, /Nada é compartilhado por abrir uma leitura/u);
+  assert.match(resources, /Abrir um recurso não cria histórico nem informa Mateus/u);
+  assert.equal((resources.match(/não cria histórico nem informa Mateus/gu) ?? []).length, 1,
+    "The resources index gives one clear privacy explanation instead of repeating it in every card.");
   assert.match(resources, /Funciona sem conta e separado da Área do paciente/u);
   assert.match(resources, /target="_blank" rel="noopener noreferrer"/u);
   assert.match(resources, /<PatientEducation[\s\S]*?selectedSlug=\{selectedEducationSlug\}/u);

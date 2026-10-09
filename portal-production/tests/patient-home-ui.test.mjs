@@ -351,4 +351,62 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     assert.equal(new URL(page.url()).hash, "#recursos");
     await checkHealthy(fixture, "home-keyboard-to-resources");
   });
+
+  for (const [label, viewport, enlarged] of [
+    ["320", { width: 320, height: 844 }, false],
+    ["390", { width: 390, height: 844 }, false],
+    ["desktop", { width: 1366, height: 900 }, false],
+    ["text-200", { width: 1402, height: 1000 }, true],
+  ]) {
+    test(`resources ${label}: tools and readings retain readable choices and a stable keyboard return`, async () => {
+      const fixture = await openHome({ viewport });
+      const { page } = fixture;
+      if (enlarged) await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.getByRole("navigation", { name: "Navegação da Área do paciente" })
+        .getByRole("button", { name: "Recursos", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Recursos", exact: true })).toBeFocused();
+      await page.getByRole("button", { name: "Ver leituras", exact: true }).click();
+      await expect(page.locator("#education-title")).toBeFocused();
+      const readingFonts = await page.locator(".education-privacy-note, .education-card > p, .education-card-meta, .education-card-meta small")
+        .evaluateAll(nodes => nodes.map(node => Number.parseFloat(getComputedStyle(node).fontSize)));
+      assert.ok(readingFonts.length > 0 && readingFonts.every(size => size >= 16), "Reading summaries and metadata remain readable.");
+      const search = page.getByLabel("Buscar na Leitura complementar");
+      await search.fill("sono");
+      const articleButton = page.locator(".education-card button").first();
+      const articleId = await articleButton.getAttribute("id");
+      await articleButton.focus();
+      await expect(articleButton).toBeFocused();
+      const motion = await page.locator(".education-card").first().evaluate(node => {
+        const style = getComputedStyle(node);
+        return { transform: style.transform, transition: style.transitionProperty };
+      });
+      assert.deepEqual(motion, { transform: "none", transition: "none" }, "Cards must not jump on focus even without reduced motion.");
+      await checkHealthy(fixture, `resources-readings-${label}`);
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#education-article-title")).toBeFocused();
+      await page.locator(".education-article > .back-button").click();
+      await expect(page.locator(`#${articleId}`)).toBeFocused();
+      await expect(search).toHaveValue("sono");
+      await page.getByRole("button", { name: "Voltar aos recursos", exact: true }).click();
+      await page.getByRole("button", { name: "Ver ferramentas", exact: true }).click();
+      await expect(page.locator("#patient-tools-title")).toBeFocused();
+      const targets = await page.locator(".patient-tools-filters button").evaluateAll(nodes => nodes.map(node => {
+        const bounds = node.getBoundingClientRect();
+        return { fontSize: Number.parseFloat(getComputedStyle(node).fontSize), width: bounds.width, height: bounds.height };
+      }));
+      assert.ok(targets.length > 1 && targets.every(target => target.fontSize >= 16 && target.width >= 44 && target.height >= 44),
+        "Every practical-tool choice must retain readable text and a full touch area.");
+      await page.getByRole("group", { name: "Filtrar ferramentas por situação" })
+        .getByRole("button", { name: "Estou travado", exact: true }).click();
+      const toolButton = page.locator(".patient-tool-card button").first();
+      const toolId = await toolButton.getAttribute("id");
+      await toolButton.click();
+      await expect(page.locator("#patient-tool-detail-title")).toBeFocused();
+      await page.getByRole("button", { name: "Voltar às ferramentas", exact: true }).click();
+      await expect(page.locator(`#${toolId}`)).toBeFocused();
+      await expect(page.getByRole("button", { name: "Estou travado", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await checkHealthy(fixture, `resources-tools-${label}`);
+    });
+  }
 });
