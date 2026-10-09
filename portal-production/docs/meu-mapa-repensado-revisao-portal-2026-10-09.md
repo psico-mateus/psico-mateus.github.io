@@ -1,6 +1,6 @@
 # Meu mapa repensado e revisão da Área do paciente
 
-Data: 09/10/2026. Trabalho local, **ainda não publicado**.
+Data: 09/10/2026. **Publicado após aprovação do usuário**, conforme registro ao final.
 
 ## Estado e limites desta entrega
 
@@ -13,7 +13,9 @@ Data: 09/10/2026. Trabalho local, **ainda não publicado**.
   persistência D1, API legada atendida pela configuração atual.
 - Sem alteração de API, banco, migrations, papéis, autenticação, cookies,
   configurações de Worker, dependências ou catálogo editorial.
-- Nenhum push, merge, deploy ou acesso de escrita à produção nesta revisão.
+- Na revisão prévia não houve deploy nem escrita em produção. Após aprovação,
+  somente a interface do Worker principal foi publicada. Sem push, merge,
+  migração, escrita de dados ou alteração do Worker legado.
 - Todos os dados das capturas e dos testes são sintéticos.
 
 ## O que mudou no mapa
@@ -140,8 +142,8 @@ WCAG A/AA no roteiro, overflow horizontal, erros de execução ou tráfego exter
 inesperado. Isso não equivale a certificação ou garantia de ausência de erros.
 
 Não foi testado neste lote: iPhone/Android físico, VoiceOver/NVDA humano,
-Firefox, conta real de paciente ou fluxo autenticado na produção. A versão
-que está no ar não recebeu estas alterações.
+Firefox, conta real de paciente ou fluxo autenticado na produção. A validação
+pública após publicar está descrita abaixo; não usou credenciais reais.
 
 ## Confirmações de preservação
 
@@ -157,12 +159,36 @@ que está no ar não recebeu estas alterações.
 
 ## Publicação e continuidade
 
-Aprovação para esta entrega ainda pendente. Antes de publicar, conferir a
-versão efetivamente ativa e repetir os checks proporcionais à publicação.
-Referência da versão principal ativa no início desta revisão:
-`b5e7f029-1b0e-4541-8de5-bd69c3e9d574` (08/10/2026).
-Não usar versões antigas de documentos históricos como alvo de retorno sem
-conferir a configuração e a compatibilidade atuais.
+Aprovação recebida: “pode”. Publicado somente `area-do-paciente`, a partir do
+código aprovado `0b6443a`, com 100% do tráfego:
+
+- Versão: `f3bc1cd2-f7bd-4806-9996-a54fdea1e944`.
+- Deployment: `9ce94566-219c-4a73-92e1-46fa1ebcdb1f`.
+- Criado: `2026-10-09T12:11:38.498836Z`.
+- Fingerprint: `890c333979c19888`.
+- Endereço: `https://area-do-paciente.psico-mateus.workers.dev/`.
+
+A versão anterior, conferida no Cloudflare imediatamente antes da publicação,
+é o alvo de retorno deste lote:
+`b5e7f029-1b0e-4541-8de5-bd69c3e9d574`. Instruções prontas e backup verificado
+em `/Users/mateus/.codex/backups/psico-mateus/2026-10-09/retorno-mapa-repensado.md`.
+Não usar o alvo `db6c7213` do documento histórico anterior para retornar este
+lote. Não é necessário restaurar banco, revogar sessões ou alterar secrets.
+
+Legado preservado: versão `0478b052-cd09-4b42-bab7-71c710616e72`, deployment
+`e04dee39-5c0b-43b8-8e3d-f4bb65329f8e`, fingerprint `04a2d900c21a088a`.
+Não foi publicado nem recebeu redirecionamento novo; continua atendendo a API
+e sua interface anterior. O site profissional e o Guia permanecem iguais.
+
+Pós-publicação: smoke público de oito endpoints aprovado, principal/legado
+conferidos em Chromium 1366×900 e WebKit 390×844, com service worker ativo.
+Entrada → cadastro → entrada → recuperação → entrada → privacidade → entrada
+passou sem erro de execução/console, overlay, falha HTTP ou overflow horizontal.
+JS/CSS do PortalApp e CSS global públicos têm o mesmo SHA-256 do build aprovado;
+SW público é idêntico ao local. Verificações somente leitura, sem credenciais,
+envio de formulários, acesso a pacientes ou escrita de dados em produção.
+Browser plugin ausente; usado o Playwright já instalado, sem dependências novas.
+Capturas: `/tmp/map-public-release-20261009`.
 
 Próximas verificações úteis: iPhone/Safari físico, teclado e leitor de tela
 com pessoa real, e retorno dos pacientes sobre escolha de tema e gráfico.
