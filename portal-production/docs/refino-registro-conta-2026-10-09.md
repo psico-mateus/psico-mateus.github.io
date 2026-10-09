@@ -6,7 +6,8 @@
 - Branch local: `agent/refino-area-inteira-20261009`.
 - Base desta continuação: `399ffb7`, com os refinamentos anteriores de avisos, histórico e recursos já preparados.
 - Implementação desta continuação: `cf56fea` — Refina registro e leitura da conta do paciente.
-- Nada deste lote foi publicado, enviado ao remoto ou mesclado. O ambiente de produção não foi alterado.
+- Lote publicado após a aprovação explícita “poste”, em 9 de outubro de 2026. Versão principal: `c9ef866b-e181-4f5c-98e9-78218183298a`, 100% do tráfego. Não houve push nem merge.
+- Detalhes e retorno rápido: [publicacao-refino-registro-conta-2026-10-09.md](./publicacao-refino-registro-conta-2026-10-09.md).
 - Este documento complementa `refino-area-inteira-2026-10-09.md` e encerra a pendência de rechecagem visual daquele lote. Não repetir a implementação já concluída.
 
 ## Auditoria antes de alterar
@@ -84,7 +85,7 @@ Capturas finais persistidas fora do repositório em:
 
 Há prévias do início do formulário, campos complementares, registro completo mobile/desktop, histórico e conta. Logs da validação local: `/tmp/registro-refino-20261009-*`.
 
-Antes de publicar:
+Checklist cumprido nesta publicação:
 
 1. Obter uma única aprovação final do usuário para os refinamentos locais desta branch, incluindo o lote anterior `fc5587e`.
 2. Conferir novamente a versão de produção. A última versão principal verificada antes deste lote era `f3bc1cd2-f7bd-4806-9996-a54fdea1e944`; não assumir que continua vigente sem conferir.

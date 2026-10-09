@@ -1,14 +1,14 @@
 # Área do paciente — refinamento local de 9 de outubro de 2026
 
-Atualização de continuidade: a rechecagem pendente abaixo foi concluída em 9 de outubro de 2026. O refinamento seguinte de registro e conta, os testes finais e os cuidados de publicação estão em [refino-registro-conta-2026-10-09.md](./refino-registro-conta-2026-10-09.md). Ambos os lotes continuam sem publicação.
+Atualização de continuidade: a rechecagem pendente abaixo foi concluída em 9 de outubro de 2026. O refinamento seguinte de registro e conta e os testes finais estão em [refino-registro-conta-2026-10-09.md](./refino-registro-conta-2026-10-09.md). Ambos os lotes foram publicados após aprovação explícita do usuário; detalhes em [publicacao-refino-registro-conta-2026-10-09.md](./publicacao-refino-registro-conta-2026-10-09.md).
 
 ## Estado e limites
 
 - Branch: `agent/refino-area-inteira-20261009`.
 - Base: `c9e5210`, após a publicação aprovada do Meu mapa.
 - Commit da implementação visual: `fc5587e`.
-- Este lote NÃO foi publicado, enviado ao remoto ou mesclado.
-- A Área do paciente publicada permanece na versão anteriormente aprovada. Não atualizar o Worker antigo, redirecionamentos, banco ou autenticação para publicar este lote visual.
+- Este lote foi publicado em conjunto com `cf56fea`, somente no Worker principal. Não foi enviado ao remoto nem mesclado.
+- Worker antigo, redirecionamentos, banco e autenticação permaneceram inalterados.
 - Última versão principal verificada no lote anterior: `f3bc1cd2-f7bd-4806-9996-a54fdea1e944`. Confirmar o estado remoto novamente antes de qualquer publicação; usar a versão então vigente como retorno, não copiar um identificador histórico sem conferir.
 
 ## Evidências antes da alteração
