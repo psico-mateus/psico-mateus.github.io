@@ -14,6 +14,9 @@ import type {
   PatientMapDraftSaveState,
 } from "./patient-map-draft-client";
 import { formatViewTimestamp, portalRequest } from "./portal-client";
+import { PatientMapReview } from "./PatientMapReview";
+import { PatientMapThemeBrowser } from "./PatientMapThemeBrowser";
+import "./patient-map.css";
 
 export type PatientMapSessionAnswer = {
   response: PatientMapResponseKey | null;
@@ -140,17 +143,6 @@ function exploredCountForMap(
   );
 }
 
-function responseCountForMap(
-  map: PatientMapDefinition,
-  draft: PatientMapSessionDraft,
-): number {
-  return map.sections.reduce(
-    (total, section) =>
-      total + section.items.filter((item) => Boolean(draft.answers?.[item.id]?.response)).length,
-    0,
-  );
-}
-
 function sentenceCase(value: string): string {
   const lower = value.toLocaleLowerCase("pt-BR");
   return lower.charAt(0).toLocaleUpperCase("pt-BR") + lower.slice(1);
@@ -198,6 +190,7 @@ export function PatientMapShell({
 }: PatientMapShellProps) {
   const [view, setView] = useState<PatientMapView>("overview");
   const [activeMapId, setActiveMapId] = useState<string | null>(null);
+  const [reviewMapId, setReviewMapId] = useState("all");
   const [sectionIndex, setSectionIndex] = useState(0);
   const [itemIndex, setItemIndex] = useState(0);
   const [announcement, setAnnouncement] = useState("");
@@ -223,10 +216,6 @@ export function PatientMapShell({
   const activeSection = activeMap?.sections[sectionIndex] ?? null;
   const activeItem = activeSection?.items[itemIndex] ?? null;
   const currentAnswer = activeItem ? draft.answers?.[activeItem.id] : undefined;
-  const totalExplored = PATIENT_MAP_CATALOG.maps.reduce(
-    (total, map) => total + exploredCountForMap(map, draft),
-    0,
-  );
   const shareableMaps = PATIENT_MAP_CATALOG.maps.filter(
     (map) => Boolean(shares[map.id]) || exploredCountForMap(map, draft) > 0,
   );
@@ -413,7 +402,7 @@ export function PatientMapShell({
     setActiveMapId(mapId);
     setSectionIndex(nextSectionIndex);
     setItemIndex(nextItemIndex);
-    setView("item");
+    setView("theme");
   }
 
   function openCurrentItem(map: PatientMapDefinition) {
@@ -431,11 +420,6 @@ export function PatientMapShell({
     setAnnouncement("");
     setConfirmingClearItemId(null);
     setView("item");
-  }
-
-  function openSection(nextSectionIndex: number) {
-    if (!activeMap) return;
-    openItem(nextSectionIndex, 0);
   }
 
   function openItem(nextSectionIndex: number, nextItemIndex: number) {
@@ -489,6 +473,31 @@ export function PatientMapShell({
   function openSharingView(mapId?: string) {
     sharingViewFocusMapIdRef.current = mapId ?? null;
     openTopLevelView("sharing");
+  }
+
+  function openReview(mapId = "all") {
+    setReviewMapId(mapId);
+    setAnnouncement("");
+    setConfirmingClearItemId(null);
+    setActiveMapId(null);
+    setView("summary");
+  }
+
+  function openSavedItem(mapId: string, nextSectionIndex: number, nextItemIndex: number) {
+    const map = PATIENT_MAP_CATALOG.maps.find((candidate) => candidate.id === mapId);
+    if (!map?.sections[nextSectionIndex]?.items[nextItemIndex]) return;
+    onDraftChange({
+      ...draft,
+      contentVersion: PATIENT_MAP_CONTENT_VERSION,
+      positions: { ...draft.positions, [mapId]: { sectionIndex: nextSectionIndex, itemIndex: nextItemIndex } },
+    });
+    mapTriggerElementIdRef.current = `patient-map-card-${mapId}`;
+    setActiveMapId(mapId);
+    setSectionIndex(nextSectionIndex);
+    setItemIndex(nextItemIndex);
+    setAnnouncement("");
+    setConfirmingClearItemId(null);
+    setView("item");
   }
 
   function changeSynthesisQuestion(nextIndex: number) {
@@ -605,7 +614,7 @@ export function PatientMapShell({
       setItemIndex(0);
       return;
     }
-    setView("summary");
+    openReview(activeMap.id);
   }
 
   if (loadState !== "ready") {
@@ -639,10 +648,11 @@ export function PatientMapShell({
   if (
     view === "overview" ||
     view === "sharing" ||
+    view === "summary" ||
     view === "synthesis" ||
     !activeMap
   ) {
-    const topLevelView = view === "sharing" || view === "synthesis" ? view : "overview";
+    const topLevelView = view === "sharing" || view === "synthesis" || view === "summary" ? view : "overview";
     const synthesisPrompt = PATIENT_MAP_CATALOG.summary.prompts[synthesisIndex];
     const synthesisTitle = sentenceCase(
       synthesisPrompt.title.replace(/^\d{2}\s*•\s*/u, ""),
@@ -650,59 +660,25 @@ export function PatientMapShell({
     const synthesisValue = draft.synthesis?.[synthesisPrompt.id] ?? "";
     const sharedCount = Object.keys(shares).length;
     const mapNavigation = (
-      <nav className={`patient-map-view-switcher${topLevelView === "overview" ? " is-secondary" : ""}`} aria-label="Seções do Meu mapa">
-        {topLevelView !== "overview" ? (
-          <button
-            id="patient-map-view-overview"
-            type="button"
-            onClick={() => openTopLevelView("overview")}
-          >
-            <strong>Temas do mapa</strong>
-            <span>Explorar ou retomar</span>
-          </button>
-        ) : null}
-        <button
-          id="patient-map-view-sharing"
-          className={topLevelView === "sharing" ? "active" : ""}
-          type="button"
-          aria-current={topLevelView === "sharing" ? "page" : undefined}
-          onClick={() => openTopLevelView("sharing")}
-        >
-          <strong>Compartilhar com Mateus</strong>
-          <span>
-            {sharesLoading
-              ? "Consultando…"
-              : sharesLoadError
-                ? "Consultar compartilhamento"
-                : sharedCount === 0
-                  ? "Só se você quiser"
-                  : `${sharedCount} ${sharedCount === 1 ? "tema enviado" : "temas enviados"}`}
-          </span>
-        </button>
-        <button
-          id="patient-map-view-synthesis"
-          className={topLevelView === "synthesis" ? "active" : ""}
-          type="button"
-          aria-current={topLevelView === "synthesis" ? "page" : undefined}
-          onClick={() => openTopLevelView("synthesis")}
-        >
-          <strong>O que percebi</strong>
-          <span>{synthesisCount > 0 ? `${synthesisCount} ${synthesisCount === 1 ? "anotação privada" : "anotações privadas"}` : "Anotar minhas descobertas"}</span>
-        </button>
+      <nav className="patient-map-view-switcher patient-map-primary-nav" aria-label="Seções do Meu mapa">
+        <button id="patient-map-view-overview" className={topLevelView === "overview" ? "active" : ""} type="button"
+          aria-current={topLevelView === "overview" ? "page" : undefined} onClick={() => openTopLevelView("overview")}>Explorar</button>
+        <button id="patient-map-view-review" className={topLevelView === "summary" ? "active" : ""} type="button"
+          aria-current={topLevelView === "summary" ? "page" : undefined} onClick={() => openReview()}>Minhas respostas</button>
+        <button id="patient-map-view-sharing" className={topLevelView === "sharing" ? "active" : ""} type="button"
+          aria-current={topLevelView === "sharing" ? "page" : undefined} onClick={() => openSharingView()}>Compartilhar</button>
       </nav>
     );
 
     return (
-      <section className="patient-module patient-map" aria-labelledby="patient-map-title">
+      <section className="patient-module patient-map patient-map-rethought" aria-labelledby="patient-map-title">
         <header className="patient-module-header patient-map-main-header">
-          <p className="eyebrow">GOSTOS, LIMITES E POSSIBILIDADES</p>
           <h1 id="patient-map-title" tabIndex={-1}>Meu mapa</h1>
           <p className="patient-module-lead">
-            Observe o que combina com você, com exemplos do dia a dia.
-            Não é um teste e não precisa completar tudo.
+            Uma forma de perceber seus gostos, limites e possibilidades.
+            Não é um teste e não precisa responder tudo.
           </p>
-          <p className="patient-module-privacy">
-            <span aria-hidden="true" />
+          <p className="patient-map-privacy-note">
             Tudo fica só com você, a menos que escolha compartilhar um tema.
           </p>
         </header>
@@ -718,24 +694,20 @@ export function PatientMapShell({
           onResolveConflict={onResolveConflict}
         />
 
-        {topLevelView !== "overview" ? mapNavigation : null}
+        {mapNavigation}
 
         {topLevelView === "overview" ? (
           <>
             <section className="patient-map-theme-picker" aria-labelledby="patient-map-theme-picker-title">
               <div className="patient-map-theme-picker-heading">
                 <div>
-                  <h2 id="patient-map-theme-picker-title">{totalExplored > 0 ? "Escolha um tema para retomar" : "Escolha um tema para começar"}</h2>
-                  <p>Marque só o que chamar atenção. Você pode pular itens e voltar depois.</p>
+                  <h2 id="patient-map-theme-picker-title">Por onde você quer começar?</h2>
+                  <p>Escolha um tema e depois um item. Não precisa seguir a ordem.</p>
                 </div>
-                {totalExplored > 0 ? (
-                  <span>{totalExplored} {totalExplored === 1 ? "item marcado" : "itens marcados"}</span>
-                ) : null}
               </div>
               <nav className="patient-map-areas" aria-label="Temas do Meu mapa">
                 {PATIENT_MAP_CATALOG.maps.map((map) => {
                   const mapExplored = exploredCountForMap(map, draft);
-                  const hasSavedPosition = Boolean(draft.positions?.[map.id]);
                   const shortDescription = map.landingCard.split("\n").at(-1) ?? map.description;
                   return (
                     <button
@@ -749,36 +721,29 @@ export function PatientMapShell({
                       <span className="patient-map-area-copy">
                         <strong>{map.navigationTitle}</strong>
                         <small>{sentenceCase(shortDescription)}</small>
-                        <span>
-                          {mapExplored > 0
-                            ? `${mapExplored} ${mapExplored === 1 ? "item marcado" : "itens marcados"} · Continuar`
-                            : hasSavedPosition
-                              ? "Retomar de onde parei"
-                              : "Começar"}
-                        </span>
+                        {mapExplored > 0 ? <span>{mapExplored} {mapExplored === 1 ? "item guardado" : "itens guardados"}</span> : null}
                       </span>
-                      <span className="patient-map-area-arrow" aria-hidden="true">→</span>
+                      <svg className="patient-map-area-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     </button>
                   );
                 })}
               </nav>
             </section>
 
-            <section className="patient-map-follow-up" aria-labelledby="patient-map-follow-up-title">
-              <h2 id="patient-map-follow-up-title">Depois, se quiser</h2>
-              {mapNavigation}
-            </section>
+            <div className="patient-map-reflection-link">
+              <button id="patient-map-view-synthesis" className="quiet-button" type="button" onClick={() => openTopLevelView("synthesis")}>O que percebi · anotações privadas</button>
+            </div>
 
             <details className="patient-map-how-to-compact">
               <summary>Como usar Meu mapa</summary>
               <ol>
-                <li>Comece por qualquer tema. Não existe uma ordem certa.</li>
+                <li>Escolha um tema, abra um assunto e toque no item que chamar sua atenção.</li>
                 <li>Marque uma resposta ou escreva uma observação. Você pode mudar de ideia depois.</li>
                 <li>Suas mudanças são salvas na conta. Compartilhar com Mateus é uma escolha separada.</li>
               </ol>
             </details>
 
-            {totalExplored > 0 ? (
+            {hasPatientMapSessionDraft(draft) ? (
               <details className="patient-map-settings">
                 <summary>
                   <span>
@@ -827,6 +792,10 @@ export function PatientMapShell({
               </button>
             </div>
           </>
+        ) : topLevelView === "summary" ? (
+          <PatientMapReview draft={draft} mapId={reviewMapId} onMapChange={setReviewMapId}
+            onOpenItem={openSavedItem} onExplore={() => openTopLevelView("overview")}
+            onSynthesis={() => openTopLevelView("synthesis")} />
         ) : topLevelView === "sharing" ? (
           <section className="patient-map-sharing patient-map-sharing-view" aria-labelledby="patient-map-sharing-title">
             <div className="patient-map-sharing-heading">
@@ -1039,270 +1008,27 @@ export function PatientMapShell({
   }
 
   if (view === "theme") {
-    const mapExplored = exploredCountForMap(activeMap, draft);
-    const savedPosition = draft.positions?.[activeMap.id];
-    const hasStarted = mapExplored > 0 || Boolean(savedPosition);
-    const nextSectionIndex = Math.min(
-      Math.max(savedPosition?.sectionIndex ?? 0, 0),
-      activeMap.sections.length - 1,
-    );
-    const nextSection = activeMap.sections[nextSectionIndex];
     const activeShare = shares[activeMap.id];
-
     return (
-      <section className="patient-module patient-map-theme" aria-labelledby="patient-map-theme-title">
-        <button className="back-button" type="button" onClick={returnToOverview}>
-          <span aria-hidden="true">←</span> Voltar aos temas
-        </button>
-        <header className="patient-module-header patient-map-theme-header">
-          <p className="eyebrow">MEU MAPA · {activeMap.navigationTitle.toLocaleUpperCase("pt-BR")}</p>
-          <h1 id="patient-map-theme-title" tabIndex={-1}>{activeMap.title}</h1>
-          <p className="patient-module-lead">{activeMap.description}</p>
-        </header>
-
-        <PatientMapPersistenceStatus
-          state={saveState}
-          message={saveMessage}
-          conflict={conflict}
-          onRetry={onRetrySave}
-          onResolveConflict={onResolveConflict}
-        />
-
-        <section className="patient-map-theme-start" aria-labelledby="patient-map-theme-start-title">
-          <div>
-            <p className="eyebrow">PRÓXIMO PASSO</p>
-            <h2 id="patient-map-theme-start-title">{hasStarted ? "Continue de onde parou" : "Comece por um assunto"}</h2>
-            <p>
-              {hasStarted
-                ? `Sua próxima pergunta está em ${nextSection.title.toLocaleLowerCase("pt-BR")}.`
-                : "Você pode escolher qualquer assunto abaixo e responder apenas ao que chamar atenção."}
-            </p>
-          </div>
-          <button id="patient-map-theme-continue" className="primary-button" type="button" onClick={() => openCurrentItem(activeMap)}>
-            {hasStarted ? "Continuar de onde parei" : `Começar por ${nextSection.title.toLocaleLowerCase("pt-BR")}`}
-          </button>
-        </section>
-
+      <div className="patient-map-theme-screen patient-map-rethought">
+        <PatientMapPersistenceStatus state={saveState} message={saveMessage} conflict={conflict}
+          onRetry={onRetrySave} onResolveConflict={onResolveConflict} />
+        <PatientMapThemeBrowser key={activeMap.id} map={activeMap} draft={draft}
+          onBack={returnToOverview} onContinue={() => openCurrentItem(activeMap)}
+          onOpenItem={openItem} onReview={() => openReview(activeMap.id)}
+          onSharing={() => openSharingView(activeMap.id)} />
         <aside className={`patient-map-current-sharing ${sharesLoading || sharesLoadError ? "is-unknown" : activeShare ? "is-shared" : "is-private"}`}>
           <div>
-            <strong>
-              {sharesLoading
-                ? "Confirmando o compartilhamento…"
-                : sharesLoadError
-                  ? "Não foi possível confirmar o compartilhamento"
-                  : activeShare
-                    ? `Versão enviada em ${formatViewTimestamp(activeShare.shared_at)}`
-                    : "Só você vê este tema"}
-            </strong>
-            <span>
-              {sharesLoading
-                ? "Aguarde um instante."
-                : sharesLoadError
-                  ? "Abra a área de compartilhamento para tentar novamente."
-                  : activeShare
-                    ? "Mudanças feitas agora ficam privadas até você enviar uma nova versão."
-                    : "Nada será enviado automaticamente para Mateus."}
-            </span>
+            <strong>{sharesLoading ? "Confirmando o compartilhamento…" : sharesLoadError
+              ? "Não foi possível confirmar o compartilhamento" : activeShare
+                ? `Versão enviada em ${formatViewTimestamp(activeShare.shared_at)}` : "Só você vê este tema"}</strong>
+            <span>{sharesLoading ? "Aguarde um instante." : sharesLoadError
+              ? "Abra a área de compartilhamento para tentar novamente." : activeShare
+                ? "Mudanças feitas agora ficam privadas até você enviar uma nova versão."
+                : "Nada será enviado automaticamente para Mateus."}</span>
           </div>
-          <button className="quiet-button" type="button" onClick={() => openSharingView(activeMap.id)}>
-            Gerenciar o que Mateus vê
-          </button>
         </aside>
-
-        <section className="patient-map-subjects" aria-labelledby="patient-map-subjects-title">
-          <div className="patient-map-subjects-heading">
-            <h2 id="patient-map-subjects-title">
-              {hasStarted ? "Ou escolha um assunto" : "Ou escolha outro assunto"}
-            </h2>
-            <p>Todos são independentes; não é preciso seguir a ordem.</p>
-          </div>
-          <ul>
-            {activeMap.sections.map((section, index) => {
-              if (!hasStarted && index === nextSectionIndex) return null;
-              const count = section.items.filter((item) => {
-                const answer = draft.answers?.[item.id];
-                return Boolean(answer?.response || answer?.note.trim());
-              }).length;
-              return (
-                <li key={section.id}>
-                  <button type="button" onClick={() => openSection(index)}>
-                    <span>
-                      <strong>{section.title.toLocaleLowerCase("pt-BR")}</strong>
-                      <small>{count > 0 ? `${count} ${count === 1 ? "item marcado" : "itens marcados"}` : "Ainda não iniciado"}</small>
-                    </span>
-                    <span aria-hidden="true">→</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        {mapExplored > 0 ? (
-          <button className="quiet-button patient-map-theme-summary-link" type="button" onClick={() => setView("summary")}>
-            Ver o que marquei neste tema
-          </button>
-        ) : null}
-      </section>
-    );
-  }
-
-  if (view === "summary") {
-    const mapExplored = exploredCountForMap(activeMap, draft);
-    const mapResponseCount = responseCountForMap(activeMap, draft);
-    const responseCounts = PATIENT_MAP_RESPONSES.map((option) => ({
-      ...option,
-      count: activeMap.sections.reduce(
-        (total, section) =>
-          total + section.items.filter(
-            (item) => draft.answers?.[item.id]?.response === option.key,
-          ).length,
-        0,
-      ),
-    })).filter((option) => option.count > 0);
-    const activeShare = shares[activeMap.id];
-
-    return (
-      <section className="patient-module patient-map-summary" aria-labelledby="patient-map-summary-title">
-        <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
-          {announcement}
-        </p>
-        <button className="back-button" type="button" onClick={() => {
-          setAnnouncement("");
-          setConfirmingClearItemId(null);
-          setView("theme");
-        }}>
-          <span aria-hidden="true">←</span> Voltar a {activeMap.navigationTitle}
-        </button>
-        <header className="patient-module-header">
-          <p className="eyebrow">MEU MAPA · {activeMap.navigationTitle.toLocaleUpperCase("pt-BR")}</p>
-          <h1 id="patient-map-summary-title" tabIndex={-1}>O que marquei em {activeMap.navigationTitle}</h1>
-          <p className="patient-module-lead">
-            Uma visão simples do que chamou sua atenção neste tema. Não é nota,
-            resultado ou interpretação.
-          </p>
-        </header>
-
-        <PatientMapPersistenceStatus
-          state={saveState}
-          message={saveMessage}
-          conflict={conflict}
-          onRetry={onRetrySave}
-          onResolveConflict={onResolveConflict}
-        />
-
-        <section className="patient-map-summary-panel" aria-labelledby="patient-map-summary-overview-title">
-          <div className="patient-map-summary-overview">
-            <span aria-hidden="true">✓</span>
-            <div>
-              <h2 id="patient-map-summary-overview-title">
-                {mapExplored === 1 ? "Você explorou 1 item" : `Você explorou ${mapExplored} itens`}
-              </h2>
-              <p>Você pode continuar, mudar de tema ou parar por agora.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="patient-map-section-summary" aria-labelledby="patient-map-section-summary-title">
-          <h2 id="patient-map-section-summary-title">Minhas respostas</h2>
-          <p className="patient-map-summary-hint">Abra um assunto para reler o que você marcou ou escreveu.</p>
-          <ul>
-            {activeMap.sections.map((section, index) => {
-              const answeredItems = section.items.filter((item) => {
-                const answer = draft.answers?.[item.id];
-                return Boolean(answer?.response || answer?.note.trim());
-              });
-              const count = answeredItems.length;
-              return (
-                <li key={section.id}>
-                  {count > 0 ? (
-                    <details className="patient-map-answer-group">
-                      <summary>
-                        <span><strong>{sentenceCase(section.title)}</strong><small>{count} {count === 1 ? "item marcado" : "itens marcados"}</small></span>
-                        <span className="patient-map-disclosure-arrow" aria-hidden="true">⌄</span>
-                      </summary>
-                      <div className="patient-map-saved-answers">
-                        {answeredItems.map((item) => {
-                          const answer = draft.answers![item.id];
-                          const response = PATIENT_MAP_RESPONSES.find((option) => option.key === answer.response);
-                          return (
-                            <article key={item.id}>
-                              <h3>{item.title}</h3>
-                              {response ? <p className="patient-map-saved-response">{response.label}</p> : null}
-                              {answer.note ? <p className="patient-map-saved-note">{answer.note}</p> : null}
-                              <button type="button" aria-label={`Editar resposta de ${item.title}`} onClick={() => openItem(index, section.items.indexOf(item))}>Editar resposta</button>
-                            </article>
-                          );
-                        })}
-                      </div>
-                    </details>
-                  ) : (
-                    <div className="patient-map-empty-subject">
-                      <span><strong>{sentenceCase(section.title)}</strong><small>Ainda sem respostas</small></span>
-                      <button type="button" onClick={() => openSection(index)} aria-label={`Explorar ${section.title.toLocaleLowerCase("pt-BR")}`}>Explorar</button>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        {mapResponseCount > 0 ? (
-          <details className="patient-map-reading-guide patient-map-response-counts">
-            <summary>Ver tipos de resposta que marquei</summary>
-            <ul>
-              {responseCounts.map((option) => (
-                <li key={option.key}><span>{option.label}</span><strong>{option.count}</strong></li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-
-        <details className="patient-map-reading-guide">
-          <summary>Como ler estas respostas sem transformar em teste</summary>
-          <p>{PATIENT_MAP_CATALOG.summary.readingGuide.replace(/^COMO LER SEM TRANSFORMAR EM TESTE\s*/u, "")}</p>
-        </details>
-
-        <aside className={`patient-map-current-sharing ${sharesLoading || sharesLoadError ? "is-unknown" : activeShare ? "is-shared" : "is-private"}`}>
-          <div>
-            <strong>
-              {sharesLoading
-                ? "Confirmando o compartilhamento…"
-                : sharesLoadError
-                  ? "Não foi possível confirmar o compartilhamento"
-                  : activeShare
-                    ? `Versão enviada em ${formatViewTimestamp(activeShare.shared_at)}`
-                    : "Este tema está só com você"}
-            </strong>
-            <span>
-              {sharesLoading
-                ? "Aguarde um instante."
-                : sharesLoadError
-                  ? "Abra a área de compartilhamento para tentar novamente."
-                  : activeShare
-                    ? "O que você mudar depois fica privado até um novo envio."
-                    : "Compartilhar é opcional e nunca acontece automaticamente."}
-            </span>
-          </div>
-          <button className="quiet-button" type="button" onClick={() => openSharingView(activeMap.id)}>
-            Gerenciar o que Mateus vê
-          </button>
-        </aside>
-
-        <div className="patient-map-summary-actions">
-          <button className="secondary-button" type="button" onClick={() => setView("theme")}>
-            Voltar ao tema
-          </button>
-          <button className="primary-button" type="button" onClick={() => {
-            setAnnouncement("");
-            setConfirmingClearItemId(null);
-            setView("item");
-          }}>
-            Continuar respondendo
-          </button>
-        </div>
-      </section>
+      </div>
     );
   }
 
@@ -1312,33 +1038,27 @@ export function PatientMapShell({
   const isLastItem =
     sectionIndex === activeMap.sections.length - 1 &&
     itemIndex === activeSection.items.length - 1;
-  const mapExplored = exploredCountForMap(activeMap, draft);
   const clearCurrentLabel = currentAnswer?.response && currentAnswer.note
     ? "Apagar resposta e observação deste item"
     : currentAnswer?.note
       ? "Apagar observação deste item"
       : "Apagar resposta deste item";
   const activeShare = shares[activeMap.id];
-  const isLastItemInSection = itemIndex === activeSection.items.length - 1;
   const nextActionLabel = isLastItem
-    ? "Ver o que marquei"
-    : isLastItemInSection
-      ? `Ir para ${activeMap.sections[sectionIndex + 1].title.toLocaleLowerCase("pt-BR")}`
-      : currentAnswer?.response || currentAnswer?.note
-        ? "Continuar"
-        : "Pular por agora";
+    ? "Ver minhas respostas"
+    : "Próximo item";
 
   return (
-    <section className="patient-module patient-map-workspace" aria-labelledby="patient-map-question-title">
+    <section className="patient-module patient-map-workspace patient-map-rethought" aria-labelledby="patient-map-question-title">
       <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
       <article id="patient-map-question-card" className="patient-map-question-card">
         <nav className="patient-map-question-tools" aria-label="Navegação no tema">
-          <button className="back-button" type="button" onClick={returnToOverview}>
-            <span aria-hidden="true">←</span> Voltar aos temas
+          <button className="back-button" type="button" onClick={returnToTheme}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 5-7 7 7 7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg> Voltar ao tema
           </button>
-          <button className="quiet-button" type="button" onClick={returnToTheme}>Trocar de assunto</button>
+          <button className="quiet-button" type="button" aria-label="Ver respostas deste tema" onClick={() => openReview(activeMap.id)}>Ver respostas</button>
         </nav>
 
         <PatientMapPersistenceStatus
@@ -1356,7 +1076,7 @@ export function PatientMapShell({
               {activeMap.navigationTitle} <span aria-hidden="true">›</span> {sentenceCase(activeSection.title)}
             </p>
             <p className="patient-map-question-position">
-              Pergunta {itemIndex + 1} de {activeSection.items.length} neste assunto
+              Item {itemIndex + 1} de {activeSection.items.length} · você pode pular
             </p>
             <h2 id="patient-map-question-title" tabIndex={-1}>{activeItem.title}</h2>
             <p className="patient-map-question-examples"><strong>Alguns exemplos:</strong> {activeItem.examples}.</p>
@@ -1365,7 +1085,7 @@ export function PatientMapShell({
         </header>
 
         <fieldset className="patient-map-response-options">
-          <legend>Qual opção chega mais perto do que você pensa hoje?</legend>
+          <legend>O que combina com você hoje?</legend>
           <div>
             {PATIENT_MAP_RESPONSES.map((option) => (
               <label key={option.key} className={currentAnswer?.response === option.key ? "selected" : ""}>
@@ -1404,8 +1124,17 @@ export function PatientMapShell({
           </label>
         </div>
 
+        <div className="patient-map-item-navigation">
+          <button className="secondary-button" type="button" disabled={isFirstItem} onClick={moveToPreviousItem}>Anterior</button>
+          <button className="primary-button" type="button" onClick={moveToNextItem}>{nextActionLabel}</button>
+          <span>Você pode seguir sem responder e voltar quando quiser.</span>
+        </div>
+
         {currentAnswer?.response || currentAnswer?.note ? (
-          confirmingClearItemId === activeItem.id ? (
+          <details className="patient-map-item-management">
+            <summary>Opções deste item<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /></svg></summary>
+            <div>
+          {confirmingClearItemId === activeItem.id ? (
             <div className="patient-map-clear-confirmation" role="group" aria-label="Confirmar exclusão deste item">
               <p>
                 <strong>{clearCurrentLabel}?</strong>
@@ -1463,29 +1192,11 @@ export function PatientMapShell({
             >
               {clearCurrentLabel}
             </button>
-          )
+          )}
+            </div>
+          </details>
         ) : null}
       </article>
-
-      <div className="patient-map-item-navigation">
-        <button className="secondary-button" type="button" disabled={isFirstItem} onClick={moveToPreviousItem}>
-          Anterior
-        </button>
-        <span>Você pode seguir sem responder e voltar quando quiser.</span>
-        <button className="primary-button" type="button" onClick={moveToNextItem}>
-          {nextActionLabel}
-        </button>
-      </div>
-
-      {mapExplored > 0 ? (
-        <button className="quiet-button patient-map-item-summary-link" type="button" onClick={() => {
-          setAnnouncement("");
-          setConfirmingClearItemId(null);
-          setView("summary");
-        }}>
-          Ver minhas respostas neste tema
-        </button>
-      ) : null}
 
       <aside className={`patient-map-item-sharing-state ${sharesLoading || sharesLoadError ? "is-unknown" : activeShare ? "is-shared" : "is-private"}`}>
         <span aria-hidden="true" />

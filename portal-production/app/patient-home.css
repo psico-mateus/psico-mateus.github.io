@@ -216,6 +216,7 @@
 .patient-dashboard .patient-account-panel > summary { min-height: 56px; font-size: 1rem; }
 .patient-dashboard .patient-account-panel > summary small { font-size: .9rem; line-height: 1.5; }
 .patient-dashboard :where(button, summary, a):focus-visible { outline: 3px solid var(--green-2); outline-offset: 4px; }
+.patient-record-card > summary:focus-visible { outline-offset: -4px; }
 
 @media (max-width: 900px) {
   .patient-home .patient-hero { align-items: flex-start; flex-direction: column; gap: .85rem; }

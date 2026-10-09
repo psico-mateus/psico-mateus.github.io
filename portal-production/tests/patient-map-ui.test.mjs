@@ -152,6 +152,10 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
 
   async function question(fixture, title = "Ter tempo sozinho") {
     await fixture.page.locator("#patient-map-card-meu-jeito").click();
+    await expect(fixture.page.locator("#patient-map-theme-title")).toHaveText("Meu jeito");
+    const resume = fixture.page.locator("#patient-map-theme-continue");
+    if (await resume.count()) await resume.click();
+    else await fixture.page.locator('[id="patient-map-pick-meu-jeito.01.1"]').click();
     await expect(fixture.page.locator("#patient-map-question-title")).toHaveText(title);
     await expect(fixture.page.locator("#patient-map-question-title")).toBeFocused();
   }
@@ -180,13 +184,13 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
   const mapMutations = controls => controls.mutations.filter(mutation => mutation.path === "/map-draft");
   const shareMutations = controls => controls.mutations.filter(mutation => mutation.path.startsWith("/map-sharing/"));
   async function openSummary(page) {
-    const summary = page.getByRole("button", { name: "Ver minhas respostas neste tema", exact: true });
+    const summary = page.getByRole("button", { name: "Ver respostas deste tema", exact: true });
     await expect(summary).toBeVisible();
     await summary.click();
-    await expect(page.getByRole("heading", { name: "O que marquei em Meu jeito", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Minhas respostas", exact: true })).toBeVisible();
   }
 
-  test("empty overview prioritizes themes and opens a first item directly without writing answers", async () => {
+  test("empty overview separates exploration and review and picks a real item without inventing answers", async () => {
     const fixture = await openMap();
     await expect(fixture.page.locator('[id^="patient-map-card-"]')).toHaveCount(5);
     const order = await fixture.page.evaluate(() => {
@@ -194,11 +198,11 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
       const sharing = document.getElementById("patient-map-view-sharing");
       return Boolean(theme.compareDocumentPosition(sharing) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
-    assert.equal(order, true, "Primary theme selection precedes optional sharing and synthesis.");
+    assert.equal(order, false, "The three clear task destinations precede theme exploration.");
     await question(fixture);
     await expect(note(fixture.page)).toBeVisible();
     assert.equal(await note(fixture.page).evaluate(node => Boolean(node.closest("details"))), false);
-    assert.equal(fixture.controls.fields.size, 0, "Opening a theme does not invent or overwrite an answer.");
+    assert.equal([...fixture.controls.fields.values()].filter(field => field.type !== "position").length, 0, "Selecting an item only remembers its position, never creates an answer.");
     assert.equal(shareMutations(fixture.controls).length, 0);
     await healthy(fixture, "map-direct-empty");
   });
@@ -229,10 +233,14 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     });
     assert.ok(exampleFocus.visible && exampleFocus.width >= 2 && exampleFocus.offset < 0,
       `Disclosure keyboard focus must stay inside its clipped container: ${JSON.stringify(exampleFocus)}`);
-    await fixture.page.getByRole("button", { name: "Trocar de assunto", exact: true }).click();
-    await expect(fixture.page.getByRole("heading", { name: "Meu jeito de funcionar", exact: true })).toBeVisible();
-    await expect(fixture.page.locator(".patient-map-subjects li button")).toHaveCount(5);
-    await fixture.page.locator(".patient-map-subjects").getByRole("button", { name: /^ritmo e organização/iu }).click();
+    await fixture.page.getByRole("button", { name: "Voltar ao tema", exact: true }).click();
+    await expect(fixture.page.getByRole("heading", { name: "Meu jeito", exact: true })).toBeVisible();
+    await expect(fixture.page.locator(".patient-map-topic-group")).toHaveCount(5);
+    const subject = fixture.page.locator(".patient-map-topic-group").filter({ hasText: "Ritmo e organização" });
+    await expect(subject.locator(":scope > summary")).toContainText("Abrir assunto");
+    await subject.locator(":scope > summary").click();
+    await expect(subject.locator(":scope > summary")).toContainText("Recolher assunto");
+    await fixture.page.locator('[id="patient-map-pick-meu-jeito.02.1"]').click();
     await expect(fixture.page.locator("#patient-map-question-title")).toHaveText("Ter horários previsíveis");
     await expect(note(fixture.page)).toHaveValue("");
     assert.deepEqual(fixture.controls.fields.get("answer:meu-jeito.01.1"), firstAnswer);
@@ -249,9 +257,9 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     await note(fixture.page).fill(firstAnswer.value.note);
     await saved(fixture);
     assert.deepEqual(fixture.controls.fields.get("answer:meu-jeito.01.1").value, firstAnswer.value);
-    await fixture.page.getByRole("button", { name: "Continuar", exact: true }).click();
+    await fixture.page.getByRole("button", { name: "Próximo item", exact: true }).click();
     await expect(fixture.page.locator("#patient-map-question-title")).toHaveText("Estar com alguém para recuperar energia");
-    await fixture.page.getByRole("button", { name: "Pular por agora", exact: true }).click();
+    await fixture.page.getByRole("button", { name: "Próximo item", exact: true }).click();
     assert.equal(fixture.controls.fields.has("answer:meu-jeito.01.2"), false, "Skip creates no answer.");
     await fixture.page.getByRole("button", { name: "Anterior", exact: true }).click();
     await fixture.page.getByRole("button", { name: "Anterior", exact: true }).click();
@@ -284,8 +292,8 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     await question(fixture, "Estar com alguém para recuperar energia");
     await openSummary(fixture.page);
     const section = fixture.page.locator(".patient-map-section-summary");
-    const group = section.locator("details").filter({ hasText: "energia e descanso" }).first();
-    await group.locator(":scope > summary").click();
+    const group = section.locator("details").filter({ hasText: /Energia e descanso/u }).first();
+    if (!(await group.evaluate(node => node.open))) await group.locator(":scope > summary").click();
     await expect(group).toContainText("Ter tempo sozinho");
     await expect(group).toContainText("Combina comigo");
     await expect(group).toContainText(firstAnswer.value.note);
@@ -310,6 +318,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     const fixture = await openMap({ fields: seedFields.map(field => field.type === "position"
       ? { ...field, value: { sectionIndex: 0, itemIndex: 0 } } : field) });
     await question(fixture);
+    await fixture.page.locator(".patient-map-item-management > summary").click();
     await fixture.page.locator("#patient-map-clear-answer").click();
     await expect(fixture.page.locator("#patient-map-confirm-clear-answer")).toBeFocused();
     await fixture.page.getByRole("button", { name: "Manter resposta", exact: true }).click();
@@ -381,6 +390,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     await saved(fixture);
     assert.deepEqual(fixture.controls.sharedSnapshots.get("meu-jeito"), snapshot);
     assert.equal(shareMutations(fixture.controls).length, 1);
+    await fixture.page.getByRole("button", { name: "Voltar ao tema", exact: true }).click();
     await fixture.page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
     await fixture.page.locator("#patient-map-view-sharing").click();
     fixture.page.once("dialog", dialog => dialog.accept());
@@ -396,6 +406,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     fixture.controls.saveFailure = 503;
     await note(fixture.page).fill("Observação sintética ainda não salva.");
     await expect(fixture.page.getByRole("button", { name: "Tentar salvar novamente", exact: true })).toBeVisible();
+    await fixture.page.getByRole("button", { name: "Voltar ao tema", exact: true }).click();
     await fixture.page.getByRole("button", { name: "Voltar aos temas", exact: true }).click();
     await fixture.page.locator("#patient-map-view-sharing").click();
     fixture.page.once("dialog", dialog => dialog.accept());
@@ -484,7 +495,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     const afterTyping = await fixture.page.evaluate(() => ({ y: scrollY, top: document.getElementById("patient-map-question-card").getBoundingClientRect().top }));
     assert.ok(Math.abs(beforeTyping.y - afterTyping.y) <= 2 && Math.abs(beforeTyping.top - afterTyping.top) <= 2,
       `Typing and autosave must not re-scroll an already focused note: ${JSON.stringify({ beforeTyping, afterTyping })}`);
-    await fixture.page.getByRole("button", { name: "Continuar", exact: true }).click();
+    await fixture.page.getByRole("button", { name: "Próximo item", exact: true }).click();
     await expect(fixture.page.locator("#patient-map-question-title")).toBeFocused();
     const focusGeometry = await fixture.page.evaluate(() => {
       const card = document.getElementById("patient-map-question-card");
@@ -501,6 +512,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     test(`layout ${width}px keeps writing and primary navigation accessible`, async () => {
       const fixture = await openMap({ viewport: { width, height: 900 } });
       await question(fixture);
+      await saved(fixture);
       await expect(note(fixture.page)).toBeVisible();
       const order = await fixture.page.evaluate(() => {
         const card = document.getElementById("patient-map-question-card");
@@ -526,6 +538,90 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
       await healthy(fixture, `map-layout-${width}`);
     });
   }
+
+  test("global chart counts current categories across themes, excludes note-only, filters and never sends content", async () => {
+    const fields = [
+      ["meu-jeito.01.1", "fits"], ["meu-jeito.01.3", "unknown"], ["interesses.01.1", "curious"],
+      ["vinculos.01.1", "contextual"], ["limites.01.1", "tolerate"], ["futuro.01.1", "not_fit"],
+      ["meu-jeito.01.4", "fits"], ["interesses.01.3", "fits"],
+      ["interesses.01.2", "curious"], ["vinculos.01.2", "contextual"],
+    ].map(([id, response]) => ({ type: "answer", id, value: { response, note: "" }, revision: 1, updated_at: timestamp }));
+    fields.push(seedFields[1]);
+    const fixture = await openMap({ fields, viewport: { width: 1464, height: 1074 } });
+    await fixture.page.locator("#patient-map-view-review").click();
+    await expect(fixture.page.locator("#patient-map-summary-title")).toBeFocused();
+    await expect(fixture.page.getByLabel("Tema", { exact: true })).toHaveValue("all");
+    const rows = fixture.page.locator(".patient-map-chart-rows li");
+    await expect(rows).toHaveCount(6);
+    assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => [node.dataset.response, Number(node.dataset.count)])),
+      [["fits",3],["curious",2],["contextual",2],["tolerate",1],["not_fit",1],["unknown",1]]);
+    const barWidths = await fixture.page.locator(".patient-map-chart-track > span").evaluateAll(nodes =>
+      nodes.map(node => Number.parseFloat(node.style.width)));
+    for (const [index, count] of [3,2,2,1,1,1].entries()) {
+      assert.ok(Math.abs(barWidths[index] - count / 3 * 100) < .01,
+        "Bar length must represent the exact count on the stated scale, not a score.");
+    }
+    await expect(fixture.page.locator(".patient-map-chart-note-only")).toContainText("1 item tem só uma observação");
+    await fixture.page.getByLabel("Tema", { exact: true }).selectOption("meu-jeito");
+    assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => Number(node.dataset.count))), [2,0,0,0,0,1]);
+    await expect(fixture.page.locator(".patient-map-review-theme")).toHaveCount(1);
+    await expect(fixture.page.locator(".patient-map-review-answers")).toContainText(seedFields[1].value.note);
+    assert.equal(mapMutations(fixture.controls).length, 0, "Chart viewing and filtering only change local UI.");
+    assert.equal(shareMutations(fixture.controls).length, 0);
+    await fixture.page.getByLabel("Tema", { exact: true }).selectOption("all");
+    await fixture.page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await healthy(fixture, "map-global-graph-desktop");
+    await fixture.page.screenshot({ path: resolve(outputDir, `map-review-full-desktop-${browserName}.png`), fullPage: true });
+    await fixture.page.setViewportSize({ width: 390, height: 844 });
+    await fixture.page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await healthy(fixture, "map-review-mobile");
+    await fixture.page.screenshot({ path: resolve(outputDir, `map-review-full-mobile-${browserName}.png`), fullPage: true });
+  });
+
+  for (const width of [320,390]) {
+    test(`mobile global chart ${width}px retains exact labels and numbers with 200% text`, async () => {
+      const fixture = await openMap({ fields: seedFields, viewport: { width, height: 900 } });
+      await fixture.page.locator("#patient-map-view-review").click();
+      await expect(fixture.page.locator(".patient-map-chart-rows li")).toHaveCount(6);
+      await expect(fixture.page.locator(".patient-map-chart-note-only")).toContainText("1 item");
+      await healthy(fixture, `map-global-graph-mobile-${width}`);
+      await fixture.page.addStyleTag({ content: "html{font-size:200%!important}" });
+      await healthy(fixture, `map-global-graph-mobile-${width}-text-200`);
+      assert.equal(mapMutations(fixture.controls).length, 0);
+    });
+  }
+
+  test("empty and note-only graphs never invent a result or turn an absent response into Ainda não sei", async () => {
+    const empty = await openMap();
+    await empty.page.locator("#patient-map-view-review").click();
+    await expect(empty.page.locator(".patient-map-chart-rows li")).toHaveCount(0);
+    await expect(empty.page.locator(".patient-map-review-empty")).toContainText("Ainda não há respostas");
+    await healthy(empty, "map-chart-empty");
+    const fixture = await openMap({ fields: [seedFields[1]] });
+    await fixture.page.locator("#patient-map-view-review").click();
+    await expect(fixture.page.locator(".patient-map-chart-empty")).toContainText("Você guardou observações");
+    await expect(fixture.page.locator(".patient-map-chart-rows li")).toHaveCount(0);
+    await expect(fixture.page.locator(".patient-map-review-answers")).toContainText("Só observação · sem opção marcada");
+    await fixture.page.getByLabel("Tema", { exact: true }).selectOption("futuro");
+    await expect(fixture.page.locator(".patient-map-review-empty")).toContainText("neste tema");
+    assert.equal(mapMutations(fixture.controls).length,0);
+    await healthy(fixture,"map-chart-notes-empty-filter");
+  });
+
+  test("synthesis-only content retains clear-all with cancellation and confirmed deletion", async () => {
+    const fixture = await openMap({ fields: [seedFields[3]] });
+    await fixture.page.locator(".patient-map-settings > summary").click();
+    const clear = fixture.page.getByRole("button", { name: "Apagar todo o Meu mapa", exact: true });
+    fixture.page.once("dialog", dialog => dialog.dismiss());
+    await clear.click();
+    assert.deepEqual(fixture.controls.fields.get("synthesis:already-fits"), seedFields[3]);
+    assert.equal(mapMutations(fixture.controls).length,0);
+    fixture.page.once("dialog", dialog => dialog.accept());
+    await clear.click();
+    await expect.poll(() => fixture.controls.fields.size).toBe(0);
+    await expect(fixture.page.locator("#patient-map-title")).toBeFocused();
+    await healthy(fixture,"map-clear-synthesis-only");
+  });
 
   test("200% text and reduced motion preserve readable controls without horizontal scrolling", async () => {
     const fixture = await openMap({ viewport: { width: 1366, height: 900 } });
