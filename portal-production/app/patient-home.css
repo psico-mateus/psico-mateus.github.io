@@ -218,6 +218,38 @@
 .patient-dashboard :where(button, summary, a):focus-visible { outline: 3px solid var(--green-2); outline-offset: 4px; }
 .patient-record-card > summary:focus-visible { outline-offset: -4px; }
 
+/* Keep search and sharing filters together, ahead of the optional Guide link. */
+.patient-dashboard .patient-record-finder {
+  container: patient-record-finder / inline-size;
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #ded6cb;
+  border-radius: 16px;
+  background: var(--card);
+  min-width: 0;
+}
+.patient-record-finder .patient-entry-toolbar { margin: 0; border: 0; border-radius: 10px; }
+.patient-record-finder .patient-entry-toolbar button { font-size: 1rem; line-height: 1.5; transition: none; box-shadow: none; }
+.patient-record-finder .patient-entry-toolbar button small { font-size: 1rem; }
+.patient-record-finder .patient-record-search-row { margin: 0; }
+.patient-record-finder .patient-record-search-row :is(input, select) { height: auto; min-height: 48px; padding: .7rem .8rem; line-height: 1.5; }
+.patient-record-finder .filter-reset-row { margin: -.4rem 0 0; }
+.patient-dashboard .records-guide-callout { margin: 1rem 0 0; padding: .8rem 1rem; gap: .5rem 1.5rem; background: transparent; }
+.patient-dashboard .records-guide-callout :is(span, strong) { font-size: 1rem; line-height: 1.6; }
+.patient-dashboard .records-guide-callout strong { text-align: left; }
+.patient-dashboard .records-guide-callout:hover { background: #edf1eb; }
+
+@container patient-record-finder (max-width: 44rem) {
+  .patient-record-finder .patient-record-search-row { grid-template-columns: minmax(0, 1fr); }
+}
+@container patient-record-finder (max-width: 32rem) {
+  .patient-record-finder .patient-entry-toolbar button { display: grid; grid-template-rows: minmax(3rem, auto) auto; align-items: center; gap: .25rem; padding: .5rem .25rem; }
+  .patient-record-finder .patient-entry-toolbar button > span { display: grid; place-items: center; height: 100%; }
+  .patient-record-finder .patient-entry-toolbar button small { margin: 0 auto; }
+}
+
 @media (max-width: 900px) {
   .patient-home .patient-hero { align-items: flex-start; flex-direction: column; gap: .85rem; }
   .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; margin-left: 0; }

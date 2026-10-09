@@ -179,6 +179,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
   }
 
   const visibleNotices = showAll ? notices : notices.slice(0, 2);
+  const isEmpty = loaded && !error && notices.length === 0 && !nextCursor;
 
   function expandNotices() {
     setShowAll(true);
@@ -191,7 +192,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
   }
 
   return (
-    <section className="patient-notices notice-panel" aria-labelledby={headingId}>
+    <section className={`patient-notices notice-panel${isEmpty ? " is-empty" : ""}`} aria-labelledby={headingId}>
       <header className="patient-notices-heading">
         <svg className="patient-notices-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
@@ -206,6 +207,10 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
             ) : null}
           </div>
         </div>
+        <button className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2-5" /></svg>
+          {loading ? "Carregando…" : "Atualizar"}
+        </button>
       </header>
       <div className="notices-panel-content">
         {error ? (
@@ -254,13 +259,11 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         {showAll && nextCursor ? <button className="secondary-button notices-more" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(nextCursor)}>{loading ? "Carregando…" : "Ver avisos anteriores"}</button> : null}
         <p className="sr-status" role="status" aria-live="polite">{confirmation}</p>
       </div>
-      <footer className="patient-notices-footer">
-        <p>Sem respostas pelo portal.</p>
-        <button className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2-5" /></svg>
-          {loading ? "Carregando…" : "Atualizar"}
-        </button>
-      </footer>
+      {notices.length > 0 ? (
+        <footer className="patient-notices-footer">
+          <p>Estes avisos não recebem respostas pelo portal.</p>
+        </footer>
+      ) : null}
     </section>
   );
 }

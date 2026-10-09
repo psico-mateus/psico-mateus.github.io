@@ -2786,10 +2786,6 @@ function PatientDashboard({
             </div>
           </aside>
         ) : null}
-        <a className="records-guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer">
-          <span>Está difícil nomear o que sentiu?</span>
-          <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>
-        </a>
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entriesError && entries.length === 0 ? null : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
             <span className="empty-state-number" aria-hidden="true">01</span>
@@ -2798,6 +2794,7 @@ function PatientDashboard({
             <div className="empty-state-actions"><button className="primary-button" onClick={openNewRecord}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url} target="_blank" rel="noopener noreferrer">Explorar o Guia de Emoções <span className="sr-status">(abre em nova aba)</span></a></div>
           </div>
         ) : <>
+          <div className="patient-record-finder">
           <div className="patient-entry-toolbar" role="group" aria-label="Filtrar registros por compartilhamento">
             {filterLabels.map((item) => (
               <button
@@ -2820,10 +2817,11 @@ function PatientDashboard({
                 type="search"
                 value={entryQuery}
                 onChange={(event) => setEntryQuery(event.target.value)}
-                placeholder="Busque por situação, emoção ou palavra"
+                placeholder="Situação, emoção ou palavra"
                 autoComplete="off"
+                aria-describedby="patient-record-search-hint"
               />
-              <small>A busca acontece somente nesta tela.</small>
+              <small id="patient-record-search-hint">A busca acontece somente nesta tela.</small>
             </label>
             <label className="field patient-record-order">
               <span>Ordenar</span>
@@ -2852,6 +2850,7 @@ function PatientDashboard({
               </button>
             </div>
           ) : null}
+          </div>
           <div className="sr-status" aria-live="polite">
             {hasEntryQuery
               ? `${visibleEntries.length} ${visibleEntries.length === 1 ? "registro encontrado" : "registros encontrados"} para a busca.`
@@ -2968,6 +2967,10 @@ function PatientDashboard({
             </details>
           );
         })}</div>}
+          <a className="records-guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer">
+            <span>Está difícil nomear o que sentiu?</span>
+            <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>
+          </a>
         </>}
           </section>
           ) : null}

@@ -49,7 +49,7 @@
 
 /* Patient notices stay visible on the home screen; professional styles above remain unchanged. */
 .patient-notices{display:flex;flex-direction:column;gap:1rem;margin:0;padding:1.3rem;min-width:0;border-radius:16px;background:var(--card);box-shadow:none}
-.patient-notices-heading{display:grid;grid-template-columns:2rem minmax(0,1fr);align-items:start;gap:.8rem}
+.patient-notices-heading{display:grid;grid-template-columns:2rem minmax(0,1fr) auto;align-items:start;gap:.8rem}
 .patient-notices-bell{width:2rem;height:2rem;margin-top:.15rem;color:var(--green-2)}
 .patient-notices .notices-title{margin:0;font:500 clamp(1.4rem,2vw,1.65rem)/1.25 var(--serif);letter-spacing:-.025em;overflow-wrap:anywhere}
 .patient-notices .notices-title:focus{outline:3px solid #6e4e16;outline-offset:5px;border-radius:3px}
@@ -84,13 +84,27 @@
 .patient-notices-footer>p{margin:0;color:var(--muted);font-size:1rem;line-height:1.5}
 .patient-notices .patient-notices-refresh{display:flex;align-items:center;justify-content:center;gap:.4rem;flex:0 0 auto;min-height:48px;width:auto;max-width:100%;padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:#f8f3ed;font-size:1rem;color:var(--green-2);white-space:normal}
 .patient-notices-refresh svg{width:1.25rem;height:1.25rem;flex:0 0 auto}
+.patient-notices-heading .patient-notices-refresh{align-self:start;min-height:44px}
+.patient-notices.is-empty .notices-subtitle{display:none}
+.patient-notices.is-empty .notices-list{display:none}
 .patient-notices :where(button,summary,.patient-notice-chevron){transition:none;animation:none}
 @media(max-width:700px){
   .patient-notices{padding:1rem;gap:1rem}
   .patient-notices-heading{grid-template-columns:1.75rem minmax(0,1fr);gap:.65rem}
+  .patient-notices-heading .patient-notices-refresh{grid-column:2;justify-self:start;margin-top:.1rem}
+  .patient-notices.is-empty .patient-notices-heading{grid-template-columns:1.75rem minmax(0,1fr) auto}
+  .patient-notices.is-empty .patient-notices-refresh{grid-column:3;grid-row:1;margin:0}
   .patient-notices-bell{width:1.75rem;height:1.75rem}
   .patient-notices .notice-item-summary{padding:.85rem .1rem;gap:.3rem .6rem;grid-template-columns:.6rem minmax(0,1fr)}
   .patient-notices .notices-summary-action{grid-column:2;justify-content:space-between;width:100%;min-width:0;gap:.5rem}
+}
+@container patient-home (max-width:24rem){
+  .patient-notices:not(.is-empty) .patient-notices-heading{grid-template-columns:1.75rem minmax(0,1fr)}
+  .patient-notices:not(.is-empty) .patient-notices-heading .patient-notices-refresh{grid-column:2;justify-self:start}
+}
+@container patient-home (max-width:18rem){
+  .patient-notices.is-empty .patient-notices-heading{grid-template-columns:1.75rem minmax(0,1fr)}
+  .patient-notices.is-empty .patient-notices-refresh{grid-column:2;grid-row:auto;justify-self:start}
 }
 @media(max-width:360px){.patient-notices-footer{flex-wrap:wrap;gap:.5rem}.patient-notices .patient-notices-refresh{margin-left:auto}}
 @container patient-home (max-width:40rem){.patient-notices-footer{flex-wrap:wrap}.patient-notices .patient-notices-refresh{margin-left:auto}}

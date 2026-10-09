@@ -1,5 +1,6 @@
 import { PatientEducation } from "./PatientEducation";
 import { PatientToolsShell } from "./PatientToolsShell";
+import "./patient-resources.css";
 
 export type PatientResourceView = "index" | "tools" | "readings";
 
@@ -68,8 +69,7 @@ export function PatientResources({
         <p className="eyebrow">PARA CONSULTAR QUANDO PRECISAR</p>
         <h1 id="patient-resources-title" tabIndex={-1}>Recursos</h1>
         <p className="patient-module-lead">
-          Escolha entre uma orientação prática para o momento ou um texto para
-          entender melhor um tema.
+          Ferramentas para o dia a dia e textos para consultar no seu tempo.
         </p>
         <p className="patient-module-privacy">
           <span aria-hidden="true" />
@@ -85,7 +85,6 @@ export function PatientResources({
             Passos curtos para lidar com uma situação específica. Você pode
             adaptar ou parar a qualquer momento.
           </p>
-          <small>Abrir uma ferramenta não salva atividade.</small>
           <button className="secondary-button" type="button" onClick={() => onViewChange("tools")}>
             <span>Ver ferramentas</span><span aria-hidden="true">→</span>
           </button>
@@ -95,10 +94,9 @@ export function PatientResources({
           <p className="eyebrow">QUERO ENTENDER MELHOR UM TEMA</p>
           <h2>Leitura complementar</h2>
           <p>
-            Textos para entender um tema com mais contexto. Ler ou buscar
-            não salva nenhuma atividade.
+            Textos breves para conhecer um tema e organizar dúvidas que você
+            queira conversar na sessão.
           </p>
-          <small>Nada é compartilhado por abrir uma leitura.</small>
           <button className="secondary-button" type="button" onClick={() => onViewChange("readings")}>
             <span>Ver leituras</span><span aria-hidden="true">→</span>
           </button>
