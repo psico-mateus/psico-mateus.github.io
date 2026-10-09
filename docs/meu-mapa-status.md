@@ -1,5 +1,10 @@
 # Meu mapa — estado do módulo
 
+> Registro histórico de 11/08/2026. As afirmações abaixo sobre publicação e
+> interface descrevem aquela data, não o estado atual. Consulte a
+> [revisão de 09/10/2026](../portal-production/docs/meu-mapa-repensado-revisao-portal-2026-10-09.md)
+> para a interface repensada e a validação local mais recente.
+
 Atualizado em 11/08/2026. O módulo está funcional no código local com
 persistência privada e compartilhamento opcional por parte. O trabalho foi
 commitado localmente, mas as migrations e o código ainda não foram enviados ou
