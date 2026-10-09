@@ -67,7 +67,8 @@ test("unexpected session loss keeps only an in-memory, patient-bound recovery bu
   assert.match(client, /patientId: string/u);
   assert.match(client, /PatientMapDraftRecoverySnapshot/u);
   assert.match(app, /current\?\.patientId === nextUser\.id \? current : null/u);
-  assert.match(app, /clear\("Sua sessão terminou\. Entre novamente para continuar\.", true\)/u);
+  assert.match(app, /nextUser\.role === "patient" && current\?\.patientId === nextUser\.id/u);
+  assert.match(app, /clear\("Sua sessão terminou\. Entre novamente para continuar\.[^"]*", true\)/u);
   assert.match(app, /clear\("", false\)/u);
 });
 

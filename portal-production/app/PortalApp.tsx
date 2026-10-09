@@ -38,6 +38,17 @@ import {
 } from "./ThoughtReview";
 import { type ThoughtReview } from "./thought-review";
 import {
+  createPatientRecordRecoverySnapshot,
+  getPatientRecordRecovery,
+  resolvePatientEntryRecovery,
+  type PatientEntry as Entry,
+  type PatientEntryDraft as EntryDraft,
+  type PatientEntryReturn as EntryReturn,
+  type PatientEntryEditorRecovery,
+  type PatientRecordDraftRecoverySnapshot,
+} from "./patient-record-recovery";
+import { PatientRecoveredDrafts } from "./PatientRecoveredDrafts";
+import {
   filterAndSortPatientEntries,
   patientEntryViewStatus,
   patientEntryViewSummary,
@@ -77,37 +88,6 @@ function entrySaveErrorMessage(error: unknown): string {
   }
   return `${message} O que você escreveu continua nesta tela. Tente salvar novamente quando puder.`;
 }
-type Entry = {
-  id: string;
-  title: string;
-  happened: string;
-  body: string;
-  thoughts: string;
-  urge: string;
-  emotion: string;
-  intensity: number;
-  message: string;
-  created_at: string;
-  updated_at: string;
-  shared_at: string | null;
-  revoked_at?: string | null;
-  viewed_at?: string | null;
-  thought_review: ThoughtReview | null;
-};
-type EntryDraft = Omit<
-  Entry,
-  | "id"
-  | "created_at"
-  | "updated_at"
-  | "shared_at"
-  | "revoked_at"
-  | "viewed_at"
-  | "thought_review"
->;
-type EntryReturn =
-  | { kind: "reading"; id: string }
-  | { kind: "tool"; id: string }
-  | null;
 type PatientNavigationMode = "push" | "replace" | "return";
 type PatientHistoryState = {
   patientNavigation: true;
@@ -1781,6 +1761,8 @@ function PatientDashboard({
   onDraftStateChange,
   mapRecovery,
   onMapRecoveryChange,
+  recordRecovery,
+  onRecordRecoveryChange,
 }: {
   user: User;
   csrf: string;
@@ -1790,6 +1772,8 @@ function PatientDashboard({
   onDraftStateChange: (dirty: boolean) => void;
   mapRecovery: PatientMapDraftRecoverySnapshot | null;
   onMapRecoveryChange: (snapshot: PatientMapDraftRecoverySnapshot | null) => void;
+  recordRecovery: PatientRecordDraftRecoverySnapshot | null;
+  onRecordRecoveryChange: (snapshot: PatientRecordDraftRecoverySnapshot | null) => void;
 }) {
   const [initialPatientRoute] = useState<PatientRoute>(() =>
     typeof window === "undefined"
@@ -1829,6 +1813,13 @@ function PatientDashboard({
   const [thoughtReviewSnapshots, setThoughtReviewSnapshots] = useState<
     Record<string, ThoughtReviewEditorSnapshot>
   >({});
+  const [pendingRecordRecovery, setPendingRecordRecovery] = useState(() => getPatientRecordRecovery(recordRecovery, user));
+  const recordRecoveryToRestore = useRef(pendingRecordRecovery);
+  const [blockedEntryRecovery, setBlockedEntryRecovery] = useState<{
+    kind: "changed" | "missing";
+    editor: PatientEntryEditorRecovery;
+  } | null>(null);
+  const [recordRecoveryAnnouncement, setRecordRecoveryAnnouncement] = useState("");
   const entryActionLocks = useRef<Set<string>>(new Set());
   const entriesRequestSequence = useRef(0);
   const entriesRequestsInFlight = useRef(0);
@@ -1847,6 +1838,26 @@ function PatientDashboard({
     onRecoveryChange: onMapRecoveryChange,
     onSessionLost,
   });
+  const restoreRecoveredRecords = useCallback((freshEntries: Entry[]) => {
+    const snapshot = recordRecoveryToRestore.current;
+    if (!snapshot) return;
+    recordRecoveryToRestore.current = null;
+    setPendingRecordRecovery(null);
+    setThoughtReviewSnapshots(snapshot.thoughtReviewSnapshots);
+    if (snapshot.entryEditor) {
+      const restored = resolvePatientEntryRecovery(snapshot.entryEditor, freshEntries);
+      if (restored.kind === "new" || restored.kind === "edit") {
+        setEditing(restored.kind === "new" ? "new" : restored.entry);
+        setEntryDraft(restored.draft);
+        setEditorVisible(!restored.editorPaused);
+        setEditorDirty(true);
+        setEntryReturn(restored.entryReturn);
+      } else {
+        setBlockedEntryRecovery({ kind: restored.kind, editor: restored.editor });
+      }
+    }
+    setRecordRecoveryAnnouncement("Seu texto não salvo foi recuperado nesta aba. Confira antes de salvar. Fechar ou recarregar a página ainda pode apagar o rascunho.");
+  }, []);
   const load = useCallback(async (showRefreshing = false) => {
     const sequence = entriesRequestSequence.current + 1;
     entriesRequestSequence.current = sequence;
@@ -1858,6 +1869,7 @@ function PatientDashboard({
       const result = await portalRequest<{ entries: Entry[] }>("/entries");
       if (sequence !== entriesRequestSequence.current) return;
       setEntries(result.entries);
+      restoreRecoveredRecords(result.entries);
     }
     catch (error) {
       if (sequence !== entriesRequestSequence.current) return;
@@ -1877,7 +1889,7 @@ function PatientDashboard({
         setRefreshing(false);
       }
     }
-  }, [onSessionLost]);
+  }, [onSessionLost, restoreRecoveredRecords]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
@@ -1979,13 +1991,16 @@ function PatientDashboard({
 
   useEffect(() => {
     if (area !== "records" || !editing || !editorVisible) return;
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
       const editor = document.getElementById("entry-editor");
+      // Do not move someone who has already begun using a field in the new form.
+      if (editor?.contains(document.activeElement)) return;
       const title = document.getElementById("entry-title");
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       editor?.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
       title?.focus({ preventScroll: true });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [area, editing, editorVisible]);
 
   useEffect(() => {
@@ -2003,17 +2018,51 @@ function PatientDashboard({
               : resourceView === "readings"
                 ? "education-title"
                 : "patient-resources-title";
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
+      // Saving can already have returned focus to the resulting history card.
+      // A late navigation effect must not replace that useful focus with the title.
+      const focused = document.activeElement;
+      if (area === "records" && focused instanceof HTMLElement &&
+        focused.matches(".patient-record-card > summary")) return;
       const target = document.getElementById(targetId);
       target?.scrollIntoView({ block: "start", behavior: "auto" });
       target?.focus({ preventScroll: true });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [area, editing, editorVisible, resourceView, selectedEducationSlug, selectedToolId]);
+
+  useEffect(() => {
+    const snapshot = pendingRecordRecovery ?? createPatientRecordRecoverySnapshot({
+      patientId: user.id,
+      editing,
+      draft: entryDraft,
+      editorDirty,
+      editorPaused: !editorVisible,
+      entryReturn,
+      thoughtReviewSnapshots,
+    });
+    onRecordRecoveryChange(blockedEntryRecovery
+      ? { patientId: user.id, entryEditor: blockedEntryRecovery.editor, thoughtReviewSnapshots }
+      : snapshot);
+  }, [blockedEntryRecovery, editing, editorDirty, editorVisible, entryDraft, entryReturn,
+    onRecordRecoveryChange, pendingRecordRecovery, thoughtReviewSnapshots, user.id]);
+
+  function updateEntryDraft(nextDraft: EntryDraft) {
+    setEntryDraft(nextDraft);
+    const baseline = entryDraftFrom(editing && editing !== "new" ? editing : undefined);
+    const dirty = (Object.keys(baseline) as Array<keyof EntryDraft>).some(key => baseline[key] !== nextDraft[key]);
+    // Capture the last keystroke before an asynchronous 401 can unmount this editor.
+    onRecordRecoveryChange(createPatientRecordRecoverySnapshot({
+      patientId: user.id, editing, draft: nextDraft, editorDirty: dirty,
+      editorPaused: !editorVisible, entryReturn, thoughtReviewSnapshots,
+    }));
+  }
 
   useEffect(() => {
     const hasUnsavedChanges =
       Boolean(editing && editorDirty) ||
       patientMap.hasUnsavedChanges ||
+      Boolean(pendingRecordRecovery || blockedEntryRecovery) ||
       Object.keys(thoughtReviewSnapshots).length > 0;
     onDraftStateChange(hasUnsavedChanges);
     if (!hasUnsavedChanges) return;
@@ -2026,6 +2075,8 @@ function PatientDashboard({
   }, [
     editing,
     editorDirty,
+    pendingRecordRecovery,
+    blockedEntryRecovery,
     onDraftStateChange,
     patientMap.hasUnsavedChanges,
     thoughtReviewSnapshots,
@@ -2060,6 +2111,10 @@ function PatientDashboard({
           : "Registro atualizado. Ele continua privado."
         : "Registro salvo de forma privada.",
     );
+    onRecordRecoveryChange(createPatientRecordRecoverySnapshot({
+      patientId: user.id, editing: null, draft: null, editorDirty: false,
+      editorPaused: true, entryReturn: null, thoughtReviewSnapshots,
+    }));
     await load();
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -2120,6 +2175,7 @@ function PatientDashboard({
     if (entryActionLocks.current.has(entry.id)) return;
     if (!window.confirm("Excluir este registro de forma permanente?")) return;
     const card = document.getElementById(`record-${entry.id}`);
+    const restoreFocus = Boolean(card?.contains(document.activeElement));
     const adjacentSummary =
       card?.nextElementSibling?.querySelector<HTMLElement>("summary") ??
       card?.previousElementSibling?.querySelector<HTMLElement>("summary") ??
@@ -2139,6 +2195,8 @@ function PatientDashboard({
       await load();
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
+          const focused = document.activeElement;
+          if (!restoreFocus || (focused && focused !== document.body && focused !== document.documentElement)) return;
           const focusTarget = adjacentSummary?.isConnected
             ? adjacentSummary
             : document.getElementById("records-title");
@@ -2217,6 +2275,10 @@ function PatientDashboard({
     [],
   );
   function openNewRecord() {
+    if (pendingRecordRecovery || blockedEntryRecovery) {
+      document.getElementById("patient-recovered-drafts-title")?.scrollIntoView({ block: "center" });
+      return;
+    }
     if (editing) {
       setEditorVisible(true);
       navigatePatient({
@@ -2244,6 +2306,7 @@ function PatientDashboard({
     });
   }
   function createRecordFromEducation(slug: string) {
+    if (pendingRecordRecovery || blockedEntryRecovery) return;
     if (editing) {
       setMessageTone("success");
       setMessage("Você já tem um registro não salvo. Ele foi mantido nesta sessão.");
@@ -2272,6 +2335,7 @@ function PatientDashboard({
     });
   }
   function createRecordFromTool(toolId: string) {
+    if (pendingRecordRecovery || blockedEntryRecovery) return;
     if (editing) {
       setMessageTone("success");
       setMessage("Você já tem um registro não salvo. Ele foi mantido nesta sessão.");
@@ -2368,6 +2432,26 @@ function PatientDashboard({
     window.requestAnimationFrame(() => {
       document.getElementById("records-title")?.focus();
     });
+  }
+  function recoverBlockedEntryAsNew() {
+    if (!blockedEntryRecovery || editing) return;
+    setEntryDraft({ ...blockedEntryRecovery.editor.draft });
+    setEntryReturn(blockedEntryRecovery.editor.entryReturn);
+    setEditing("new");
+    setEditorVisible(true);
+    setEditorDirty(true);
+    setBlockedEntryRecovery(null);
+    setRecordRecoveryAnnouncement("Seu texto foi colocado em um novo rascunho privado. Ele ainda não foi salvo.");
+    navigatePatient({ area: "records", resourceView: "index", toolId: null, educationSlug: null });
+  }
+  function discardBlockedEntryRecovery() {
+    if (!window.confirm("Descartar este texto que ainda não foi salvo?")) return;
+    setBlockedEntryRecovery(null);
+  }
+  function discardUnavailableThoughtReviews() {
+    if (!window.confirm("Descartar somente os rascunhos ligados a registros indisponíveis?")) return;
+    const ids = new Set(entries.map(entry => entry.id));
+    setThoughtReviewSnapshots(current => Object.fromEntries(Object.entries(current).filter(([id]) => ids.has(id))));
   }
   function openRecordHistory() {
     setEditorVisible(false);
@@ -2531,6 +2615,17 @@ function PatientDashboard({
         {refreshing ? "Atualizando seus registros." : ""}
       </p>
 
+      {recordRecoveryAnnouncement && (Boolean(editing && editorDirty) || blockedEntryRecovery ||
+        Object.keys(thoughtReviewSnapshots).length > 0) ? <Notice tone="success" message={recordRecoveryAnnouncement} /> : null}
+      {!loading && !entriesError ? <PatientRecoveredDrafts
+        entry={blockedEntryRecovery}
+        thoughtReviews={Object.entries(thoughtReviewSnapshots).filter(([id]) => !entries.some(entry => entry.id === id))
+          .map(([entryId, snapshot]) => ({ entryId, snapshot }))}
+        onRecoverEntryAsNew={recoverBlockedEntryAsNew}
+        onDiscardEntry={discardBlockedEntryRecovery}
+        onDiscardThoughtReviews={discardUnavailableThoughtReviews}
+      /> : null}
+
       {entriesError && (area === "home" || area === "records") ? (
         <div className="panel error-state">
           <Notice
@@ -2639,7 +2734,7 @@ function PatientDashboard({
               guidance={entryGuidance}
               onSave={save}
               onCancel={cancelEntry}
-              onDraftChange={setEntryDraft}
+              onDraftChange={updateEntryDraft}
               onDirtyChange={setEditorDirty}
             />
           ) : null}
@@ -3567,6 +3662,9 @@ export function PortalApp() {
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [patientMapRecovery, setPatientMapRecovery] =
     useState<PatientMapDraftRecoverySnapshot | null>(null);
+  const [patientRecordRecovery, setPatientRecordRecovery] =
+    useState<PatientRecordDraftRecoverySnapshot | null>(null);
+  const protectedDraft = hasUnsavedDraft || Boolean(patientMapRecovery || patientRecordRecovery);
   const logoutInFlight = useRef(false);
   const rememberPatientMapRecovery = useCallback(
     (snapshot: PatientMapDraftRecoverySnapshot | null) => {
@@ -3574,17 +3672,33 @@ export function PortalApp() {
     },
     [],
   );
-  const clear = useCallback((message = "", preserveMapRecovery = false) => {
+  const rememberPatientRecordRecovery = useCallback((snapshot: PatientRecordDraftRecoverySnapshot | null) => {
+    setPatientRecordRecovery(snapshot);
+  }, []);
+  useEffect(() => {
+    if (user || !protectedDraft) return;
+    // The editor is unmounted at expiry, but its in-memory recovery still needs protection.
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [protectedDraft, user]);
+  const clear = useCallback((message = "", preservePatientRecovery = false) => {
     setUser(null);
     setCsrf("");
     setMfaRecoveryCodes([]);
     setHasUnsavedDraft(false);
-    if (!preserveMapRecovery) setPatientMapRecovery(null);
+    if (!preservePatientRecovery) {
+      setPatientMapRecovery(null);
+      setPatientRecordRecovery(null);
+    }
     setSessionMessage(message);
     scrollPageToTop();
   }, []);
   const sessionEnded = useCallback(() => {
-    clear("Sua sessão terminou. Entre novamente para continuar.", true);
+    clear("Sua sessão terminou. Entre novamente para continuar. Se tinha texto não salvo, mantenha esta aba aberta.", true);
   }, [clear]);
   const loadInitial = useCallback(async () => {
     setFatal("");
@@ -3631,8 +3745,9 @@ export function PortalApp() {
     }
     scrollPageToTop();
     setPatientMapRecovery((current) =>
-      current?.patientId === nextUser.id ? current : null,
+      nextUser.role === "patient" && current?.patientId === nextUser.id ? current : null,
     );
+    setPatientRecordRecovery(current => getPatientRecordRecovery(current, nextUser));
     setUser(nextUser);
     setCsrf(token);
     setSessionMessage("");
@@ -3649,7 +3764,7 @@ export function PortalApp() {
   async function logout() {
     if (logoutInFlight.current) return;
     if (
-      hasUnsavedDraft &&
+      protectedDraft &&
       !window.confirm("Sair da conta? As alterações que ainda não foram salvas serão perdidas.")
     ) {
       return;
@@ -3699,13 +3814,13 @@ export function PortalApp() {
         />
       );
     }
-    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} recordRecovery={getPatientRecordRecovery(patientRecordRecovery, user)} onRecordRecoveryChange={rememberPatientRecordRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>
       <SlowMutationStatus />
       {content}
-      <AppUpdateManager hasUnsavedDraft={hasUnsavedDraft} />
+      <AppUpdateManager hasUnsavedDraft={protectedDraft} />
       {recovery ? <RecoveryCard code={recovery} onClose={() => setRecovery("")} /> : null}
       {mfaRecoveryCodes.length > 0 ? (
         <RecoveryCodesCard

@@ -75,6 +75,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       earlierNotices: [],
       nextCursor: null,
       readFailure: 0,
+      readGate: null,
       sendFailure: 0,
       professionalListFailure: 0,
       listFailure: 0,
@@ -139,6 +140,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       }
       const readMatch = path.match(/^\/notices\/([^/]+)\/read$/u);
       if (readMatch && method === "POST") {
+        if (controls.readGate) await controls.readGate;
         if (controls.readFailure) {
           const status = controls.readFailure;
           controls.readFailure = 0;
@@ -317,6 +319,78 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       assert.ok(controls.mutations.every((mutation) => mutation.csrf === "synthetic-csrf" && mutation.method === "POST"));
       await expect(inbox.getByRole("textbox")).toHaveCount(0);
       await checkHealthy(page, controls, `patient-read-${label}`);
+    });
+  }
+
+  for (const [label, viewport] of [["desktop", { width: 1440, height: 1000 }], ["mobile", { width: 390, height: 844 }]]) {
+    for (const readFailure of [0, 404]) {
+      test(`patient ${label}: delayed ${readFailure ? "unavailable notice" : "mark-read"} preserves focus moved elsewhere`, async () => {
+        const { page, controls } = await openPortal("patient", viewport, {}, "reduce");
+        const inbox = page.locator(".patient-notices");
+        const notice = inbox.locator(".notice-item").filter({ hasText: noticeOne.title });
+        let releaseRead;
+        controls.readGate = new Promise((release) => { releaseRead = release; });
+        controls.readFailure = readFailure;
+        try {
+          await notice.locator("summary").click();
+          await notice.getByRole("button", { name: "Marcar como lido", exact: true }).focus();
+          await page.keyboard.press("Enter");
+          await expect(notice.getByRole("button", { name: "Confirmando…", exact: true })).toBeDisabled();
+          await expect.poll(() => controls.mutations.length).toBe(1);
+          const nextAction = page.getByRole("button", { name: /^Ver recursos/u });
+          await nextAction.focus();
+          await expect(nextAction).toBeFocused();
+          releaseRead();
+          if (readFailure) {
+            await expect(inbox.getByRole("alert")).toContainText("não está mais disponível");
+            await expect(notice).toHaveCount(0);
+          } else {
+            await expect(notice.locator("summary .notice-item-meta")).toContainText("Lido");
+            await expect(inbox.getByRole("status").filter({ hasText: "Aviso marcado como lido." })).toBeAttached();
+          }
+          await page.evaluate(() => new Promise((release) => {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(release));
+          }));
+          await expect(nextAction).toBeFocused();
+          assert.deepEqual(controls.mutations, [{
+            path: `/notices/${noticeOne.id}/read`, method: "POST", payload: {}, csrf: "synthetic-csrf",
+          }]);
+          await checkHealthy(page, controls, `patient-delayed-${readFailure || "read"}-preserves-focus-${label}`);
+        } finally {
+          releaseRead();
+        }
+      });
+    }
+  }
+
+  for (const readFailure of [404, 403]) {
+    test(`patient: delayed ${readFailure} keeps useful focus when its focused notice disappears`, async () => {
+      const { page, controls } = await openPortal("patient", { width: 390, height: 844 }, {}, "reduce");
+      const inbox = page.locator(".patient-notices");
+      const notice = inbox.locator(".notice-item").filter({ hasText: noticeOne.title });
+      let releaseRead;
+      controls.readGate = new Promise((release) => { releaseRead = release; });
+      controls.readFailure = readFailure;
+      try {
+        await notice.locator("summary").click();
+        await notice.getByRole("button", { name: "Marcar como lido", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await expect(notice.getByRole("button", { name: "Confirmando…", exact: true })).toBeDisabled();
+        const removedFocus = readFailure === 403
+          ? inbox.locator(".notice-item").filter({ hasText: noticeTwo.title }).locator("summary")
+          : notice.locator("summary");
+        await removedFocus.focus();
+        await expect(removedFocus).toBeFocused();
+        releaseRead();
+        await expect(inbox.getByRole("alert")).toContainText("não está mais disponível");
+        await expect(notice).toHaveCount(0);
+        if (readFailure === 403) await expect(inbox.locator(".notice-item")).toHaveCount(0);
+        await expect(inbox.getByRole("heading", { name: "Avisos de Mateus", exact: true })).toBeFocused();
+        assert.equal(controls.mutations.length, 1);
+        await checkHealthy(page, controls, `patient-delayed-${readFailure}-removed-focus-mobile`);
+      } finally {
+        releaseRead();
+      }
     });
   }
 

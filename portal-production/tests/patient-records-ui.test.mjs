@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { after, before, describe, test } from "node:test";
+import { after, afterEach, before, describe, test } from "node:test";
 import axe from "axe-core";
 
 const baseUrl = process.env.PORTAL_RECORDS_UI_BASE_URL;
@@ -48,12 +48,22 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     for (const fixture of fixtures) {
       fixture.releaseEntries();
       fixture.releaseSharing();
+      fixture.releaseDeleting();
       await fixture.context.close();
     }
     await browser?.close();
   });
+  afterEach(async () => {
+    for (const fixture of fixtures) {
+      fixture.releaseEntries();
+      fixture.releaseSharing();
+      fixture.releaseDeleting();
+      await fixture.context.close();
+    }
+    fixtures.clear();
+  });
 
-  async function openRecords({ entries = syntheticEntries, pendingEntries = false, pendingSharing = false, entriesStatus = 200,
+  async function openRecords({ entries = syntheticEntries, pendingEntries = false, pendingSharing = false, pendingDeleting = false, entriesStatus = 200,
     viewport = { width: 390, height: 844 } } = {}) {
     const context = await browser.newContext({ viewport, serviceWorkers: "block", reducedMotion: "reduce" });
     const page = await context.newPage();
@@ -63,18 +73,23 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     let releaseSharing;
     const sharingGate = new Promise((release) => { releaseSharing = release; });
     if (!pendingSharing) releaseSharing();
+    let releaseDeleting;
+    const deletingGate = new Promise((release) => { releaseDeleting = release; });
+    if (!pendingDeleting) releaseDeleting();
+    const patient = { id: "synthetic-records-patient", name: "Paciente Sintético", role: "patient" };
     const controls = {
       entries: structuredClone(entries), entriesStatus, sharingFailure: 0, saveFailure: 0,
+      loginUser: patient, entriesRequests: 0,
       unexpected: [], foreignRequests: [], runtimeErrors: [], expectedHttpFailures: [], mutations: [],
     };
-    const fixture = { context, page, controls, releaseEntries, releaseSharing };
+    const fixture = { context, page, controls, releaseEntries, releaseSharing, releaseDeleting };
     fixtures.add(fixture);
     page.on("pageerror", (error) => controls.runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (!["warning", "error"].includes(message.type())) return;
       const text = message.text();
       if (text === "Service Worker registration blocked by Playwright") return;
-      if (/Failed to load resource: the server responded with a status of 503\b/u.test(text)) {
+      if (/Failed to load resource: the server responded with a status of (?:401|409|503)\b/u.test(text)) {
         controls.expectedHttpFailures.push(text);
         return;
       }
@@ -108,11 +123,14 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
         guide_url: "https://psico-mateus.github.io/guia-emocoes/", care_url: "https://psico-mateus.github.io/cuidados/" });
       if (path === "/session" && method === "GET") return respond({
         user: { id: "synthetic-records-patient", name: "Paciente Sintético", role: "patient" }, csrf: "synthetic-records-csrf" });
+      if (path === "/login" && method === "POST") return respond({ user: controls.loginUser, csrf: "synthetic-reauthenticated-csrf" });
+      if (path === "/logout" && method === "POST") return respond({ ok: true });
       if (path === "/map-draft" && method === "GET") return respond({
         content_version: "mapa-pessoal-refinado-ouro-v1", generation: 1, fields: [] });
       if (path === "/map-sharing" && method === "GET") return respond({ shares: [] });
       if (path === "/notices" && method === "GET") return respond({ notices: [], unread_count: 0, next_cursor: null });
       if (path === "/entries" && method === "GET") {
+        controls.entriesRequests += 1;
         await entriesGate;
         return controls.entriesStatus === 200 ? respond({ entries: controls.entries })
           : respond({ error: "Falha sintética ao carregar os registros." }, controls.entriesStatus);
@@ -138,7 +156,24 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
         controls.entries.push({ ...neutralEntry, ...request.postDataJSON(), id, shared_at: null, viewed_at: null });
         return respond({ id });
       }
+      const thoughtReview = path.match(/^\/entries\/([^/]+)\/thought-review$/u);
+      if (thoughtReview && method === "PATCH") {
+        const entry = controls.entries.find(item => item.id === thoughtReview[1]);
+        if (!entry) return respond({ error: "Registro sintético ausente." }, 404);
+        const { expected_revision, ...draft } = request.postDataJSON();
+        if (expected_revision !== (entry.thought_review?.revision ?? 0)) return respond({
+          code: "entry_thought_review_conflict", current_review: entry.thought_review,
+          error: "Conflito sintético de revisão.",
+        }, 409);
+        entry.thought_review = { ...draft, revision: expected_revision + 1, created_at: timestamp, updated_at: timestamp };
+        return respond({ thought_review: entry.thought_review, updated_at: timestamp });
+      }
       const editing = path.match(/^\/entries\/([^/]+)$/u);
+      if (editing && method === "DELETE") {
+        await deletingGate;
+        controls.entries = controls.entries.filter(entry => entry.id !== editing[1]);
+        return respond({ ok: true });
+      }
       if (editing && method === "PATCH") {
         if (controls.saveFailure) return respond({ error: "Falha sintética ao salvar. Tente novamente." }, controls.saveFailure);
         const entry = controls.entries.find((item) => item.id === editing[1]);
@@ -194,6 +229,25 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     const form = fixture.page.locator("#entry-editor");
     await expect(form).toBeVisible();
     return form;
+  }
+
+  async function expireSession(fixture) {
+    fixture.controls.entriesStatus = 401;
+    await fixture.page.evaluate(() => {
+      const previousNow = Date.now;
+      Date.now = () => previousNow() + 61_000;
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(fixture.page.locator("#auth-title")).toHaveText("Entre na sua conta");
+    await expect(fixture.page.getByText("Sua sessão terminou.", { exact: false })).toBeVisible();
+  }
+
+  async function loginAgain(fixture) {
+    const auth = fixture.page.locator(".auth-card form");
+    await auth.getByLabel("E-mail", { exact: true }).fill("synthetic-patient@example.invalid");
+    await auth.getByLabel("Senha", { exact: true }).fill("senha-sintetica-isolada");
+    await auth.getByRole("button", { name: "Entrar", exact: true }).click();
+    await expect(fixture.page.locator(".patient-navigation")).toBeVisible();
   }
 
   async function assertOptionalFieldsVisible(form) {
@@ -389,6 +443,9 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     await expect(card).toBeVisible();
     await expect(card.locator(".status.private")).toBeVisible();
     await expect(card.locator(":scope > summary")).toBeFocused();
+    // The navigation effect must not overwrite the post-save destination later.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(card.locator(":scope > summary")).toBeFocused();
     await checkHealthy(fixture, "records-early-save-minimum");
   });
 
@@ -561,6 +618,239 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     assert.equal(controls.mutations.length, 1);
     assert.equal(controls.mutations[0].csrf, "synthetic-records-csrf");
     await checkHealthy(fixture, "records-sharing-cancel-error");
+  });
+
+  test("deleting restores visible keyboard focus without taking focus moved to search", async () => {
+    for (const moveFocus of [false, true]) {
+      const fixture = await openRecords({ pendingDeleting: true });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const card = page.locator("#record-synthetic-record-private");
+      await card.locator(":scope > summary").click();
+      await card.getByRole("button", { name: "Excluir", exact: true }).focus();
+      page.once("dialog", dialog => dialog.accept());
+      await page.keyboard.press("Enter");
+      await expect.poll(() => controls.mutations.length).toBe(1);
+      const search = page.getByLabel("Buscar nos meus registros");
+      if (moveFocus) await search.focus();
+      fixture.releaseDeleting();
+      await expect(card).toHaveCount(0);
+      await loaded(fixture);
+      await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+      if (moveFocus) await expect(search).toBeFocused();
+      else {
+        await assertUsefulHistoryFocus(page);
+        assert.equal(await page.locator("#record-synthetic-record-shared > summary").evaluate(node => getComputedStyle(node).outlineOffset), "-4px");
+      }
+      await checkHealthy(fixture, `records-delete-focus-${moveFocus ? "moved" : "restored"}`);
+    }
+  });
+
+  test("expired session recovers a new draft only after the same patient logs in and never auto-saves", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    const form = await openNewEditor(fixture);
+    const requestsBefore = controls.entriesRequests;
+    await form.getByLabel("Título breve").fill("Última tecla sintética preservada");
+    await form.getByLabel("O que aconteceu?").fill("Texto sintético com espaços  e quebra\nde linha.");
+    await form.getByLabel("O que quero levar").fill(optionalDraft.message);
+    await form.getByLabel("O que percebeu no corpo?").fill(optionalDraft.body);
+    await form.getByLabel("Quais pensamentos apareceram?").fill(optionalDraft.thoughts);
+    await form.getByLabel("O que teve vontade de fazer?").fill(optionalDraft.urge);
+    assert.equal(controls.entriesRequests, requestsBefore, "Typing must not recreate load/session callbacks and fetch history.");
+    await expireSession(fixture);
+    await expect(page.locator("#entry-editor")).toHaveCount(0);
+    assert.equal(await page.locator("body").innerText().then(text => text.includes("Última tecla sintética")), false);
+    assert.equal(await page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }), true, "Guest recovery must still prevent an unannounced reload/update.");
+    const stored = await page.evaluate(() => [...Object.values(localStorage), ...Object.values(sessionStorage)].join(" "));
+    assert.equal(stored.includes("Última tecla sintética"), false, "No clinical draft is stored on the device.");
+    controls.entriesStatus = 200;
+    await loginAgain(fixture);
+    await expect(form.getByLabel("Título breve")).toHaveValue("Última tecla sintética preservada");
+    for (const [label, value] of [["O que quero levar", optionalDraft.message], ["O que percebeu no corpo?", optionalDraft.body],
+      ["Quais pensamentos apareceram?", optionalDraft.thoughts], ["O que teve vontade de fazer?", optionalDraft.urge]]) {
+      await expect(form.getByLabel(label)).toHaveValue(value);
+    }
+    assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+    await form.getByRole("button", { name: "Salvar agora como privado", exact: true }).click();
+    await expect(form).toHaveCount(0);
+    assert.equal(controls.mutations.at(-1).csrf, "synthetic-reauthenticated-csrf");
+    assert.equal(controls.entries.at(-1).shared_at, null);
+    await expect(page.getByText("Seu texto não salvo foi recuperado nesta aba.", { exact: false })).toHaveCount(0);
+    await checkHealthy(fixture, "records-recovery-new-saved");
+  });
+
+  test("expired session keeps a paused draft paused until an explicit resume", async () => {
+    const fixture = await openRecords();
+    const form = await openNewEditor(fixture);
+    await form.getByLabel("Título breve").fill("Rascunho sintético pausado");
+    await fixture.page.locator(".patient-navigation").getByRole("button", { name: "Meus registros", exact: true }).click();
+    await expect(form).toHaveCount(0);
+    await expireSession(fixture);
+    fixture.controls.entriesStatus = 200;
+    await loginAgain(fixture);
+    await expect(form).toHaveCount(0);
+    await fixture.page.getByRole("button", { name: "Continuar escrevendo", exact: true }).click();
+    await expect(form.getByLabel("Título breve")).toHaveValue("Rascunho sintético pausado");
+    await checkHealthy(fixture, "records-recovery-paused");
+  });
+
+  test("recovered edit uses freshly loaded privacy metadata, not the old sharing state", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    const card = page.locator("#record-synthetic-record-shared");
+    await card.locator(":scope > summary").click();
+    await card.getByRole("button", { name: "Editar", exact: true }).click();
+    const form = page.locator("#entry-editor");
+    await form.getByLabel("Título breve").fill("Edição sintética recuperada");
+    await expireSession(fixture);
+    controls.entries.find(entry => entry.id === "synthetic-record-shared").revoked_at = timestamp;
+    controls.entriesStatus = 200;
+    await loginAgain(fixture);
+    await expect(form.getByLabel("Título breve")).toHaveValue("Edição sintética recuperada");
+    await expect(form).toContainText("Continuará privado.");
+    assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+    await form.getByRole("button", { name: "Salvar alterações agora", exact: true }).click();
+    await expect(form).toHaveCount(0);
+    assert.equal(controls.mutations.at(-1).path, "/entries/synthetic-record-shared");
+    assert.equal(controls.mutations.at(-1).method, "PATCH");
+    assert.equal(controls.entries.find(entry => entry.id === "synthetic-record-shared").revoked_at, timestamp);
+    await checkHealthy(fixture, "records-recovery-edit-private");
+  });
+
+  for (const kind of ["changed", "missing"]) {
+    test(`${kind} original record never gets overwritten or recreated from recovery automatically`, async () => {
+      const fixture = await openRecords();
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const card = page.locator("#record-synthetic-record-private");
+      await card.locator(":scope > summary").click();
+      await card.getByRole("button", { name: "Editar", exact: true }).click();
+      const form = page.locator("#entry-editor");
+      await form.getByLabel("Título breve").fill("Rascunho sintético sem sobrescrever");
+      await expireSession(fixture);
+      if (kind === "changed") controls.entries[0].updated_at = "2026-10-09T12:00:00.000Z";
+      else controls.entries = controls.entries.filter(entry => entry.id !== "synthetic-record-private");
+      controls.entriesStatus = 200;
+      await loginAgain(fixture);
+      await loaded(fixture);
+      await expect(form).toHaveCount(0);
+      const recovered = page.locator(".patient-recovered-drafts");
+      await expect(recovered).toBeVisible();
+      assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+      await recovered.locator("details > summary").click();
+      await expect(recovered).toContainText("Rascunho sintético sem sobrescrever");
+      await recovered.getByRole("button", { name: "Usar em um novo registro privado", exact: true }).click();
+      await expect(form.getByLabel("Título breve")).toHaveValue("Rascunho sintético sem sobrescrever");
+      await expect(form).toContainText("Será salvo como privado.");
+      assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+      await checkHealthy(fixture, `records-recovery-${kind}`);
+    });
+  }
+
+  test("different patient login and explicit logout discard recovery rather than expose it", async () => {
+    for (const mode of ["different-patient", "logout"]) {
+      const fixture = await openRecords();
+      const { page, controls } = fixture;
+      const form = await openNewEditor(fixture);
+      await form.getByLabel("Título breve").fill("Rascunho sintético apenas da primeira conta");
+      if (mode === "logout") {
+        page.once("dialog", dialog => dialog.accept());
+        await page.getByRole("button", { name: "Sair", exact: true }).click();
+        await expect(page.locator("#auth-title")).toHaveText("Entre na sua conta");
+      } else {
+        await expireSession(fixture);
+        controls.loginUser = { id: "synthetic-records-other-patient", name: "Outro Sintético", role: "patient" };
+      }
+      controls.entriesStatus = 200;
+      await loginAgain(fixture);
+      await loaded(fixture);
+      await page.getByRole("button", { name: "Novo registro", exact: true }).click();
+      await expect(form.getByLabel("Título breve")).toHaveValue("");
+      assert.equal((await page.locator("body").innerText()).includes("Rascunho sintético apenas da primeira conta"), false);
+      await checkHealthy(fixture, `records-recovery-discard-${mode}`);
+    }
+  });
+
+  test("thought review recovery retains unsaved fields and its expected revision", async () => {
+    const review = { source_thought: "Pensamento sintético original.", supporting_context: "", missing_context: "", alternative_view: "", current_view: "",
+      revision: 4, created_at: timestamp, updated_at: timestamp };
+    const fixture = await openRecords({ entries: [{ ...syntheticEntries[0], thoughts: "Pensamento sintético.", thought_review: review }] });
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    const card = page.locator("#record-synthetic-record-private");
+    await card.locator(":scope > summary").click();
+    await card.getByRole("button", { name: "Continuar revisão", exact: true }).click();
+    await card.getByLabel("O que faz esse pensamento parecer verdadeiro?", { exact: false }).fill("Resposta sintética que deve continuar guardada.");
+    await expireSession(fixture);
+    controls.entriesStatus = 200;
+    await loginAgain(fixture);
+    await loaded(fixture);
+    await card.locator(":scope > summary").click();
+    await expect(card.getByLabel("O que faz esse pensamento parecer verdadeiro?", { exact: false })).toHaveValue("Resposta sintética que deve continuar guardada.");
+    assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+    await card.getByRole("button", { name: "Salvar por enquanto", exact: true }).click();
+    await expect(card.getByText("Revisão salva junto deste registro.", { exact: true })).toBeVisible();
+    assert.equal(controls.mutations.at(-1).payload.expected_revision, 4);
+    assert.equal(controls.mutations.at(-1).csrf, "synthetic-reauthenticated-csrf");
+    await checkHealthy(fixture, "records-recovery-thought-review");
+  });
+
+  test("orphan thought recovery stays private, can be copied explicitly and is discarded only after confirmation", async () => {
+    const fixture = await openRecords({ entries: [{ ...syntheticEntries[0], thoughts: "Pensamento sintético preservado." }],
+      viewport: { width: 320, height: 844 } });
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    const card = page.locator("#record-synthetic-record-private");
+    await card.locator(":scope > summary").click();
+    await card.getByRole("button", { name: "Rever um pensamento", exact: true }).click();
+    await card.getByRole("button", { name: "Usar este texto", exact: true }).click();
+    await card.getByLabel("O que faz esse pensamento parecer verdadeiro?", { exact: false }).fill("Observação sintética da revisão indisponível.");
+    await expireSession(fixture);
+    controls.entries = [];
+    controls.entriesStatus = 200;
+    await loginAgain(fixture);
+    await loaded(fixture);
+    const recovered = page.locator(".patient-recovered-drafts");
+    await expect(recovered).toContainText("Uma revisão não salva pertence a um registro indisponível");
+    await recovered.locator("details > summary").click();
+    await expect(recovered).toContainText("Observação sintética da revisão indisponível.");
+    await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true,
+      value: { writeText: async text => { window.syntheticCopiedRecovery = text; } } }));
+    await recovered.getByRole("button", { name: "Copiar texto das revisões", exact: true }).click();
+    await expect(recovered.getByRole("status")).toContainText("Texto copiado");
+    assert.match(await page.evaluate(() => window.syntheticCopiedRecovery), /Observação sintética da revisão indisponível\./u);
+    assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+    page.once("dialog", dialog => dialog.dismiss());
+    await recovered.getByRole("button", { name: "Descartar essas revisões", exact: true }).click();
+    await expect(recovered).toBeVisible();
+    await checkHealthy(fixture, "records-recovery-orphan-thought");
+    page.once("dialog", dialog => dialog.accept());
+    await recovered.getByRole("button", { name: "Descartar essas revisões", exact: true }).click();
+    await expect(recovered).toHaveCount(0);
+    assert.deepEqual(controls.mutations.map(({ path }) => path), ["/login"]);
+  });
+
+  test("recovery waits for a successful history load and never resolves against an error or empty placeholder", async () => {
+    const fixture = await openRecords();
+    const form = await openNewEditor(fixture);
+    await form.getByLabel("Título breve").fill("Rascunho sintético esperando consulta");
+    await expireSession(fixture);
+    fixture.controls.entriesStatus = 503;
+    await loginAgain(fixture);
+    await loaded(fixture);
+    await expect(form).toHaveCount(0);
+    await expect(fixture.page.getByRole("alert")).toContainText("Falha sintética");
+    assert.deepEqual(fixture.controls.mutations.map(({ path }) => path), ["/login"]);
+    fixture.controls.entriesStatus = 200;
+    await fixture.page.locator(".patient-records-heading-actions").getByRole("button", { name: "Atualizar", exact: true }).click();
+    await expect(form.getByLabel("Título breve")).toHaveValue("Rascunho sintético esperando consulta");
+    await checkHealthy(fixture, "records-recovery-load-retry");
   });
 
   test("failed early save preserves draft fields and focuses the existing error notice", async () => {

@@ -123,6 +123,14 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
 
   async function markRead(notice: PatientNotice) {
     if (notice.read_at || listRequest.current || readRequests.current.has(notice.id)) return;
+    const focusedAtStart = document.activeElement;
+    function restoreNoticeFocus(target: HTMLElement | null | undefined, focusIsBeingRemoved = false) {
+      const focused = document.activeElement;
+      // Safari clicks can retain earlier focus; do not interrupt a later move.
+      if (focusIsBeingRemoved || focused === focusedAtStart || focused === document.body || focused === document.documentElement) {
+        target?.focus();
+      }
+    }
     const controller = new AbortController();
     readRequests.current.set(notice.id, controller);
     setReadingIds(new Set(readRequests.current.keys()));
@@ -138,17 +146,23 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
       setNotices((current) => current.map((item) => item.id === notice.id ? result.notice : item));
       setUnreadCount((current) => Math.max(0, current - 1));
       setConfirmation("Aviso marcado como lido.");
-      noticeSummaries.current.get(notice.id)?.focus();
+      restoreNoticeFocus(noticeSummaries.current.get(notice.id));
     } catch (failure) {
       if (!active.current || controller.signal.aborted) return;
       if (!handleSessionError(failure)) {
         if (failure instanceof PortalRequestError && (failure.status === 403 || failure.status === 404)) {
           // Removed notices or revoked access must not leave stale text visible.
+          const removedSummaries = failure.status === 403
+            ? [...noticeSummaries.current.values()]
+            : [noticeSummaries.current.get(notice.id)];
+          const focusIsBeingRemoved = removedSummaries.some((summary) =>
+            summary?.parentElement?.contains(document.activeElement),
+          );
           setNotices((current) => failure.status === 403 ? [] : current.filter((item) => item.id !== notice.id));
           setUnreadCount((current) => failure.status === 403 ? 0 : Math.max(0, current - 1));
           if (failure.status === 403) setNextCursor(null);
           setError("Este aviso não está mais disponível. Atualize a lista para consultar seus avisos.");
-          panelSummary.current?.focus();
+          restoreNoticeFocus(panelSummary.current, focusIsBeingRemoved);
           return;
         }
         setReadErrors((current) => ({
