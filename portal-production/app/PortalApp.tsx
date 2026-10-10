@@ -2792,7 +2792,7 @@ function PatientDashboard({
                     : `${entries.length} ${entries.length === 1 ? "registro" : "registros"}`}
             </span>
             <button
-              className="secondary-button compact-button"
+              className="secondary-button compact-button patient-record-refresh"
               type="button"
               disabled={loading || refreshing}
               onClick={() => refreshEntries()}
@@ -2923,23 +2923,32 @@ function PatientDashboard({
           return (
             <details className="record-card patient-record-card" id={`record-${entry.id}`} key={entry.id}>
               <summary>
-                <span className="record-summary-marker" aria-hidden="true" />
+                <span className="record-summary-marker" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z" /><path d="M14 3v5h5M9 12h6M9 16h6" /></svg>
+                </span>
                 <span className="patient-record-summary-copy">
-                  <span className="patient-record-statuses">
-                    <span className={`status ${shared ? "shared" : "private"}`}>{shared ? "Compartilhado com Mateus" : "Privado · só você vê"}</span>
-                    {entry.message.trim() ? <span className="status session-note">Para a próxima sessão</span> : null}
-                    {entry.thought_review ? <span className="status thought-review-status">Pensamento revisto</span> : null}
-                  </span>
                   <strong>{entry.title}</strong>
                   <small className="patient-record-meta"><time dateTime={entry.created_at}>{formatDate(entry.created_at)}</time><span>{entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</span></small>
-                  {shared ? (
-                    <span className={`patient-view-summary ${viewStatus.kind}`}>
-                      <span className="patient-view-summary-marker" aria-hidden="true" />
-                      {patientEntryViewSummary(viewStatus)}
+                  <span className="patient-record-statuses">
+                    <span className={`status ${shared ? "shared" : "private"}`}>
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{shared ? <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" /></> : <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></>}</svg>
+                      {shared ? "Compartilhado com Mateus" : "Privado · só você vê"}
+                    </span>
+                    {shared ? (
+                      <span className={`patient-view-summary ${viewStatus.kind}`}>
+                        <span className="patient-view-summary-marker" aria-hidden="true" />
+                        {patientEntryViewSummary(viewStatus)}
+                      </span>
+                    ) : null}
+                  </span>
+                  {entry.message.trim() || entry.thought_review ? (
+                    <span className="patient-record-tags">
+                      {entry.message.trim() ? <span className="status session-note">Para a próxima sessão</span> : null}
+                      {entry.thought_review ? <span className="status thought-review-status">Pensamento revisto</span> : null}
                     </span>
                   ) : null}
                 </span>
-                <span className="patient-record-toggle" aria-hidden="true"><span className="when-closed">Abrir</span><span className="when-open">Fechar</span></span>
+                <span className="patient-record-toggle" aria-hidden="true"><span className="when-closed">Abrir</span><span className="when-open">Fechar</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7" /></svg></span>
               </summary>
               <div className="patient-record-content" aria-busy={Boolean(entryAction)}>
                 {shared ? (

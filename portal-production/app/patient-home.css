@@ -219,7 +219,7 @@
 .patient-dashboard .patient-account-panel > summary { min-height: 56px; font-size: 1rem; }
 .patient-dashboard .patient-account-panel > summary small { font-size: .9rem; line-height: 1.5; }
 .patient-dashboard :where(button, summary, a):focus-visible { outline: 3px solid var(--green-2); outline-offset: 4px; }
-.patient-record-card > summary:focus-visible { outline-offset: -4px; }
+.patient-dashboard .patient-record-card > summary:focus-visible { outline-offset: -4px; }
 .patient-dashboard .patient-record-summary-copy .status {
   width: fit-content;
   max-width: 100%;
@@ -230,14 +230,51 @@
 .patient-dashboard .patient-record-summary-copy > small,
 .patient-dashboard .patient-record-toggle { font-size: 1rem; line-height: 1.6; }
 
-.patient-record-list { gap: 1.5rem; }
+.patient-dashboard .records-section { margin-top: 1.75rem; }
+.patient-dashboard .patient-records-heading { align-items: center; }
+.patient-dashboard .patient-records-heading h1 { font-size: clamp(1.85rem, 2.8vw, 2.35rem); line-height: 1.25; letter-spacing: -.025em; }
+.patient-dashboard .patient-records-heading p { font-size: 1rem; line-height: 1.6; }
+.patient-dashboard .patient-records-heading-actions > .count { font-size: 1rem; }
+.patient-dashboard .patient-records-heading-actions > .primary-button,
+.patient-dashboard .patient-entry-form .primary-button { border-color: var(--green-2); background: var(--green-2); color: #fffdfa; border-radius: 12px; }
+.patient-dashboard .patient-records-heading-actions > .primary-button:hover,
+.patient-dashboard .patient-entry-form .primary-button:hover { border-color: #65491c; background: #65491c; }
+.patient-dashboard .patient-record-refresh { border-color: #c9bfb2; border-radius: 12px; background: var(--card); }
+.patient-dashboard .patient-record-list { gap: 1.5rem; margin-top: 1.5rem; }
 .patient-record-month { display: grid; gap: .65rem; min-width: 0; }
-.patient-record-month-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1rem; padding: .35rem .1rem; }
+.patient-record-month-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1rem; padding: .15rem .1rem; }
 .patient-record-month-heading h2 { margin: 0; color: var(--ink); font: 650 1.125rem/1.5 var(--sans); }
 .patient-record-month-heading > span { color: var(--muted); font-size: 1rem; line-height: 1.5; }
-.patient-record-month-items { display: grid; gap: .75rem; min-width: 0; }
+.patient-record-month-items { display: grid; gap: 0; min-width: 0; border: 1px solid #ded6cb; border-radius: 16px; background: var(--card); }
+.patient-dashboard .patient-record-card { min-width: 0; border: 0; border-bottom: 1px solid #ded6cb; border-radius: 0; background: transparent; box-shadow: none; transition: none; }
+.patient-dashboard .patient-record-card:first-child { border-radius: 16px 16px 0 0; }
+.patient-dashboard .patient-record-card:last-child { border-bottom: 0; border-radius: 0 0 16px 16px; }
+.patient-dashboard .patient-record-card:only-child { border-radius: 16px; }
+.patient-dashboard .patient-record-card > summary { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 1rem; min-height: 104px; padding: 1.2rem 1.35rem; }
+.patient-dashboard .patient-record-card > summary:hover { background: #f7f2e9; }
+.patient-dashboard .patient-record-card .record-summary-marker { width: 44px; height: 44px; padding: 9px; border-radius: 12px; background: #f3ece2; color: var(--ink); }
+.patient-dashboard .patient-record-card .record-summary-marker::after { display: none; }
+.record-summary-marker > svg { width: 100%; height: 100%; }
+.patient-dashboard .patient-record-summary-copy { gap: .4rem; }
+.patient-dashboard .patient-record-summary-copy > strong { font: 650 1.125rem/1.4 var(--sans); }
 .patient-dashboard .patient-record-meta { display: flex; flex-wrap: wrap; gap: .2rem 1rem; }
 .patient-record-meta > :is(time, span) { min-width: 0; overflow-wrap: anywhere; }
+.patient-dashboard .patient-record-statuses { align-items: center; gap: .35rem 1.25rem; margin-top: .15rem; }
+.patient-dashboard .patient-record-statuses > .status { display: inline-flex; align-items: flex-start; gap: .45rem; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 1rem; line-height: 1.5; font-weight: 500; }
+.patient-record-statuses > .status > svg { flex: 0 0 auto; width: 18px; height: 18px; margin-top: .18rem; }
+.patient-dashboard .patient-record-statuses > .status.shared { color: #76541b; }
+.patient-dashboard .patient-record-statuses .patient-view-summary { gap: .45rem; width: fit-content; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 1rem; line-height: 1.5; font-weight: 500; }
+.patient-dashboard .patient-record-statuses .patient-view-summary.viewed { color: #265343; font-weight: 650; }
+.patient-dashboard .patient-view-summary-marker { width: 12px; height: 12px; background: transparent; border: 1.5px solid currentColor; }
+.patient-dashboard .patient-view-summary.viewed .patient-view-summary-marker { width: 18px; height: 18px; background: #32624f; border: 0; font-size: .75rem; }
+.patient-record-tags { display: flex; flex-wrap: wrap; gap: .35rem 1rem; }
+.patient-dashboard .patient-record-tags > .status { padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 1rem; line-height: 1.5; font-weight: 500; }
+.patient-dashboard .patient-record-toggle { display: inline-flex; align-items: center; gap: .45rem; align-self: start; margin-top: .1rem; color: var(--green-2); font-weight: 650; }
+.patient-record-toggle > svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.patient-record-card[open] .patient-record-toggle > svg { transform: rotate(90deg); }
+.patient-dashboard .patient-record-content { padding: 0 1.35rem 1.35rem; background: #fffdfa; }
+.patient-dashboard .patient-record-content .entry-details strong { font-size: 1rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
+.patient-dashboard .patient-record-content .entry-details p { font-size: 1rem; line-height: 1.65; }
 
 @media (max-width: 640px) {
   .patient-dashboard .patient-records-heading-actions {
@@ -258,6 +295,10 @@
     padding-inline: .7rem;
     white-space: normal;
   }
+  .patient-dashboard .patient-record-card > summary { grid-template-columns: 36px minmax(0, 1fr); gap: .65rem .8rem; padding: 1rem; }
+  .patient-dashboard .patient-record-card .record-summary-marker { width: 36px; height: 36px; padding: 7px; }
+  .patient-dashboard .patient-record-toggle { grid-column: 2; justify-self: start; margin: 0; }
+  .patient-dashboard .patient-record-content { padding: 0 1rem 1rem; }
 }
 
 .patient-dashboard .patient-record-view-note {
@@ -290,19 +331,24 @@
 .patient-dashboard .patient-record-finder {
   container: patient-record-finder / inline-size;
   display: grid;
-  gap: 1rem;
+  gap: .85rem;
   margin-top: 1.25rem;
-  padding: 1rem;
-  border: 1px solid #ded6cb;
-  border-radius: 16px;
-  background: var(--card);
+  padding: 0 0 1.25rem;
+  border: 0;
+  border-bottom: 1px solid #ded6cb;
+  border-radius: 0;
+  background: transparent;
   min-width: 0;
 }
-.patient-record-finder .patient-entry-toolbar { margin: 0; border: 0; border-radius: 10px; }
-.patient-record-finder .patient-entry-toolbar button { font-size: 1rem; line-height: 1.5; transition: none; box-shadow: none; }
-.patient-record-finder .patient-entry-toolbar button small { font-size: 1rem; }
+.patient-record-finder .patient-entry-toolbar { max-width: 40rem; margin: 0; padding: .25rem; gap: .25rem; border: 0; border-radius: 12px; background: #eee7dc; }
+.patient-record-finder .patient-entry-toolbar button { display: flex; gap: .45rem; min-height: 48px; padding: .6rem .65rem; border-radius: 9px; font-size: 1rem; line-height: 1.5; font-weight: 650; transition: none; box-shadow: none; }
+.patient-record-finder .patient-entry-toolbar button.active { background: var(--green-2); color: #fffdfa; }
+.patient-record-finder .patient-entry-toolbar button small { min-width: 1ch; margin: 0; padding: 0; background: transparent; color: inherit; font-size: 1rem; font-weight: 500; }
 .patient-record-finder .patient-record-search-row { margin: 0; }
 .patient-record-finder .patient-record-search-row :is(input, select) { height: auto; min-height: 48px; padding: .7rem .8rem; line-height: 1.5; }
+/* Native Safari selects need an explicit text-relative height when text is enlarged. */
+.patient-record-finder .patient-record-search-row select { height: 3rem; }
+.patient-record-finder .patient-record-search-row .field { gap: .35rem; }
 .patient-record-finder .filter-reset-row { margin: -.4rem 0 0; }
 .patient-dashboard .records-guide-callout { margin: 1rem 0 0; padding: .8rem 1rem; gap: .5rem 1.5rem; background: transparent; }
 .patient-dashboard .records-guide-callout :is(span, strong) { font-size: 1rem; line-height: 1.6; }
@@ -313,9 +359,17 @@
   .patient-record-finder .patient-record-search-row { grid-template-columns: minmax(0, 1fr); }
 }
 @container patient-record-finder (max-width: 32rem) {
-  .patient-record-finder .patient-entry-toolbar button { display: grid; grid-template-rows: minmax(3rem, auto) auto; align-items: center; gap: .25rem; padding: .5rem .25rem; }
-  .patient-record-finder .patient-entry-toolbar button > span { display: grid; place-items: center; height: 100%; }
-  .patient-record-finder .patient-entry-toolbar button small { margin: 0 auto; }
+  .patient-record-finder .patient-entry-toolbar button { gap: .3rem; padding: .4rem .35rem; }
+  .patient-record-finder .patient-entry-toolbar button > span { min-width: 0; }
+  .patient-record-finder .patient-entry-toolbar button small { flex: 0 0 auto; }
+  .patient-record-finder .patient-record-search-row { gap: .7rem; }
+}
+
+/* Stack at large text sizes instead of breaking short filter labels into letters. */
+@container patient-record-finder (max-width: 12rem) {
+  .patient-record-finder .patient-entry-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .patient-record-finder .patient-entry-toolbar button { justify-content: space-between; padding: .45rem .65rem; }
+  .patient-record-finder .patient-entry-toolbar button > span { overflow-wrap: normal; }
 }
 
 @media (max-width: 900px) {
@@ -370,10 +424,16 @@
 @media (prefers-contrast: more) {
   .patient-home { --patient-home-border: #8a8072; }
   .patient-dashboard .patient-navigation button { border-width: 2px; }
+  .patient-record-month-items,
+  .patient-dashboard .patient-record-card,
+  .patient-dashboard .patient-record-finder { border-color: currentColor; }
 }
 
 @media (forced-colors: active) {
   .patient-dashboard .patient-navigation button.active,
   .patient-home .patient-start-card.primary { border: 2px solid Highlight; }
   .patient-dashboard :where(button, summary, a):focus-visible { outline-color: Highlight; }
+  .patient-record-finder .patient-entry-toolbar button { border: 1px solid ButtonText; }
+  .patient-record-finder .patient-entry-toolbar button.active { border: 2px solid Highlight; }
+  .patient-dashboard .patient-view-summary.viewed .patient-view-summary-marker { border: 1px solid currentColor; }
 }

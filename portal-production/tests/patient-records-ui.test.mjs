@@ -223,6 +223,13 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     })).toBe(true);
   }
 
+  async function settleLayout(page) {
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+    });
+  }
+
   async function openNewEditor(fixture) {
     await loaded(fixture);
     await fixture.page.getByRole("button", { name: "Novo registro", exact: true }).click();
@@ -433,6 +440,13 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       }
       await expect(finder.getByRole("group", { name: "Filtrar registros por compartilhamento" })).toBeVisible();
       await expect(search).toHaveAccessibleDescription("A busca acontece somente nesta tela.");
+      await settleLayout(page);
+      const finderTargets = await finder.locator("button, input, select").evaluateAll(nodes => nodes.map(node => {
+        const bounds = node.getBoundingClientRect();
+        return { tag: node.tagName, width: bounds.width, height: bounds.height };
+      }));
+      assert.ok(finderTargets.length > 0 && finderTargets.every(target => target.width >= 44 && target.height >= 44),
+        `Every history filter, search and ordering control must retain a 44×44px target: ${JSON.stringify(finderTargets)}`);
       const readingOrder = await page.evaluate(() => {
         const finder = document.querySelector(".patient-record-finder");
         const records = document.querySelector(".patient-record-list");
@@ -444,10 +458,17 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       assert.equal(readingOrder, true, "Optional Guide promotion must not come before the history controls or records.");
       if (viewport.width <= 390) {
         const counts = await finder.locator(".patient-entry-toolbar button small").evaluateAll(nodes =>
-          nodes.map(node => node.getBoundingClientRect().top),
+          nodes.map(node => {
+            const count = node.getBoundingClientRect();
+            const button = node.closest("button").getBoundingClientRect();
+            return { center: count.top + count.height / 2,
+              inside: count.left >= button.left && count.right <= button.right
+                && count.top >= button.top && count.bottom <= button.bottom };
+          }),
         );
-        assert.ok(Math.max(...counts) - Math.min(...counts) <= 1,
-          "Sharing filter counts must align even when one label wraps.");
+        assert.ok(counts.every(count => count.inside)
+          && Math.max(...counts.map(count => count.center)) - Math.min(...counts.map(count => count.center)) <= 1,
+        "Sharing filter counts must remain centered on one balanced row and inside their buttons when a label wraps.");
       }
       const viewed = page.locator("#record-synthetic-record-viewed .patient-view-summary");
       await expect(viewed).toBeVisible();
@@ -474,11 +495,12 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
         const style = getComputedStyle(section);
         return { headingInside: Boolean(heading && section.contains(heading)),
           visible: section.getClientRects().length > 0,
-          bordered: ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]
-            .every(property => Number.parseFloat(style[property]) >= 1) };
+          divider: Number.parseFloat(style.borderTopWidth) >= 1
+            && !["none", "hidden"].includes(style.borderTopStyle)
+            && !["transparent", "rgba(0, 0, 0, 0)"].includes(style.borderTopColor) };
       }));
-      assert.ok(groupedSections.every(section => section.headingInside && section.visible && section.bordered),
-        "All four visible question sections must retain their heading and a distinct visual boundary.");
+      assert.ok(groupedSections.every(section => section.headingInside && section.visible && section.divider),
+        "All four visible question sections must retain their heading and a clear top divider without requiring nested boxes.");
       const sessionSection = form.locator(".entry-step-optional");
       await expect(sessionSection.locator(".entry-step-heading p")).toHaveCount(0);
       const sessionField = sessionSection.locator(".session-note-field");
@@ -541,6 +563,109 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       "The new-tab note must not be squeezed into a narrow vertical column.");
       await form.locator(".entry-step-details").scrollIntoViewIfNeeded();
       await checkHealthy(fixture, `records-editor-visible-optionals-${viewport.width}`);
+    });
+  }
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 900 }]) {
+    test(`patient design ${viewport.width}px: history and writing share the home action color and title-first reading order`, async () => {
+      const fixture = await openRecords({ viewport });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const create = page.locator(".patient-records-heading-actions")
+        .getByRole("button", { name: "Novo registro", exact: true });
+      const createColor = await create.evaluate(node => getComputedStyle(node).backgroundColor);
+      const cardLayout = await page.locator(".patient-record-card > summary").evaluateAll(summaries => summaries.map(summary => {
+        const title = summary.querySelector(".patient-record-summary-copy > strong");
+        const status = summary.querySelector(".patient-record-statuses");
+        const titleBounds = title?.getBoundingClientRect();
+        const statusBounds = status?.getBoundingClientRect();
+        return {
+          titleFirst: Boolean(title && status && (title.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING)),
+          visualOrder: Boolean(titleBounds && statusBounds && titleBounds.bottom <= statusBounds.top + 1),
+          statusVisible: Boolean(status && status.getClientRects().length > 0),
+        };
+      }));
+      assert.equal(cardLayout.length, 3);
+      assert.ok(cardLayout.every(card => card.titleFirst && card.visualOrder && card.statusVisible),
+        "The record title must lead both DOM and visible reading order; sharing state must remain visible below it.");
+      const viewed = page.locator("#record-synthetic-record-viewed > summary .patient-view-summary");
+      const unseen = page.locator("#record-synthetic-record-shared > summary .patient-view-summary");
+      await expect(viewed).toHaveText("Visualizado por Mateus");
+      await expect(viewed).toBeVisible();
+      await expect(unseen).toBeVisible();
+      await expect(page.locator("#record-synthetic-record-private > summary .status.private")).toBeVisible();
+      await expect(page.locator(".patient-record-card[open]")).toHaveCount(0);
+
+      await page.locator(".patient-navigation").getByRole("button", { name: "Início", exact: true }).click();
+      await expect(page.locator("#patient-home-title")).toBeVisible();
+      const homeAction = page.locator(".patient-home .patient-mobile-record:visible, .patient-home .patient-start-card.primary:visible");
+      await expect(homeAction).toHaveCount(1);
+      await expect(homeAction).toContainText("Registrar algo");
+      const homeColor = await homeAction.evaluate(node => getComputedStyle(node).backgroundColor);
+      assert.notEqual(homeColor, "rgba(0, 0, 0, 0)", "The primary home action must retain a visible fill.");
+      assert.equal(createColor, homeColor, "Creating from the history should use the same primary color as Registrar algo.");
+      await homeAction.click();
+      const form = page.locator("#entry-editor");
+      await expect(form).toBeVisible();
+      const save = form.getByRole("button", { name: "Salvar registro privado", exact: true });
+      assert.equal(await save.evaluate(node => getComputedStyle(node).backgroundColor), homeColor,
+        "Saving should keep the same primary action identity as the home and history.");
+      await assertOptionalFieldsVisible(form);
+      await expect(form.locator("input[required], textarea[required]")).toHaveCount(2);
+      assert.equal(controls.mutations.length, 0, "Navigating between the coherent patient surfaces must not save or share data.");
+      await form.locator(".entry-form-heading").scrollIntoViewIfNeeded();
+      await checkHealthy(fixture, `patient-design-identity-${viewport.width}`);
+    });
+
+    test(`history ${viewport.width}px at 200% text: filters fit, reading states stay visible and summaries support keyboard focus`, async () => {
+      const fixture = await openRecords({ viewport });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      await settleLayout(page);
+      assert.equal(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), true);
+      await expect(page.locator("#record-synthetic-record-viewed > summary .patient-view-summary")).toHaveText("Visualizado por Mateus");
+      await expect(page.locator("#record-synthetic-record-viewed > summary .patient-view-summary")).toBeVisible();
+      await expect(page.locator("#record-synthetic-record-shared > summary .patient-view-summary")).toBeVisible();
+      const targets = await page.locator(".patient-record-finder button, .patient-record-finder input, .patient-record-finder select, .patient-record-card > summary")
+        .evaluateAll(nodes => nodes.map(node => {
+          const bounds = node.getBoundingClientRect();
+          return { tag: node.tagName, left: bounds.left, right: bounds.right,
+            width: bounds.width, height: bounds.height,
+            font: Number.parseFloat(getComputedStyle(node).fontSize), viewportWidth: window.innerWidth };
+        }));
+      assert.ok(targets.length > 0);
+      for (const target of targets) {
+        assert.ok(target.width >= 44 && target.height >= 44,
+          `${target.tag} must keep a 44×44px target at text zoom: ${JSON.stringify(target)}`);
+        assert.ok(target.left >= -1 && target.right <= target.viewportWidth + 1,
+          `${target.tag} must not extend horizontally beyond the viewport at text zoom.`);
+        assert.ok(target.font >= 16, `${target.tag} must not shrink to compensate for text zoom.`);
+      }
+      const summary = page.locator("#record-synthetic-record-private > summary");
+      await page.getByLabel("Ordenar").focus();
+      await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
+      await expect(summary).toBeFocused();
+      await settleLayout(page);
+      const focus = await summary.evaluate(node => {
+        const style = getComputedStyle(node);
+        return { width: Number.parseFloat(style.outlineWidth), offset: Number.parseFloat(style.outlineOffset),
+          style: style.outlineStyle, color: style.outlineColor,
+          focus: node.matches(":focus"), focusVisible: node.matches(":focus-visible"),
+          activeTag: document.activeElement?.tagName };
+      });
+      assert.ok(focus.width >= 2 && !["none", "hidden"].includes(focus.style)
+        && !["transparent", "rgba(0, 0, 0, 0)"].includes(focus.color), "A keyboard-focused record must have a visible outline.");
+      assert.ok(focus.offset <= -focus.width,
+        `The summary outline must stay inside its clipping card: ${JSON.stringify(focus)}`);
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#record-synthetic-record-private")).toHaveAttribute("open", "");
+      await expect(page.locator("#record-synthetic-record-private .entry-details")).toContainText(neutralEntry.happened);
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#record-synthetic-record-private")).not.toHaveAttribute("open", "");
+      await expect(summary).toBeFocused();
+      assert.equal(controls.mutations.length, 0, "Reading and keyboard disclosure must remain read-only.");
+      await checkHealthy(fixture, `records-history-text-200-percent-${viewport.width}`);
     });
   }
 
