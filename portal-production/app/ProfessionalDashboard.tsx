@@ -17,6 +17,8 @@ import {
   filterPatientAccesses,
   invitationStatusLabel,
   latestPatientShareAt,
+  orderSharedByReading,
+  patientAccountReference,
   type Invitation,
   type PatientAccess,
   type PatientSort,
@@ -26,7 +28,9 @@ import {
   type SharedPatientMap,
   sharedCountLabel,
   splitInvitations,
+  splitSharedByReading,
 } from "./professional-dashboard-data";
+import "./professional-history.css";
 import { copyText } from "./copy-text";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
 import { ThoughtReviewReadOnly } from "./ThoughtReview";
@@ -361,10 +365,14 @@ function RecordDisclosure({
   entry,
   viewing,
   onViewed,
+  onOpenChange,
+  concludedInPlace = false,
 }: {
   entry: SharedEntry;
   viewing: boolean;
   onViewed: (entryId: string) => void;
+  onOpenChange: (entryId: string, open: boolean) => void;
+  concludedInPlace?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const unread = Boolean(entry.is_unread);
@@ -381,16 +389,18 @@ function RecordDisclosure({
   useEffect(() => {
     if (!restoreFocusAfterView.current || viewing) return;
     restoreFocusAfterView.current = false;
-    if (!unread) summaryRef.current?.focus();
+    if (!unread) summaryRef.current?.focus({ preventScroll: true });
   }, [unread, viewing]);
 
   return (
     <details
+      data-entry-id={entry.id}
       className={`professional-record-disclosure${unread ? " is-unread" : ""}`}
       open={open}
       onToggle={(event) => {
         const nextOpen = event.currentTarget.open;
         setOpen(nextOpen);
+        onOpenChange(entry.id, nextOpen);
       }}
     >
       <summary ref={summaryRef}>
@@ -452,7 +462,10 @@ function RecordDisclosure({
             </button>
           </div>
         ) : (
-          <p className="view-confirmed">Visualização já confirmada para o paciente.</p>
+          <p className="view-confirmed">
+            Visualização já confirmada para o paciente.
+            {concludedInPlace ? " Ao fechar, este registro passa para Já vistos." : ""}
+          </p>
         )}
       </div>
     </details>
@@ -463,10 +476,14 @@ function MapShareDisclosure({
   share,
   viewing,
   onViewed,
+  onOpenChange,
+  concludedInPlace = false,
 }: {
   share: SharedPatientMap;
   viewing: boolean;
   onViewed: (mapId: string) => void;
+  onOpenChange: (mapId: string, open: boolean) => void;
+  concludedInPlace?: boolean;
 }) {
   const unread = Boolean(share.is_unread);
   const [open, setOpen] = useState(false);
@@ -476,14 +493,18 @@ function MapShareDisclosure({
   useEffect(() => {
     if (!restoreFocusAfterView.current || viewing) return;
     restoreFocusAfterView.current = false;
-    if (!unread) summaryRef.current?.focus();
+    if (!unread) summaryRef.current?.focus({ preventScroll: true });
   }, [unread, viewing]);
 
   return (
     <details
+      data-map-id={share.map_id}
       className={`professional-map-disclosure${unread ? " is-unread" : ""}`}
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        setOpen(event.currentTarget.open);
+        onOpenChange(share.map_id, event.currentTarget.open);
+      }}
     >
       <summary ref={summaryRef}>
         <span className="record-summary-main">
@@ -537,7 +558,10 @@ function MapShareDisclosure({
             </button>
           </div>
         ) : (
-          <p className="view-confirmed">Visualização já confirmada para o paciente.</p>
+          <p className="view-confirmed">
+            Visualização já confirmada para o paciente.
+            {concludedInPlace ? " Ao fechar, esta parte passa para Já vistos." : ""}
+          </p>
         )}
       </div>
     </details>
@@ -722,21 +746,17 @@ function PatientList({
             const unreadCount = patient.unread_count + (patient.unread_map_count ?? 0);
             const latestSharedAt = latestPatientShareAt(patient);
             const patientName = displayedPatientName(patient.patient_name);
+            const accountReference = patientAccountReference(patient, patients);
             return (
               <article className="patient-summary-card" key={patient.patient_id}>
                 <div className="patient-summary-copy">
                   <h3>{patientName}</h3>
-                  <p className="patient-summary-count">
-                    {sharedCountLabel(patient.shared_count)} ·{" "}
-                    {patient.shared_map_count ?? 0}{" "}
-                    {(patient.shared_map_count ?? 0) === 1
-                      ? "parte do mapa compartilhada"
-                      : "partes do mapa compartilhadas"}{" · "}
-                    {patient.private_count}{" "}
-                    {patient.private_count === 1
-                      ? "registro privado"
-                      : "registros privados"}
-                  </p>
+                  {accountReference ? <p className="patient-account-reference">Referência da conta: {accountReference}</p> : null}
+                  <dl className="patient-summary-metrics">
+                    <div><dt>Registros compartilhados</dt><dd>{patient.shared_count}</dd></div>
+                    <div><dt>Partes do mapa</dt><dd>{patient.shared_map_count ?? 0}</dd></div>
+                    <div><dt>Registros privados</dt><dd>{patient.private_count}</dd></div>
+                  </dl>
                   <p
                     className={`patient-summary-view-count${
                       unreadCount > 0 ? " has-unread" : ""
@@ -754,7 +774,7 @@ function PatientList({
                   <button
                     className="secondary-button"
                     type="button"
-                    aria-label={`Abrir conteúdos compartilhados por ${patientName}`}
+                    aria-label={`Abrir conteúdos compartilhados por ${patientName}${accountReference ? `, conta ${accountReference}` : ""}`}
                     onClick={() => onOpen(patient)}
                   >
                     Abrir conteúdos
@@ -804,6 +824,7 @@ function PatientList({
 
 function PatientRecordsView({
   patient,
+  accountReference,
   entries,
   mapShares,
   loading,
@@ -817,6 +838,7 @@ function PatientRecordsView({
   onMapViewed,
 }: {
   patient: PatientSummary;
+  accountReference: string | null;
   entries: SharedEntry[];
   mapShares: SharedPatientMap[];
   loading: boolean;
@@ -831,33 +853,98 @@ function PatientRecordsView({
 }) {
   const [viewFilter, setViewFilter] = useState<EntryViewFilter>("all");
   const [visibleEntryLimit, setVisibleEntryLimit] = useState(20);
+  const [readingEntryIds, setReadingEntryIds] = useState<Set<string>>(new Set());
+  const [readingMapIds, setReadingMapIds] = useState<Set<string>>(new Set());
   const sectionRef = useRef<HTMLElement>(null);
   const unreadFilterRef = useRef<HTMLButtonElement>(null);
   const pendingViewedFocus = useRef<string | null>(null);
+  const pendingMapFocus = useRef<string | null>(null);
   const unreadCount = entries.filter((entry) => Boolean(entry.is_unread)).length;
   const unreadMapCount = mapShares.filter((share) => Boolean(share.is_unread)).length;
   const viewedCount = entries.length - unreadCount;
-  const filteredEntries = entries.filter((entry) => {
-    if (viewFilter === "unread") return Boolean(entry.is_unread);
+  const filteredEntries = orderSharedByReading(entries, (entry) => entry.id, readingEntryIds).filter((entry) => {
+    if (viewFilter === "unread") return Boolean(entry.is_unread) || readingEntryIds.has(entry.id);
     if (viewFilter === "viewed") return !entry.is_unread;
     return true;
   });
   const visibleEntries = filteredEntries.slice(0, visibleEntryLimit);
+  const recordGroups = splitSharedByReading(visibleEntries, (entry) => entry.id, readingEntryIds);
+  const mapGroups = splitSharedByReading(
+    orderSharedByReading(mapShares, (share) => share.map_id, readingMapIds),
+    (share) => share.map_id,
+    readingMapIds,
+  );
   const hasContent = entries.length > 0 || mapShares.length > 0;
+
+  function changeEntryOpen(entryId: string, open: boolean) {
+    const entry = entries.find((item) => item.id === entryId);
+    if (open && !entry?.is_unread) return;
+    if (!open && readingEntryIds.has(entryId) && entry && (!entry.is_unread || viewingIds.has(entryId))) {
+      pendingViewedFocus.current = entryId;
+    }
+    setReadingEntryIds((current) => {
+      if (current.has(entryId) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(entryId);
+      else next.delete(entryId);
+      return next;
+    });
+  }
+
+  function changeMapOpen(mapId: string, open: boolean) {
+    const share = mapShares.find((item) => item.map_id === mapId);
+    if (open && !share?.is_unread) return;
+    if (!open && readingMapIds.has(mapId) && share && (!share.is_unread || viewingMapIds.has(mapId))) {
+      pendingMapFocus.current = mapId;
+    }
+    setReadingMapIds((current) => {
+      if (current.has(mapId) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(mapId);
+      else next.delete(mapId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     const entryId = pendingViewedFocus.current;
-    if (!entryId || viewingIds.has(entryId)) return;
+    if (!entryId || viewingIds.has(entryId) || readingEntryIds.has(entryId)) return;
     const viewedEntry = entries.find((entry) => entry.id === entryId);
-    if (!viewedEntry || viewedEntry.is_unread) return;
-    pendingViewedFocus.current = null;
-    window.requestAnimationFrame(() => {
+    if (!viewedEntry || viewedEntry.is_unread) {
+      pendingViewedFocus.current = null;
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (pendingViewedFocus.current !== entryId) return;
+      pendingViewedFocus.current = null;
       const nextUnreadSummary = sectionRef.current?.querySelector<HTMLElement>(
         ".professional-record-disclosure.is-unread > summary",
       );
-      (nextUnreadSummary ?? unreadFilterRef.current)?.focus();
+      const movedSummary = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>(".professional-record-disclosure") ?? [])
+        .find((element) => element.dataset.entryId === entryId)?.querySelector<HTMLElement>("summary");
+      (nextUnreadSummary ?? movedSummary ?? unreadFilterRef.current)?.focus({ preventScroll: true });
     });
-  }, [entries, viewingIds]);
+    return () => window.cancelAnimationFrame(frame);
+  }, [entries, viewingIds, readingEntryIds]);
+
+  useEffect(() => {
+    const mapId = pendingMapFocus.current;
+    if (!mapId || viewingMapIds.has(mapId) || readingMapIds.has(mapId)) return;
+    const viewedMap = mapShares.find((share) => share.map_id === mapId);
+    if (!viewedMap || viewedMap.is_unread) {
+      pendingMapFocus.current = null;
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (pendingMapFocus.current !== mapId) return;
+      pendingMapFocus.current = null;
+      const nextUnreadSummary = sectionRef.current?.querySelector<HTMLElement>(".professional-map-disclosure.is-unread > summary");
+      const movedSummary = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>(".professional-map-disclosure") ?? [])
+        .find((element) => element.dataset.mapId === mapId)?.querySelector<HTMLElement>("summary");
+      (nextUnreadSummary ?? movedSummary ?? sectionRef.current?.querySelector<HTMLElement>("#professional-map-shares-title"))?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [mapShares, viewingMapIds, readingMapIds]);
 
   return (
     <section
@@ -874,6 +961,7 @@ function PatientRecordsView({
           <h2 id="selected-patient-title" tabIndex={-1}>
             {displayedPatientName(patient.patient_name)}
           </h2>
+          {accountReference ? <p className="patient-account-reference">Referência da conta: {accountReference}</p> : null}
           <p className="section-description">
             {loading
               ? "Consultando os conteúdos autorizados…"
@@ -930,21 +1018,31 @@ function PatientRecordsView({
             <section className="professional-map-shares" aria-labelledby="professional-map-shares-title">
               <div className="subsection-heading">
                 <div>
-                  <h3 id="professional-map-shares-title">Partes do Meu mapa</h3>
+                  <h3 id="professional-map-shares-title" tabIndex={-1}>Partes do Meu mapa</h3>
                   <p>{unreadMapCount === 0 ? "Todas visualizadas" : `${unreadMapCount} ${unreadMapCount === 1 ? "ainda não visualizada" : "ainda não visualizadas"}`}</p>
                 </div>
                 <span className="count">{mapShares.length}</span>
               </div>
-              <div className="professional-map-list">
-                {mapShares.map((share) => (
-                  <MapShareDisclosure
-                    key={share.map_id}
-                    share={share}
-                    viewing={viewingMapIds.has(share.map_id)}
-                    onViewed={onMapViewed}
-                  />
-                ))}
-              </div>
+              {(["pending", "viewed"] as const).map((group) => mapGroups[group].length > 0 ? (
+                <section className="professional-reading-group" data-reading-group={group} key={group} aria-labelledby={`professional-maps-${group}`}>
+                  <div className="professional-reading-group-heading">
+                    <h4 id={`professional-maps-${group}`}>{group === "viewed" ? "Já vistos" : mapGroups.concludedInPlace > 0 ? "Não vistos e leitura atual" : "Ainda não vistos"}</h4>
+                    <span>{mapGroups[group].length} {mapGroups[group].length === 1 ? "parte" : "partes"}</span>
+                  </div>
+                  <div className="professional-map-list">
+                    {mapGroups[group].map((share) => (
+                      <MapShareDisclosure
+                        key={share.map_id}
+                        share={share}
+                        viewing={viewingMapIds.has(share.map_id)}
+                        onViewed={onMapViewed}
+                        onOpenChange={changeMapOpen}
+                        concludedInPlace={readingMapIds.has(share.map_id) && !share.is_unread}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null)}
             </section>
           ) : null}
 
@@ -977,6 +1075,7 @@ function PatientRecordsView({
                       onClick={() => {
                         setViewFilter(value);
                         setVisibleEntryLimit(20);
+                        setReadingEntryIds(new Set());
                       }}
                     >
                       <span>{label}</span>
@@ -1002,21 +1101,29 @@ function PatientRecordsView({
           </button>
         </div>
               ) : (
-                <div className="professional-record-list">
-                  {visibleEntries.map((entry) => (
-                    <RecordDisclosure
-                      key={entry.id}
-                      entry={entry}
-                      viewing={viewingIds.has(entry.id)}
-                      onViewed={(entryId) => {
-                        if (viewFilter === "unread") {
-                          pendingViewedFocus.current = entryId;
-                        }
-                        onViewed(entryId);
-                      }}
-                    />
-                  ))}
-                </div>
+                <>
+                  {(["pending", "viewed"] as const).map((group) => recordGroups[group].length > 0 ? (
+                    <section className="professional-reading-group" data-reading-group={group} key={group} aria-labelledby={`professional-records-${group}`}>
+                      <div className="professional-reading-group-heading">
+                        <h4 id={`professional-records-${group}`}>{group === "viewed" ? "Já vistos" : recordGroups.concludedInPlace > 0 ? "Não vistos e leitura atual" : "Ainda não vistos"}</h4>
+                        <span>{recordGroups[group].length} {recordGroups[group].length === 1 ? "registro" : "registros"}</span>
+                      </div>
+                      <div className="professional-record-list">
+                        {recordGroups[group].map((entry) => (
+                          <RecordDisclosure
+                            key={entry.id}
+                            entry={entry}
+                            viewing={viewingIds.has(entry.id)}
+                            onViewed={onViewed}
+                            onOpenChange={changeEntryOpen}
+                            concludedInPlace={readingEntryIds.has(entry.id) && !entry.is_unread}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null)}
+                  <p className="professional-history-result-count">Exibindo {visibleEntries.length} de {filteredEntries.length} {filteredEntries.length === 1 ? "registro" : "registros"} neste filtro.</p>
+                </>
               )}
               {filteredEntries.length > 20 ? (
                 <button
@@ -1191,6 +1298,8 @@ function PatientAccessView({
           {displayedPatients.map((patient) => {
             const active = patient.access_status === "active";
             const updating = updatingIds.has(patient.patient_id);
+            const accountReference = patientAccountReference(patient, patients);
+            const accessiblePatientName = `${displayedPatientName(patient.patient_name)}${accountReference ? `, conta ${accountReference}` : ""}`;
             return (
               <div className="patient-access-notice-group" key={patient.patient_id}>
               <article className="patient-access-card">
@@ -1203,6 +1312,7 @@ function PatientAccessView({
                       {active ? "Acesso ativo" : "Acesso revogado"}
                     </span>
                   </div>
+                  {accountReference ? <p className="patient-account-reference">Referência da conta: {accountReference}</p> : null}
                   <p className="record-meta">
                     Conta criada em {formatDate(patient.created_at)}
                     {patient.last_login_at
@@ -1224,7 +1334,7 @@ function PatientAccessView({
                     <button
                       className="secondary-button notices-access-toggle"
                       type="button"
-                      aria-label={`Avisos para ${displayedPatientName(patient.patient_name)}`}
+                      aria-label={`Avisos para ${accessiblePatientName}`}
                       aria-expanded={noticePatientId === patient.patient_id}
                       aria-controls={`patient-notices-${patient.patient_id}`}
                       onClick={() => {
@@ -1240,7 +1350,7 @@ function PatientAccessView({
                     <button
                       className="secondary-button"
                       type="button"
-                      aria-label={`Gerar recuperação para ${displayedPatientName(patient.patient_name)}`}
+                      aria-label={`Gerar recuperação para ${accessiblePatientName}`}
                       onClick={(event) =>
                         onGenerateRecovery(patient, event.currentTarget)
                       }
@@ -1252,7 +1362,7 @@ function PatientAccessView({
                   <button
                     className={active ? "danger-button" : "secondary-button"}
                     type="button"
-                    aria-label={`${active ? "Revogar acesso" : "Restaurar acesso"} de ${displayedPatientName(patient.patient_name)}`}
+                    aria-label={`${active ? "Revogar acesso" : "Restaurar acesso"} de ${accessiblePatientName}`}
                     onClick={() => onChangeAccess(patient, !active)}
                     disabled={updating || loading}
                   >
@@ -2317,6 +2427,7 @@ export function ProfessionalDashboard({
           <PatientRecordsView
             key={selectedPatient.patient_id}
             patient={selectedPatient}
+            accountReference={patientAccountReference(selectedPatient, patients)}
             entries={entries}
             mapShares={mapShares}
             loading={entriesLoading}

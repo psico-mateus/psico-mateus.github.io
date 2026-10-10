@@ -84,6 +84,59 @@ export function displayedPatientName(name: string): string {
   return normalized || "Paciente";
 }
 
+/** Distinguish equal displayed names using account identity, never an invitation. */
+export function patientAccountReference(
+  patient: Pick<PatientSummary, "patient_id" | "patient_name">,
+  patients: Array<Pick<PatientSummary, "patient_id" | "patient_name">>,
+): string | null {
+  const name = normalizePatientSearch(displayedPatientName(patient.patient_name));
+  const matches = patients.filter((candidate) =>
+    normalizePatientSearch(displayedPatientName(candidate.patient_name)) === name,
+  );
+  if (!matches.some((candidate) => candidate.patient_id !== patient.patient_id)) return null;
+  let length = Math.min(8, patient.patient_id.length);
+  while (length < patient.patient_id.length && matches.some((candidate) =>
+    candidate.patient_id !== patient.patient_id &&
+    candidate.patient_id.slice(-length) === patient.patient_id.slice(-length),
+  )) length += 1;
+  return patient.patient_id.slice(-length);
+}
+
+export type SharedReadingItem = { shared_at: string; is_unread: number };
+
+/** Keep the item being read in place until its disclosure is deliberately closed. */
+export function orderSharedByReading<T extends SharedReadingItem>(
+  items: T[],
+  identify: (item: T) => string,
+  readingIds: ReadonlySet<string> = new Set(),
+): T[] {
+  return [...items].sort((first, second) => {
+    const firstPending = Boolean(first.is_unread) || readingIds.has(identify(first));
+    const secondPending = Boolean(second.is_unread) || readingIds.has(identify(second));
+    if (firstPending !== secondPending) return firstPending ? -1 : 1;
+    const dateDifference = new Date(second.shared_at).getTime() - new Date(first.shared_at).getTime();
+    return dateDifference || identify(first).localeCompare(identify(second));
+  });
+}
+
+export function splitSharedByReading<T extends SharedReadingItem>(
+  items: T[],
+  identify: (item: T) => string,
+  readingIds: ReadonlySet<string> = new Set(),
+): { pending: T[]; viewed: T[]; concludedInPlace: number } {
+  const pending: T[] = [];
+  const viewed: T[] = [];
+  let concludedInPlace = 0;
+  for (const item of items) {
+    const held = readingIds.has(identify(item));
+    if (item.is_unread || held) {
+      pending.push(item);
+      if (!item.is_unread && held) concludedInPlace += 1;
+    } else viewed.push(item);
+  }
+  return { pending, viewed, concludedInPlace };
+}
+
 export function normalizePatientSearch(value: string): string {
   return value
     .normalize("NFD")

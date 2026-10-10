@@ -1,0 +1,43 @@
+/* Reading groups are separators, not another layer of cards or controls. */
+.professional-reading-group {
+  min-width: 0;
+  margin-top: 1.25rem;
+}
+.professional-reading-group-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .35rem 1rem;
+  padding: .6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.professional-reading-group-heading h4 {
+  margin: 0;
+  color: var(--green-2);
+  font: 700 1.0625rem/1.5 var(--sans);
+}
+.professional-reading-group-heading > span,
+.professional-history-result-count {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.professional-history-result-count { margin: .85rem 0 0; }
+.professional-reading-group .professional-record-list,
+.professional-reading-group .professional-map-list { margin-top: .75rem; }
+.patient-summary-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .7rem 1.6rem;
+  margin: .7rem 0 .8rem;
+}
+.patient-summary-metrics > div { display: grid; gap: .15rem; min-width: 0; }
+.patient-summary-metrics dt { color: var(--muted); font-size: 1rem; line-height: 1.5; }
+.patient-summary-metrics dd { margin: 0; color: var(--green-2); font-size: 1.125rem; font-weight: 750; }
+.professional-section .patient-account-reference { margin: .25rem 0 .6rem; color: var(--muted); font-size: 1rem; overflow-wrap: anywhere; }
+.patient-summary-card .patient-summary-view-count { max-width: 100%; width: fit-content; font-size: 1rem; line-height: 1.5; }
+.patient-summary-card .record-meta { font-size: 1rem; line-height: 1.5; }
+@media (forced-colors: active) {
+  .professional-reading-group-heading { border-color: CanvasText; }
+}

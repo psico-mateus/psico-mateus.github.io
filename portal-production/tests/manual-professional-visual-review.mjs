@@ -74,6 +74,12 @@ const extraPatients = Array.from({ length: 24 }, (_, index) => ({
 }));
 
 const patients = [mapOnlyPatient, completePatient, privateOnlyPatient, ...extraPatients];
+const homonymPatients = [1, 2].map((number) => ({
+  ...completePatient, patient_id: `synthetic-homonym-account-${number}`,
+  patient_name: "Paciente Nome Repetido", shared_count: 1, unread_count: 0,
+  shared_map_count: 0, unread_map_count: 0,
+}));
+patients.push(...homonymPatients);
 
 const entries = Array.from({ length: 28 }, (_, index) => ({
   id: `synthetic-entry-${index + 1}`,
@@ -184,6 +190,8 @@ async function routeProfessionalPortal(page) {
     delayNextMapRequestMs: 0,
     mfaTransferExpiryMs: 15 * 60_000,
     mfaRecoveryCodesRemaining: 6,
+    viewedEntryCalls: 0,
+    viewedMapCalls: 0,
   };
   const mapSharesByPatient = new Map([
     [mapOnlyPatient.patient_id, [structuredClone(mapOnlyShare)]],
@@ -304,7 +312,10 @@ async function routeProfessionalPortal(page) {
       }
       const patientId = decodeURIComponent(patientEntriesMatch[1]);
       await route.fulfill(
-        jsonResponse({ entries: patientId === completePatient.patient_id ? entries : [] }),
+        jsonResponse({ entries: patientId === completePatient.patient_id ? entries
+          : homonymPatients.some((patient) => patient.patient_id === patientId)
+            ? [{ ...entries[1], id: `entry-${patientId}`, title: `Envio da conta ${patientId.slice(-1)}` }]
+            : [] }),
       );
       return;
     }
@@ -336,6 +347,7 @@ async function routeProfessionalPortal(page) {
       /^\/professional\/patients\/([^/]+)\/map-shares\/([^/]+)\/viewed$/u,
     );
     if (viewedMapMatch && method === "POST") {
+      controls.viewedMapCalls += 1;
       const patientId = decodeURIComponent(viewedMapMatch[1]);
       const mapId = decodeURIComponent(viewedMapMatch[2]);
       const shares = mapSharesByPatient.get(patientId) ?? [];
@@ -353,6 +365,7 @@ async function routeProfessionalPortal(page) {
       /^\/professional\/entries\/([^/]+)\/viewed$/u,
     );
     if (viewedEntryMatch && method === "POST") {
+      controls.viewedEntryCalls += 1;
       await route.fulfill(jsonResponse({ viewed_at: now.toISOString() }));
       return;
     }
@@ -502,6 +515,23 @@ async function reviewProfessional(browserType, label, viewport) {
     throw new Error(`${label}: pendência somente no mapa ficou sem destaque`);
   }
   await page.getByLabel("Buscar paciente").fill("");
+  await page.getByLabel("Buscar paciente").fill("Nome Repetido");
+  const homonymCards = page.locator(".patient-summary-card");
+  if ((await homonymCards.count()) !== 2) throw new Error(`${label}: contas de mesmo nome foram mescladas`);
+  await assertUniqueActionNames(homonymCards.locator("button"), `${label}-homônimos`);
+  for (const patient of homonymPatients) {
+    const reference = patient.patient_id.slice(-8);
+    await page.getByRole("button", { name: `Abrir conteúdos compartilhados por ${patient.patient_name}, conta ${reference}`, exact: true }).click();
+    await page.getByRole("heading", { name: patient.patient_name, exact: true }).waitFor();
+    await page.locator(".professional-record-disclosure").first().waitFor();
+    if ((await page.locator(".professional-record-disclosure").count()) !== 1
+      || !(await page.locator(".professional-record-disclosure").innerText()).includes(`Envio da conta ${patient.patient_id.slice(-1)}`)) {
+      throw new Error(`${label}: o detalhe exibiu o conteúdo da outra conta com nome igual`);
+    }
+    await page.getByRole("button", { name: "Voltar aos pacientes", exact: false }).click();
+    await homonymCards.first().waitFor();
+  }
+  await page.getByLabel("Buscar paciente").fill("");
   await assertUniqueActionNames(
     page.locator(".patient-summary-card button"),
     `${label}-ações-dos-pacientes`,
@@ -533,6 +563,16 @@ async function reviewProfessional(browserType, label, viewport) {
   if ((await page.locator(".professional-record-disclosure").count()) !== entries.length) {
     throw new Error(`${label}: Mostrar mais não revelou os registros restantes`);
   }
+  const recordSection = page.locator(".professional-entry-shares");
+  const pendingGroup = recordSection.locator('[data-reading-group="pending"]');
+  const viewedGroup = recordSection.locator('[data-reading-group="viewed"]');
+  if ((await pendingGroup.locator(".professional-record-disclosure").count()) !== 10
+    || (await viewedGroup.locator(".professional-record-disclosure").count()) !== 18
+    || (await pendingGroup.locator(".professional-record-disclosure:not(.is-unread)").count()) !== 0
+    || (await viewedGroup.locator(".professional-record-disclosure.is-unread").count()) !== 0) {
+    throw new Error(`${label}: registros vistos e não vistos não foram separados corretamente`);
+  }
+  await reviewScreen(page, `${label}-historico-organizado`, `${label}-historico-organizado.png`);
 
   routeControls.failNextMapRequest = true;
   await page.getByRole("button", { name: "Atualizar", exact: true }).click();
@@ -590,16 +630,29 @@ async function reviewProfessional(browserType, label, viewport) {
     .locator(".entry-view-toolbar button")
     .filter({ hasText: "Não vistos" });
   await unreadFilter.click();
-  const firstUnreadDisclosure = page.locator(".professional-record-disclosure.is-unread").first();
+  const firstUnreadId = await page.locator(".professional-record-disclosure.is-unread").first().getAttribute("data-entry-id");
+  const firstUnreadDisclosure = page.locator(`.professional-record-disclosure[data-entry-id="${firstUnreadId}"]`);
+  const callsBeforeOpen = routeControls.viewedEntryCalls;
   await firstUnreadDisclosure.locator("summary").click();
+  if (routeControls.viewedEntryCalls !== callsBeforeOpen) throw new Error(`${label}: abrir marcou o registro automaticamente`);
+  await page.evaluate(id => { window.__readingDisclosure = document.querySelector(`[data-entry-id="${id}"]`); }, firstUnreadId);
   await firstUnreadDisclosure
     .getByRole("button", { name: "Concluir visualização", exact: true })
     .click();
-  await page.waitForFunction(() =>
-    document.activeElement?.matches(
-      ".professional-record-disclosure.is-unread > summary",
-    ),
-  );
+  await page.waitForFunction(id => {
+    const element = document.querySelector(`[data-entry-id="${id}"]`);
+    return element?.open && !element.classList.contains("is-unread")
+      && element === window.__readingDisclosure
+      && element.closest('[data-reading-group="pending"]')
+      && element.querySelector("summary") === document.activeElement;
+  }, firstUnreadId);
+  if (routeControls.viewedEntryCalls !== callsBeforeOpen + 1) throw new Error(`${label}: confirmar repetiu a gravação`);
+  if (!(await firstUnreadDisclosure.innerText()).includes("Ao fechar, este registro passa para Já vistos.")) {
+    throw new Error(`${label}: o estado recém-visto não ficou claro na leitura atual`);
+  }
+  await firstUnreadDisclosure.locator("summary").click();
+  await firstUnreadDisclosure.waitFor({ state: "detached" });
+  await page.waitForFunction(() => document.activeElement?.matches(".professional-record-disclosure.is-unread > summary"));
   await page
     .locator(".entry-view-toolbar button")
     .filter({ hasText: "Todos" })
@@ -614,7 +667,7 @@ async function reviewProfessional(browserType, label, viewport) {
     .getByRole("button", { name: "Concluir visualização", exact: true })
     .click();
   await mapDisclosure
-    .getByText("Visualização já confirmada para o paciente.", { exact: true })
+    .getByText("Visualização já confirmada para o paciente.", { exact: false })
     .waitFor();
   await page.waitForFunction(() => {
     const disclosure = [...document.querySelectorAll(".professional-map-disclosure")].find(
@@ -623,6 +676,11 @@ async function reviewProfessional(browserType, label, viewport) {
     return disclosure?.querySelector("summary") === document.activeElement;
   });
   await reviewScreen(page, `${label}-detalhe`, `${label}-detalhe.png`);
+  await mapSummary.click();
+  await page.waitForFunction(() => {
+    const element = [...document.querySelectorAll(".professional-map-disclosure")].find(item => item.textContent?.includes("Meu mapa · Meu jeito"));
+    return element && !element.open && element.closest('[data-reading-group="viewed"]');
+  });
 
   await page.getByRole("button", { name: /Acessos de pacientes/u }).click();
   await page.getByRole("heading", { name: "Acessos de pacientes", exact: true }).waitFor();
