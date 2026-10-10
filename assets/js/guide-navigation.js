@@ -41,6 +41,27 @@
   let activeDialog = null;
   let dialogTrigger = null;
   let semanticsReady = false;
+  let navigationGeometryReady = false;
+
+  const ensureNavigationGeometry = (header) => {
+    const navigation = document.querySelector(".guide-mobile-nav");
+    if (navigationGeometryReady || !header || !navigation) return;
+    navigationGeometryReady = true;
+
+    const measure = () => {
+      document.documentElement.style.setProperty("--guide-header-height", `${header.offsetHeight}px`);
+      document.documentElement.style.setProperty("--guide-nav-height", `${navigation.offsetHeight}px`);
+    };
+
+    measure();
+    if (typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(measure);
+      observer.observe(header);
+      observer.observe(navigation);
+    } else {
+      window.addEventListener("resize", measure, { passive: true });
+    }
+  };
 
   const ensureMobileSectionNavigation = (header) => {
     if (!header || document.querySelector(".guide-mobile-nav")) return;
@@ -79,6 +100,7 @@
     const guidedExploration = document.getElementById("registrar");
 
     ensureMobileSectionNavigation(header);
+    ensureNavigationGeometry(header);
 
     if (main) {
       main.setAttribute("aria-label", "Conteúdo principal do Guia de Emoções");
@@ -148,10 +170,33 @@
     const cueTabs = document.querySelector(".cue-tabs");
     if (cueTabs) {
       cueTabs.setAttribute("role", "group");
+      if (!cueTabs.parentElement.querySelector(".guide-filter-label")) {
+        const label = document.createElement("p");
+        label.className = "guide-filter-label";
+        label.textContent = "O que você quer ver nos cartões?";
+        cueTabs.insertAdjacentElement("beforebegin", label);
+      }
       cueTabs.querySelectorAll("button").forEach((button) => {
         button.setAttribute("aria-pressed", String(button.classList.contains("active")));
       });
     }
+
+    const searchPanel = document.querySelector(".search-panel");
+    if (searchPanel && !searchPanel.querySelector(".guide-explore-tip")) {
+      const tip = document.createElement("p");
+      tip.className = "guide-explore-tip";
+      tip.textContent = "Selecione uma emoção abaixo para ver os detalhes.";
+      searchPanel.append(tip);
+    }
+    const exploreTip = searchPanel?.querySelector(".guide-explore-tip");
+    if (exploreTip) exploreTip.hidden = !document.querySelector(".emotion-card");
+
+    // Distingue a exploração local do histórico na Área do paciente.
+    document.querySelectorAll(".emotion-modal .modal-actions button").forEach((button) => {
+      if (button.textContent === "Usar no meu registro") {
+        button.textContent = "Usar na exploração guiada";
+      }
+    });
 
     const footerLinks = document.querySelector("main > footer .footer-links");
     if (footerLinks && !footerLinks.querySelector(`a[href="${PDF_PATH}"]`)) {

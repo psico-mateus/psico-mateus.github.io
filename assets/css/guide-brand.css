@@ -21,9 +21,174 @@
   min-height: 44px;
 }
 
+main .site-header {
+  background: #f8f5f0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 /* No desktop, a navegação completa do cabeçalho continua sendo usada. */
 main .guide-mobile-nav {
   display: none;
+}
+
+/* A altura real do cabeçalho também é usada quando o texto é ampliado. */
+html {
+  scroll-padding-top: calc(var(--guide-header-height, 78px) + var(--guide-nav-height, 0px) + 16px) !important;
+}
+
+/* Mantém a abertura expressiva, sem empurrar os caminhos do Guia para baixo. */
+main .hero {
+  gap: clamp(40px, 5vw, 72px);
+  padding-top: 76px;
+  padding-bottom: 72px;
+}
+
+main .hero-copy h1 {
+  font-size: clamp(54px, 5.2vw, 72px);
+  line-height: 1.04;
+}
+
+main .hero-intro {
+  margin-top: 24px;
+}
+
+main .hero-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 28px;
+}
+
+main .hero-actions > a {
+  width: 100%;
+  min-width: 0;
+}
+
+main .hero-actions > .guide-portal-link,
+main .hero-actions > .guide-professional-link {
+  box-shadow: none;
+}
+
+main .guide-filter-label {
+  margin: 24px 0 10px;
+  color: #625e56;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+main .cue-tabs {
+  flex-wrap: wrap;
+  margin-top: 0;
+  margin-inline: 0;
+  padding-inline: 0;
+  overflow: visible;
+}
+
+main .cue-tabs button {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+main .guide-explore-tip {
+  margin: 18px 0 0;
+  color: #625e56;
+  font-size: 14px;
+}
+
+/* Os textos de apoio são conteúdo: precisam ser confortáveis de ler. */
+main .cue-grid small,
+main .principles span,
+main .privacy-note,
+main .local-save-note small,
+main .author-card ul {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+main .principles strong,
+main .local-save-note strong {
+  font-size: 15px;
+}
+
+main .card-content small {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+main .search-box input::placeholder,
+main .question-panel textarea::placeholder {
+  color: #706c64;
+}
+
+main .section-heading > p,
+main .question-copy p,
+main .record-summary p,
+main .comparison-card p {
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+main .detail-section ul,
+main .detail-section p,
+main .detail-alerts p {
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+main .detail-section ul,
+main .author-card ul {
+  list-style: disc;
+}
+
+main .detail-section h3,
+main .detail-alerts h3 {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+main .emotion-pills button,
+main .modal-topbar button,
+main .search-box button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+}
+
+main .author-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  list-style: none;
+  font-size: 15px;
+}
+
+main .author-card summary::-webkit-details-marker {
+  display: none;
+}
+
+main .author-card summary::after {
+  content: "";
+  flex: 0 0 8px;
+  height: 8px;
+  margin-right: 3px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+main .author-card details[open] summary::after {
+  transform: rotate(225deg);
+}
+
+/* Feedback discreto, sem fazer cartões e botões pularem ao passar o mouse. */
+main .emotion-card:hover,
+main .button:hover:not(:disabled) {
+  transform: none;
 }
 
 .author-card .author-initials {
@@ -217,22 +382,22 @@ main .urgent-care .urgent-care-link:hover {
 }
 
 @media (width <= 980px) {
-  html {
-    scroll-padding-top: 142px !important;
+  :root {
+    --guide-nav-height: 56px;
   }
 
   main .guide-mobile-nav {
     position: sticky;
     z-index: 35;
-    top: 78px;
+    top: var(--guide-header-height, 78px);
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 2px;
     padding: 6px max(12px, calc((100vw - 1180px) / 2));
     border-bottom: 1px solid rgba(222, 211, 195, 0.88);
-    background: rgba(248, 245, 240, 0.96);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    background: #f8f5f0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   main .guide-mobile-nav a {
@@ -244,11 +409,12 @@ main .urgent-care .urgent-care-link:hover {
     padding: 6px 4px;
     border-radius: 10px;
     color: #625e56;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 750;
     line-height: 1.2;
     text-align: center;
     text-decoration: none;
+    overflow-wrap: anywhere;
   }
 
   main .guide-mobile-nav a:hover,
@@ -259,12 +425,63 @@ main .urgent-care .urgent-care-link:hover {
 }
 
 @media (width <= 680px) {
-  html {
-    scroll-padding-top: 132px !important;
+  :root {
+    --guide-header-height: 68px;
   }
 
   main .guide-mobile-nav {
-    top: 68px;
+    top: var(--guide-header-height, 68px);
+  }
+
+  main .site-header .brand {
+    min-width: 0;
+  }
+
+  main .hero {
+    gap: 36px;
+    padding-top: 38px;
+    padding-bottom: 48px;
+  }
+
+  main .hero-copy h1 {
+    font-size: clamp(40px, 12vw, 52px);
+  }
+
+  main .hero-actions > a[href="#explorar"],
+  main .hero-actions > a[href="#registrar"] {
+    grid-column: 1 / -1;
+  }
+
+  main .hero-actions > .guide-portal-link,
+  main .hero-actions > .guide-professional-link {
+    padding-inline: 10px;
+    font-size: 13px;
+  }
+
+  main .cue-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  main .cue-tabs button {
+    min-width: 0;
+    padding-inline: 8px;
+    white-space: normal;
+  }
+
+  main .cue-tabs button:first-child {
+    grid-column: 1 / -1;
+  }
+
+  main .record-intro h2 {
+    font-size: clamp(32px, 9vw, 39px);
+  }
+}
+
+@media print {
+  main .guide-mobile-nav,
+  .guide-skip-link {
+    display: none !important;
   }
 }
 
