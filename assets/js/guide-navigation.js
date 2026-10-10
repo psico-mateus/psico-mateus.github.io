@@ -42,6 +42,52 @@
   let dialogTrigger = null;
   let semanticsReady = false;
   let navigationGeometryReady = false;
+  let pendingExplorationNavigation = null;
+  let explorationNavigationTimer = null;
+
+  const explorationView = () => {
+    const heading = document.querySelector(".question-copy h3, .record-summary h3");
+    if (!heading) return null;
+    return {
+      heading,
+      token: `${heading.closest(".record-summary") ? "summary" : "question"}:${heading.textContent}`,
+    };
+  };
+
+  const requestExplorationNavigation = (kind) => {
+    if (explorationNavigationTimer !== null) {
+      window.clearTimeout(explorationNavigationTimer);
+      explorationNavigationTimer = null;
+    }
+    pendingExplorationNavigation = { kind, token: explorationView()?.token };
+  };
+
+  const focusPendingExplorationNavigation = () => {
+    const request = pendingExplorationNavigation;
+    const view = explorationView();
+    if (!request || !view || document.querySelector(dialogSelector)) return;
+    if (request.kind !== "emotion" && request.token === view.token) return;
+    pendingExplorationNavigation = null;
+
+    view.heading.focus({ preventScroll: true });
+    const scrollToQuestion = () => {
+      if (!view.heading.isConnected || explorationView()?.token !== view.token) return;
+      // Não interrompe quem já passou a digitar ou escolher uma opção.
+      if (document.activeElement !== view.heading) return;
+      view.heading.closest(".record-card")?.scrollIntoView({ behavior: "auto", block: "start" });
+    };
+    if (request.kind !== "emotion") {
+      scrollToQuestion();
+      return;
+    }
+
+    // A aplicação atual conclui o salto do modal após 80 ms.
+    // Só a rolagem desse caminho espera; o foco já segue para a nova pergunta.
+    explorationNavigationTimer = window.setTimeout(() => {
+      explorationNavigationTimer = null;
+      scrollToQuestion();
+    }, 110);
+  };
 
   const ensureNavigationGeometry = (header) => {
     const navigation = document.querySelector(".guide-mobile-nav");
@@ -122,6 +168,27 @@
       .querySelectorAll(".record-progress[aria-label]")
       .forEach((progress) => progress.setAttribute("role", "group"));
 
+    const questionHeading = document.querySelector(".question-copy h3");
+    if (questionHeading) questionHeading.tabIndex = -1;
+    const questionHelp = document.querySelector(".question-copy p");
+    if (questionHelp) {
+      questionHelp.id = "guide-step-instructions";
+      document.querySelector(".question-panel textarea")?.setAttribute("aria-describedby", questionHelp.id);
+      document.querySelector(".emotion-pills")?.setAttribute("aria-describedby", questionHelp.id);
+    }
+    document.querySelector(".emotion-pills")?.setAttribute("role", "group");
+    const summaryHeading = document.querySelector(".record-summary h3");
+    if (summaryHeading) summaryHeading.tabIndex = -1;
+
+    const finalStepAction = document.querySelector(".record-actions button:last-child");
+    if (finalStepAction?.textContent === "Ver meu registro") {
+      finalStepAction.textContent = "Ver resumo";
+    }
+    const progressTitle = document.querySelector(".record-progress strong");
+    if (summaryHeading && progressTitle?.textContent === "Seu registro") {
+      progressTitle.textContent = "Resumo da exploração";
+    }
+
     document
       .querySelectorAll(".modal-backdrop > .emotion-modal, .modal-backdrop > .install-modal")
       .forEach((modal) => {
@@ -190,6 +257,23 @@
     }
     const exploreTip = searchPanel?.querySelector(".guide-explore-tip");
     if (exploreTip) exploreTip.hidden = !document.querySelector(".emotion-card");
+
+    const exploreHeading = document.querySelector(".explore .section-heading h2");
+    if (exploreHeading?.textContent === "Use o nome ou um sinal como ponto de partida.") {
+      exploreHeading.textContent = "Explore as emoções";
+    }
+    const searchHelp = document.querySelector(".explore .section-heading > p");
+    if (searchHelp?.textContent === "Busque por algo concreto, como “aperto no peito”, “fugir”, “chorar” ou “comparação”.") {
+      searchHelp.textContent = "Busque uma emoção ou um sinal: “aperto no peito”, “fugir”, “chorar” ou “comparação”.";
+    }
+
+    const localSave = document.querySelector(".local-save-note > div");
+    if (localSave && !localSave.querySelector(".guide-optional-note")) {
+      const optionalNote = document.createElement("small");
+      optionalNote.className = "guide-optional-note";
+      optionalNote.textContent = "Você pode deixar perguntas em branco.";
+      localSave.append(optionalNote);
+    }
 
     // Distingue a exploração local do histórico na Área do paciente.
     document.querySelectorAll(".emotion-modal .modal-actions button").forEach((button) => {
@@ -274,6 +358,20 @@
         return;
       }
 
+      const resetButton = event.target.closest(".summary-actions .button-danger");
+      if (resetButton) {
+        if (!window.confirm("Apagar o rascunho deste aparelho e começar outro? Esta ação não pode ser desfeita.")) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        requestExplorationNavigation("reset");
+      } else if (event.target.closest(".record-actions button:not([disabled])")) {
+        requestExplorationNavigation("step");
+      } else if (event.target.closest(".emotion-modal .modal-actions .button-primary")) {
+        requestExplorationNavigation("emotion");
+      }
+
       const link = event.target.closest('a[href^="#"]');
       if (!link) return;
 
@@ -343,10 +441,13 @@
       activeDialog = null;
       const trigger = dialogTrigger;
       dialogTrigger = null;
-      window.requestAnimationFrame(() => {
-        if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-      });
+      if (pendingExplorationNavigation?.kind !== "emotion") {
+        window.requestAnimationFrame(() => {
+          if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+        });
+      }
     }
+    focusPendingExplorationNavigation();
   });
 
   dialogObserver.observe(document.body, {
