@@ -311,6 +311,34 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     await checkHealthy(fixture, "records-loaded");
   });
 
+  for (const state of ["shared", "viewed"]) {
+    test(`opened ${state} record groups the reading state with its limits without changing clinical content`, async () => {
+      const fixture = await openRecords({ viewport: { width: 320, height: 844 } });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const card = page.locator(`#record-synthetic-record-${state}`);
+      await card.locator(":scope > summary").click();
+      const viewNote = card.locator("aside.patient-record-view-note");
+      await expect(viewNote).toHaveCount(1);
+      await expect(viewNote).toBeVisible();
+      await expect(viewNote.locator(".patient-view-status")).toContainText(state === "viewed"
+        ? "Visualizado por Mateus em" : "Ainda não visualizado por Mateus");
+      await expect(viewNote.locator(".patient-view-explanation")).toHaveText(
+        "A confirmação mostra que Mateus marcou este registro como visualizado. Isso não significa resposta, avaliação clínica completa ou acompanhamento em tempo real.",
+      );
+      await expect(card.locator(".patient-record-content > .patient-view-status, .patient-record-content > .patient-view-explanation")).toHaveCount(0);
+      await expect(card.locator(".entry-details")).toContainText(neutralEntry.happened);
+      assert.equal(await viewNote.evaluate(note => {
+        const details = note.parentElement.querySelector(".entry-details");
+        return Boolean(details && (note.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING));
+      }), true, "The grouped status must appear before, not replace, the original record content.");
+      await expect(page.locator("#record-synthetic-record-private aside.patient-record-view-note")).toHaveCount(0);
+      assert.equal(controls.mutations.length, 0, "Opening a patient's reading state must remain read-only.");
+      await viewNote.scrollIntoViewIfNeeded();
+      await checkHealthy(fixture, `records-grouped-view-${state}`);
+    });
+  }
+
   for (const mode of ["new", "private", "shared"]) {
     test(`editor ${mode}: current privacy is visible before the first field section`, async () => {
       const fixture = await openRecords();
@@ -324,10 +352,17 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       }
       const form = fixture.page.locator("#entry-editor");
       await expect(form).toBeVisible();
-      const privacy = form.locator(":scope > p").filter({ hasText: /privad|compartilhad/iu });
+      const intro = form.locator(":scope > .entry-form-intro");
+      await expect(intro).toHaveCount(1);
+      await expect(intro).toBeVisible();
+      const privacy = intro.locator(".entry-privacy-note");
       await expect(privacy).toHaveCount(1);
       await expect(privacy).toBeVisible();
       await expect(privacy).toContainText(mode === "shared" ? /compartilhado com Mateus/iu : /privado/iu);
+      await expect(intro.locator(".form-requirements-note")).toContainText("Para salvar, bastam dois campos:");
+      await expect(intro.locator(".form-requirements-note")).toContainText("O restante é opcional.");
+      await expect(form.locator(":scope > .entry-privacy-note, :scope > .form-requirements-note")).toHaveCount(0);
+      await expect(form.locator(".entry-form-heading > div > p:not(.eyebrow)")).toHaveCount(0);
       const privacyBounds = await privacy.boundingBox();
       const firstStepBounds = await form.locator(".entry-step").first().boundingBox();
       assert.ok(privacyBounds && firstStepBounds && privacyBounds.y + privacyBounds.height <= firstStepBounds.y,
@@ -341,12 +376,61 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     { width: 320, height: 844 }, { width: 390, height: 844 },
     { width: 640, height: 900 }, { width: 1366, height: 900 },
   ]) {
+    test(`history ${viewport.width}px: months organize the filtered history without hiding reading status or actions`, async () => {
+      const monthEntries = [
+        { ...syntheticEntries[0], created_at: "2026-10-08T12:00:00.000Z" },
+        { ...syntheticEntries[1], created_at: "2026-09-18T12:00:00.000Z" },
+        { ...syntheticEntries[2], created_at: "2026-10-07T12:00:00.000Z" },
+      ];
+      const fixture = await openRecords({ entries: monthEntries, viewport });
+      const { page, controls } = fixture;
+      page.setDefaultTimeout(5_000);
+      await loaded(fixture);
+      const months = page.locator(".patient-record-month");
+      await expect(months).toHaveCount(2);
+      await expect(months.first().locator("h2")).toHaveText("Outubro de 2026");
+      await expect(months.first().locator(".patient-record-month-heading > span")).toHaveText("2 registros");
+      await expect(months.last().locator("h2")).toHaveText("Setembro de 2026");
+      await expect(months.last().locator(".patient-record-month-heading > span")).toHaveText("1 registro");
+      await expect(page.locator(".patient-record-card > summary strong")).toHaveText([
+        monthEntries[0].title, monthEntries[2].title, monthEntries[1].title,
+      ]);
+      await expect(page.locator("#record-synthetic-record-viewed .patient-view-summary")).toHaveText("Visualizado por Mateus");
+      await page.getByLabel("Ordenar").selectOption("oldest");
+      await expect(months.first().locator("h2")).toHaveText("Setembro de 2026");
+      await page.getByRole("button", { name: "Privados 1", exact: true }).click();
+      await expect(months).toHaveCount(1);
+      await expect(months.locator("h2")).toHaveText("Outubro de 2026");
+      await expect(months.locator(".patient-record-month-heading > span")).toHaveText("1 registro");
+      await page.getByRole("button", { name: "Todos 3", exact: true }).click();
+      await page.getByLabel("Buscar nos meus registros").fill("compartilhado sintético");
+      await expect(months).toHaveCount(1);
+      await expect(months.locator("h2")).toHaveText("Setembro de 2026");
+      await page.getByRole("button", { name: "Limpar busca e filtros", exact: true }).click();
+      const viewedCard = page.locator("#record-synthetic-record-viewed");
+      await viewedCard.locator(":scope > summary").click();
+      await expect(viewedCard.getByRole("button", { name: "Editar", exact: true })).toBeVisible();
+      await expect(viewedCard.getByRole("button", { name: "Excluir", exact: true })).toBeVisible();
+      await expect(viewedCard.getByRole("button", { name: "Deixar privado novamente", exact: true })).toBeVisible();
+      await viewedCard.locator(":scope > summary").click();
+      assert.equal(controls.mutations.length, 0, "Grouping, filtering and opening must not alter records.");
+      await page.locator("#records-title").scrollIntoViewIfNeeded();
+      await checkHealthy(fixture, `records-months-${viewport.width}`);
+    });
+
     test(`history ${viewport.width}px: filters stay together, count baselines align and Guide follows the records`, async () => {
       const fixture = await openRecords({ viewport });
       const { page, controls } = fixture;
       await loaded(fixture);
       const finder = page.locator(".patient-record-finder");
       const search = page.getByLabel("Buscar nos meus registros");
+      if (viewport.width <= 640) {
+        const actions = page.locator(".patient-records-heading-actions");
+        const update = await actions.getByRole("button", { name: "Atualizar", exact: true }).boundingBox();
+        const create = await actions.getByRole("button", { name: "Novo registro", exact: true }).boundingBox();
+        assert.ok(update && create && Math.abs(update.y - create.y) <= 1 && Math.abs(update.width - create.width) <= 1,
+          `The two history actions should share one balanced row, not wrap into detached rows: ${JSON.stringify({ update, create })}`);
+      }
       await expect(finder.getByRole("group", { name: "Filtrar registros por compartilhamento" })).toBeVisible();
       await expect(search).toHaveAccessibleDescription("A busca acontece somente nesta tela.");
       const readingOrder = await page.evaluate(() => {
@@ -385,6 +469,24 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       await expect(form.locator(".entry-step")).toHaveCount(4);
       await expect(form.locator(".entry-step-heading > span")).toHaveCount(0);
       await expect(form.locator("input[required], textarea[required]")).toHaveCount(2);
+      const groupedSections = await form.locator(".entry-step").evaluateAll((sections) => sections.map((section) => {
+        const heading = document.getElementById(section.getAttribute("aria-labelledby"));
+        const style = getComputedStyle(section);
+        return { headingInside: Boolean(heading && section.contains(heading)),
+          visible: section.getClientRects().length > 0,
+          bordered: ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]
+            .every(property => Number.parseFloat(style[property]) >= 1) };
+      }));
+      assert.ok(groupedSections.every(section => section.headingInside && section.visible && section.bordered),
+        "All four visible question sections must retain their heading and a distinct visual boundary.");
+      const sessionSection = form.locator(".entry-step-optional");
+      await expect(sessionSection.locator(".entry-step-heading p")).toHaveCount(0);
+      const sessionField = sessionSection.locator(".session-note-field");
+      await expect(sessionField.locator("#entry-session-note-help")).toBeVisible();
+      await expect(sessionField.locator("#entry-session-note-help")).toContainText(/assunto|dúvida/u);
+      assert.ok((await form.getByLabel("O que quero levar").getAttribute("aria-describedby")).split(/\s+/u)
+        .includes("entry-session-note-help"), "The session-note guidance must stay associated with its writing field.");
+      await expect(sessionSection.locator("#entry-session-note-privacy")).toContainText("não envia mensagem nem pedido de resposta imediata");
       const shortcut = form.locator(".optional-save-shortcut");
       await expect(shortcut).toHaveCount(1);
       await expect(shortcut).toContainText("O restante é opcional");
@@ -413,7 +515,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
         }
       }
       const readingText = await form.locator([
-        ".entry-form-heading > div > p:last-child", ".entry-privacy-note", ".form-requirements-note",
+        ".entry-form-intro > p", ".entry-privacy-note", ".form-requirements-note",
         ".entry-step-heading p", ".field-label-line > span", ".field > span:not(.field-label-line)",
         ".field > label", ".field-help-link", ".range-scale", ".optional-save-shortcut strong",
         ".optional-save-shortcut p > span", ".session-note-field > small:not(.character-limit)",

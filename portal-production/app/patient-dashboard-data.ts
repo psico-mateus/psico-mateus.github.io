@@ -80,6 +80,33 @@ export function filterAndSortPatientEntries<T extends PatientSearchableEntry>(
   });
 }
 
+const patientRecordMonthFormatter = new Intl.DateTimeFormat("pt-BR", {
+  month: "long",
+  year: "numeric",
+});
+
+/** Presentation only: keep the caller's filtered order and original entries. */
+export function groupPatientEntriesByMonth<T extends { created_at?: string }>(
+  entries: readonly T[],
+): Array<{ key: string; label: string; entries: T[] }> {
+  const groups = new Map<string, { key: string; label: string; entries: T[] }>();
+  for (const entry of entries) {
+    const date = new Date(entry.created_at ?? "");
+    const valid = Number.isFinite(date.getTime());
+    const key = valid
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      : "unknown-date";
+    let group = groups.get(key);
+    if (!group) {
+      const month = valid ? patientRecordMonthFormatter.format(date) : "Data indisponível";
+      group = { key, label: month.charAt(0).toLocaleUpperCase("pt-BR") + month.slice(1), entries: [] };
+      groups.set(key, group);
+    }
+    group.entries.push(entry);
+  }
+  return [...groups.values()];
+}
+
 export function patientEntryViewStatus(
   entry: EntrySharingState,
 ): PatientEntryViewStatus {

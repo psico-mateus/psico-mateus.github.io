@@ -25,27 +25,45 @@
   overflow-wrap: anywhere;
 }
 
-.patient-entry-form .entry-form-heading > div > p:last-child,
 .patient-entry-form .entry-privacy-note {
   font-size: 1rem;
   line-height: 1.6;
 }
 
-.patient-entry-form .form-requirements-note {
-  max-width: none;
+.patient-entry-form .entry-form-intro {
+  display: grid;
+  gap: .65rem;
   margin: 1rem 0 0;
-  border-left: 2px solid var(--green-2);
+  padding: 1rem 1.15rem;
+  border-left: 3px solid var(--green-2);
   border-radius: 0 10px 10px 0;
   background: #f7f2e9;
+}
+
+.patient-entry-form .entry-form-intro > p {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--muted);
   font-size: 1rem;
   line-height: 1.6;
 }
 
+.patient-entry-form .entry-form-intro > .education-entry-guidance {
+  padding-top: .65rem;
+  border-top: 1px solid #ded6cb;
+}
+
 .patient-entry-form .entry-step {
   gap: 1rem;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
+  margin-top: 1.25rem;
+  padding: clamp(.9rem, 2.5vw, 1.25rem);
+  border: 1px solid #ded6cb;
+  border-radius: 12px;
+  background: #fffefa;
 }
 
 .patient-entry-form .entry-step-heading {
@@ -132,8 +150,13 @@
 }
 
 .patient-entry-form .optional-fields { gap: 1rem 1.5rem; }
-.patient-entry-form .session-note-block { border-color: #ded6cb; background: #f7f2e9; }
-.patient-entry-form .session-note-block.shared { border-color: #d5bf99; background: #faf3e6; }
+.patient-entry-form .session-note-block,
+.patient-entry-form .session-note-block.shared {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .patient-entry-form .session-note-prompts > summary { font-size: 1rem; line-height: 1.5; font-weight: 650; }
 .patient-entry-form .session-note-prompts ul { gap: .5rem; font-size: 1rem; line-height: 1.6; }
 .patient-entry-form .session-note-privacy { border-top-color: #ded6cb; }
@@ -159,6 +182,8 @@
   .patient-entry-form,
   .patient-entry-form input,
   .patient-entry-form textarea,
+  .patient-entry-form .entry-form-intro,
+  .patient-entry-form .entry-step,
   .patient-entry-form .optional-save-shortcut,
   .patient-entry-form .session-note-block { border-color: currentColor; }
 }

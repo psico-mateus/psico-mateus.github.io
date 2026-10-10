@@ -202,7 +202,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     const texts = await page.locator([
       ".patient-hero-copy > p", ".patient-home-privacy", ".patient-action-copy > strong",
       ".patient-action-copy > span", ".patient-overview-metrics strong",
-      ".patient-overview-metrics small", ".patient-sharing-states li", ".overview-number",
+      ".patient-overview-metrics small", ".patient-sharing-state-count", ".patient-sharing-state-copy", ".overview-number",
     ].join(", ")).evaluateAll((elements) => elements.filter((element) =>
       element.getClientRects().length > 0 && window.getComputedStyle(element).visibility !== "hidden",
     ).map((element) => ({ text: element.textContent.trim(), fontSize: Number.parseFloat(window.getComputedStyle(element).fontSize) })));
@@ -214,6 +214,19 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     for (const state of await page.locator(".patient-overview-metrics small, .patient-sharing-states li").all()) {
       await expect(state).toBeVisible();
     }
+    await expect(page.locator(".patient-hero .patient-home-privacy")).toHaveCount(0);
+    const privacy = page.locator(".patient-overview-footer .patient-home-privacy");
+    await expect(privacy).toHaveCount(1);
+    await expect(privacy).toBeVisible();
+    await expect(privacy).toHaveText("Seus registros começam privados. Nada é compartilhado automaticamente.");
+    await expect(page.locator(".patient-home-privacy")).toHaveCount(1);
+    const groupedStates = await page.locator(".patient-sharing-states li").evaluateAll(states => states.map(state => ({
+      count: state.querySelectorAll(".patient-sharing-state-count").length,
+      copy: state.querySelectorAll(".patient-sharing-state-copy").length,
+      paired: Boolean(state.querySelector(".patient-sharing-state-copy")?.contains(state.querySelector(".patient-sharing-state-count"))),
+    })));
+    assert.ok(groupedStates.every(state => state.count === 1 && state.copy === 1 && state.paired),
+      "Each sharing state must group a readable count with its matching label.");
   }
 
   async function checkHealthy(fixture, label) {
@@ -274,11 +287,25 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     const fixture = await openHome();
     const overview = fixture.page.locator(".patient-overview");
     await expect(overview.locator(".overview-number")).toHaveText(["3", "2"]);
-    await expect(overview).toContainText("1 registro continua privado · só você vê.");
-    await expect(overview).toContainText("Mateus visualizou 1 registro.");
-    await expect(overview).toContainText("1 registro aguarda visualização.");
+    await expect(overview).toContainText("1 privado · só você vê.");
+    await expect(overview.locator(".patient-sharing-states .patient-sharing-state-count")).toHaveText(["1", "1"]);
+    await expect(overview.locator(".patient-sharing-states .patient-sharing-state-copy")).toHaveText(["1 visualizado", "1 aguarda visualização"]);
     await expect(overview).toContainText("Nada é compartilhado automaticamente.");
     await checkHealthy(fixture, "home-loaded-desktop");
+  });
+
+  test("plural summary preserves private, viewed and awaiting counts in paired states", async () => {
+    const entries = syntheticEntries.flatMap((entry, index) => [
+      { ...entry, id: `synthetic-home-plural-${index}-a` },
+      { ...entry, id: `synthetic-home-plural-${index}-b` },
+    ]);
+    const fixture = await openHome({ entries, viewport: { width: 320, height: 844 } });
+    const overview = fixture.page.locator(".patient-overview");
+    await expect(overview.locator(".overview-number")).toHaveText(["6", "4"]);
+    await expect(overview).toContainText("2 privados · só você vê.");
+    await expect(overview.locator(".patient-sharing-states .patient-sharing-state-count")).toHaveText(["2", "2"]);
+    await expect(overview.locator(".patient-sharing-states .patient-sharing-state-copy")).toHaveText(["2 visualizados", "2 aguardam visualização"]);
+    await checkHealthy(fixture, "home-grouped-plural-mobile");
   });
 
   for (const width of [320, 390, 640]) {

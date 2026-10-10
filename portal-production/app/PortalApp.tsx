@@ -52,6 +52,7 @@ import {
 import { PatientRecoveredDrafts } from "./PatientRecoveredDrafts";
 import {
   filterAndSortPatientEntries,
+  groupPatientEntriesByMonth,
   patientEntryViewStatus,
   patientEntryViewSummary,
   isEntryShared,
@@ -1557,32 +1558,33 @@ function EntryForm({
   }
   return (
     <form className="entry-form panel patient-entry-form" id="entry-editor" onSubmit={submit} aria-busy={busy}>
-      {guidance ? (
-        <p className="education-entry-guidance" id="education-entry-guidance">
-          {guidance}
-        </p>
-      ) : null}
       <div className="section-heading entry-form-heading">
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
           <h1 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h1>
-          <p>Escreva sobre uma situação do seu dia.</p>
         </div>
         <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário" disabled={busy}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
-      <p className="entry-privacy-note">
-        <strong>{remainsShared ? "Compartilhado com Mateus." : initial ? "Registro privado." : "Começa privado."}</strong>{" "}
-        {remainsShared
-          ? "As alterações salvas também ficarão visíveis para ele."
-          : initial
-            ? "Salvar as alterações não compartilha o registro."
-            : "Você decide depois se quer compartilhar."}
-      </p>
-      <p className="form-requirements-note">
-        <strong>Para salvar, bastam dois campos:</strong> “Título breve” e “O que aconteceu?”. O restante é opcional.
-      </p>
+      <div className="entry-form-intro">
+        <p className="entry-privacy-note">
+          <strong>{remainsShared ? "Compartilhado com Mateus." : initial ? "Registro privado." : "Começa privado."}</strong>{" "}
+          {remainsShared
+            ? "As alterações salvas também ficarão visíveis para ele."
+            : initial
+              ? "Salvar as alterações não compartilha o registro."
+              : "Você decide depois se quer compartilhar."}
+        </p>
+        <p className="form-requirements-note">
+          <strong>Para salvar, bastam dois campos:</strong> “Título breve” e “O que aconteceu?”. O restante é opcional.
+        </p>
+        {guidance ? (
+          <p className="education-entry-guidance" id="education-entry-guidance">
+            {guidance}
+          </p>
+        ) : null}
+      </div>
 
       <section className="entry-step entry-step-situation" aria-labelledby="entry-step-one">
         <div className="entry-step-heading">
@@ -1703,7 +1705,6 @@ function EntryForm({
               <h2 id="entry-step-four">Levar para a próxima sessão</h2>
               <span className="optional-badge">Opcional</span>
             </div>
-            <p>Anote um assunto ou uma dúvida que queira conversar na sessão.</p>
           </div>
         </div>
         <div className={`session-note-block ${remainsShared ? "shared" : "private"}`}>
@@ -1720,7 +1721,7 @@ function EntryForm({
               aria-describedby="entry-session-note-help entry-session-note-privacy entry-session-note-character-limit"
             />
             <small id="entry-session-note-help">
-              Não precisa organizar tudo agora. Você pode conversar sobre isso depois.
+              Anote um assunto ou uma dúvida para a próxima sessão. Não precisa organizar tudo agora.
             </small>
             <CharacterLimit id="entry-session-note-character-limit" value={draft.message} maxLength={1500} />
           </div>
@@ -2579,6 +2580,7 @@ function PatientDashboard({
     entrySort,
   );
   const hasEntryQuery = Boolean(entryQuery.trim());
+  const recordMonthGroups = groupPatientEntriesByMonth(visibleEntries);
   const hasActiveEntryControls =
     hasEntryQuery || entryFilter !== "all" || entrySort !== "newest";
   const filterLabels: Array<{
@@ -2669,7 +2671,6 @@ function PatientDashboard({
               <h1 id="patient-home-title" tabIndex={-1}>Olá, {user.name}.</h1>
               <p>Registros, mapa e materiais para acompanhar sua terapia.</p>
             </div>
-            <p className="patient-home-privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="12" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v3" /></svg>Seus registros começam privados.</p>
             <PatientQuickRecordAction hasDraft={Boolean(editing)} onRecord={openNewRecord} />
           </section>
 
@@ -2695,8 +2696,8 @@ function PatientDashboard({
                     {loading ? "Consultando seus registros…" : entriesError && entries.length === 0 ? "Resumo indisponível. Tente carregar novamente." : privateCount === 0
                       ? "Nenhum registro está privado."
                       : privateCount === 1
-                        ? "1 registro continua privado · só você vê."
-                        : `${privateCount} registros continuam privados · só você vê.`}
+                        ? "1 privado · só você vê."
+                        : `${privateCount} privados · só você vê.`}
                   </small>
                 </div>
               </article>
@@ -2712,15 +2713,25 @@ function PatientDashboard({
                     <small>Nenhum registro está visível para Mateus.</small>
                   ) : (
                     <ul className="patient-sharing-states" aria-label="Visualização dos registros compartilhados">
-                      {sharedViewCounts.viewed ? <li className="viewed"><span aria-hidden="true">✓</span>Mateus visualizou {sharedViewCounts.viewed} {sharedViewCounts.viewed === 1 ? "registro" : "registros"}.</li> : null}
-                      {awaitingViewCount ? <li className="pending"><span aria-hidden="true" />{awaitingViewCount} {awaitingViewCount === 1 ? "registro aguarda visualização" : "registros aguardam visualização"}.</li> : null}
+                      {sharedViewCounts.viewed > 0 ? (
+                        <li className="viewed">
+                          <span aria-hidden="true">✓</span>
+                          <div className="patient-sharing-state-copy"><strong className="patient-sharing-state-count">{sharedViewCounts.viewed}</strong>{" "}{sharedViewCounts.viewed === 1 ? "visualizado" : "visualizados"}</div>
+                        </li>
+                      ) : null}
+                      {awaitingViewCount > 0 ? (
+                        <li className="pending">
+                          <span aria-hidden="true" />
+                          <div className="patient-sharing-state-copy"><strong className="patient-sharing-state-count">{awaitingViewCount}</strong>{" "}{awaitingViewCount === 1 ? "aguarda visualização" : "aguardam visualização"}</div>
+                        </li>
+                      ) : null}
                     </ul>
                   )}
                 </div>
               </article>
             </div>
             <footer className="patient-overview-footer">
-              <span>Nada é compartilhado automaticamente.</span>
+              <span className="patient-home-privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="12" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4M12 15v3" /></svg><span>Seus registros começam privados. Nada é compartilhado automaticamente.</span></span>
               <button className="patient-sharing-history-link" type="button" onClick={openRecordHistory}>Abrir meus registros <span aria-hidden="true">→</span></button>
             </footer>
           </section>
@@ -2768,7 +2779,7 @@ function PatientDashboard({
           <div>
             <p className="eyebrow">HISTÓRICO</p>
             <h1 id="records-title" tabIndex={-1}>Meus registros</h1>
-            <p>Encontre rapidamente o que está privado ou compartilhado com Mateus.</p>
+            <p>Seus registros, privados ou compartilhados com Mateus.</p>
           </div>
           <div className="patient-records-heading-actions">
             <span className="count">
@@ -2899,7 +2910,13 @@ function PatientDashboard({
                 }}>Mostrar todos</button> : null}
               </div>
             </div>
-          ) : <div className="record-list patient-record-list">{visibleEntries.map((entry) => {
+          ) : <div className="record-list patient-record-list">{recordMonthGroups.map((group) => (
+            <section className="patient-record-month" key={group.key} aria-labelledby={`patient-record-month-${group.key}`}>
+              <header className="patient-record-month-heading">
+                <h2 id={`patient-record-month-${group.key}`}>{group.label}</h2>
+                <span>{group.entries.length} {group.entries.length === 1 ? "registro" : "registros"}</span>
+              </header>
+              <div className="patient-record-month-items">{group.entries.map((entry) => {
           const shared = isEntryShared(entry);
           const viewStatus = patientEntryViewStatus(entry);
           const entryAction = entryActions[entry.id];
@@ -2914,7 +2931,7 @@ function PatientDashboard({
                     {entry.thought_review ? <span className="status thought-review-status">Pensamento revisto</span> : null}
                   </span>
                   <strong>{entry.title}</strong>
-                  <small>{formatDate(entry.created_at)} · {entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</small>
+                  <small className="patient-record-meta"><time dateTime={entry.created_at}>{formatDate(entry.created_at)}</time><span>{entry.emotion || "sem emoção definida"} · intensidade {entry.intensity}/10</span></small>
                   {shared ? (
                     <span className={`patient-view-summary ${viewStatus.kind}`}>
                       <span className="patient-view-summary-marker" aria-hidden="true" />
@@ -2926,7 +2943,7 @@ function PatientDashboard({
               </summary>
               <div className="patient-record-content" aria-busy={Boolean(entryAction)}>
                 {shared ? (
-                  <>
+                  <aside className="patient-record-view-note" aria-label="Visualização por Mateus">
                     <p className={`patient-view-status ${viewStatus.kind}`}>
                       {viewStatus.kind === "unseen"
                         ? "Ainda não visualizado por Mateus"
@@ -2937,7 +2954,7 @@ function PatientDashboard({
                             : `Visualizado por Mateus em ${formatViewTimestamp(entry.viewed_at!)}`}
                     </p>
                     <p className="patient-view-explanation">A confirmação mostra que Mateus marcou este registro como visualizado. Isso não significa resposta, avaliação clínica completa ou acompanhamento em tempo real.</p>
-                  </>
+                  </aside>
                 ) : null}
                 <EntryDetails entry={entry} />
                 {entry.thoughts.trim() ||
@@ -2990,7 +3007,9 @@ function PatientDashboard({
               </div>
             </details>
           );
-        })}</div>}
+        })}</div>
+            </section>
+          ))}</div>}
           <a className="records-guide-callout" href={config.guide_url} target="_blank" rel="noopener noreferrer">
             <span>Está difícil nomear o que sentiu?</span>
             <strong>Consultar o Guia de Emoções → <span className="external-link-note">(nova aba)</span></strong>

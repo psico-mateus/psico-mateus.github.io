@@ -892,7 +892,7 @@ test("patient view state is server-derived and the complete export uses explicit
   assert.match(app, /patient-view-summary/);
   assert.match(
     app,
-    /<small>\{formatDate\(entry\.created_at\)\}[\s\S]*?<span className=\{`patient-view-summary \$\{viewStatus\.kind\}`\}>/u,
+    /<small className="patient-record-meta"><time dateTime=\{entry\.created_at\}>\{formatDate\(entry\.created_at\)\}[\s\S]*?<span className=\{`patient-view-summary \$\{viewStatus\.kind\}`\}>/u,
   );
   assert.match(app, /patientEntryViewSummary\(viewStatus\)/);
   assert.match(app, /patient-sharing-states/);
@@ -1261,7 +1261,7 @@ test("mobile access shortcut and patient summary remain simple and private", asy
   assert.match(app, /className="auth-card" id="acesso" tabIndex=\{-1\}/u);
   assert.match(app, /getElementById\("acesso"\)\?\.focus\(\{ preventScroll: true \}\)/u);
   assert.match(app, /Resumo dos registros/u);
-  assert.match(app, /registros continuam privados · só você vê/u);
+  assert.match(app, /privados · só você vê/u);
   assert.match(
     app,
     /sharedViewCounts\.unseen \+ sharedViewCounts\.updated \+ sharedViewCounts\.reshared/u,

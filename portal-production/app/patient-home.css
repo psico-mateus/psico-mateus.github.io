@@ -79,12 +79,13 @@
   line-height: 1.65;
 }
 
-.patient-home .patient-hero .patient-home-privacy {
+.patient-home .patient-overview-footer .patient-home-privacy {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: .65rem;
-  flex: 0 1 18rem;
-  margin: 0 0 0 auto;
+  min-width: 0;
+  max-width: 58ch;
+  margin: 0;
   color: var(--muted);
   font-size: 1rem;
   line-height: 1.55;
@@ -186,8 +187,10 @@
 .patient-home .overview-number { min-width: 1.5rem; color: var(--ink); font: 600 1.8rem/1.2 var(--sans); }
 .patient-home .patient-overview article strong { font-size: 1rem; font-weight: 600; line-height: 1.5; }
 .patient-home .patient-overview article small { font-size: 1rem; line-height: 1.6; }
-.patient-home .patient-sharing-states li { font-size: 1rem; line-height: 1.6; align-items: baseline; }
+.patient-home .patient-sharing-states li { font-size: 1rem; line-height: 1.6; align-items: baseline; gap: .6rem; }
 .patient-home .patient-sharing-states li > span { align-self: center; }
+.patient-home .patient-sharing-state-copy { display: block; min-width: 0; color: inherit; }
+.patient-home .patient-sharing-states .patient-sharing-state-count { display: inline; color: inherit; font-weight: 750; }
 .patient-home .patient-overview-footer { margin-top: .2rem; padding: .5rem 0 0; }
 .patient-home .patient-overview-footer > span { font-size: .9rem; }
 .patient-home .patient-sharing-history-link { font-size: 1rem; font-weight: 650; }
@@ -227,6 +230,62 @@
 .patient-dashboard .patient-record-summary-copy > small,
 .patient-dashboard .patient-record-toggle { font-size: 1rem; line-height: 1.6; }
 
+.patient-record-list { gap: 1.5rem; }
+.patient-record-month { display: grid; gap: .65rem; min-width: 0; }
+.patient-record-month-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1rem; padding: .35rem .1rem; }
+.patient-record-month-heading h2 { margin: 0; color: var(--ink); font: 650 1.125rem/1.5 var(--sans); }
+.patient-record-month-heading > span { color: var(--muted); font-size: 1rem; line-height: 1.5; }
+.patient-record-month-items { display: grid; gap: .75rem; min-width: 0; }
+.patient-dashboard .patient-record-meta { display: flex; flex-wrap: wrap; gap: .2rem 1rem; }
+.patient-record-meta > :is(time, span) { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .patient-dashboard .patient-records-heading-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    width: 100%;
+    gap: .65rem;
+  }
+  .patient-dashboard .patient-records-heading-actions > .count {
+    grid-column: 1 / -1;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  .patient-dashboard .patient-records-heading-actions > .compact-button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: .7rem;
+    white-space: normal;
+  }
+}
+
+.patient-dashboard .patient-record-view-note {
+  display: grid;
+  gap: .5rem;
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid #ded6cb;
+  border-radius: 10px;
+  background: #f7f2e9;
+}
+.patient-dashboard .patient-record-view-note .patient-view-status {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.patient-dashboard .patient-record-view-note .patient-view-explanation {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
 /* Keep search and sharing filters together, ahead of the optional Guide link. */
 .patient-dashboard .patient-record-finder {
   container: patient-record-finder / inline-size;
@@ -261,7 +320,6 @@
 
 @media (max-width: 900px) {
   .patient-home .patient-hero { align-items: flex-start; flex-direction: column; gap: .85rem; }
-  .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; margin-left: 0; }
   .patient-home-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notices" "actions"; }
   /* One visible record CTA: move it before notices, rather than duplicating it. */
   .patient-home .patient-mobile-record { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 48px; background: var(--green-2); border-color: var(--green-2); color: #fffdfa; }
@@ -295,7 +353,6 @@
 /* Rem-based container queries also reflow when only the text size increases. */
 @container patient-home (max-width: 60rem) {
   .patient-home .patient-hero { align-items: flex-start; flex-direction: column; gap: .85rem; }
-  .patient-home .patient-hero .patient-home-privacy { flex-basis: auto; margin-left: 0; }
   .patient-home-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "notices" "actions"; }
   .patient-home .patient-mobile-record { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 48px; background: var(--green-2); border-color: var(--green-2); color: #fffdfa; }
   .patient-home .patient-start-card.primary { display: none; }

@@ -527,11 +527,11 @@ async function review(browserType, label, viewport) {
     window.dispatchEvent(new Event("pageshow"));
   });
   await refreshAfterReturn;
-  await page.waitForFunction(() =>
-    document
-      .querySelector(".patient-sharing-states")
-      ?.textContent?.includes("Mateus visualizou 2 registros."),
-  );
+  await page.waitForFunction(() => {
+    const viewedState = document.querySelector(".patient-sharing-states .viewed");
+    return viewedState?.querySelector(".patient-sharing-state-count")?.textContent?.trim() === "2"
+      && viewedState?.querySelector(".patient-sharing-state-copy")?.textContent?.trim() === "2 visualizados";
+  });
   if (portalRoute.entriesReadCount() !== readsBeforeReturn + 1) {
     throw new Error(`${label}: voltar ao app iniciou mais de uma atualização dos registros`);
   }
