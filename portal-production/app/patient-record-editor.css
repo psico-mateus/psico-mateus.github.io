@@ -1,9 +1,10 @@
 /* Presentation only. Keep every question visible and the existing draft model. */
 .patient-entry-form {
+  --entry-padding: clamp(1rem, 3vw, 2rem);
   container: patient-entry / inline-size;
   max-width: 60rem;
   margin: 0 auto 3rem;
-  padding: clamp(1rem, 3vw, 2rem);
+  padding: var(--entry-padding);
   border: 1px solid #ded6cb;
   border-radius: 16px;
   background: var(--card);
@@ -15,6 +16,10 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: .75rem;
+  margin: calc(-1 * var(--entry-padding)) calc(-1 * var(--entry-padding)) 0;
+  padding: var(--entry-padding) var(--entry-padding) .5rem;
+  border-radius: 16px 16px 0 0;
+  background: #f4ede3;
 }
 
 .patient-entry-form .entry-form-heading h1 {
@@ -26,18 +31,23 @@
 }
 
 .patient-entry-form .entry-privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
   font-size: 1rem;
   line-height: 1.6;
 }
+.patient-entry-form .entry-privacy-note > svg { width: 22px; height: 22px; flex: 0 0 auto; margin-top: .15rem; color: var(--green-2); }
+.patient-entry-form .entry-privacy-note > span { min-width: 0; }
 
 .patient-entry-form .entry-form-intro {
   display: grid;
   gap: .5rem;
-  margin: 1rem 0 0;
-  padding: 0;
+  margin: 0 calc(-1 * var(--entry-padding));
+  padding: .5rem var(--entry-padding) var(--entry-padding);
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: #f4ede3;
 }
 
 .patient-entry-form .entry-form-intro > p {
@@ -56,6 +66,7 @@
   padding-top: .65rem;
   border-top: 1px solid #ded6cb;
 }
+.patient-entry-form .entry-form-intro > .form-requirements-note { padding-left: 2rem; }
 
 .patient-entry-form .entry-step {
   gap: 1rem;
@@ -130,6 +141,7 @@
   border-radius: 10px;
   background: #f7f2e9;
   padding: .85rem 1rem;
+  align-items: center;
 }
 
 .patient-entry-form .optional-save-shortcut p { gap: .3rem; }

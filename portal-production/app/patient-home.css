@@ -236,8 +236,10 @@
 .patient-dashboard .patient-records-heading p { font-size: 1rem; line-height: 1.6; }
 .patient-dashboard .patient-records-heading-actions > .count { font-size: 1rem; }
 .patient-dashboard .patient-records-heading-actions > .primary-button,
+.patient-dashboard .patient-empty-state .primary-button,
 .patient-dashboard .patient-entry-form .primary-button { border-color: var(--green-2); background: var(--green-2); color: #fffdfa; border-radius: 12px; }
 .patient-dashboard .patient-records-heading-actions > .primary-button:hover,
+.patient-dashboard .patient-empty-state .primary-button:hover,
 .patient-dashboard .patient-entry-form .primary-button:hover { border-color: #65491c; background: #65491c; }
 .patient-dashboard .patient-record-refresh { border-color: #c9bfb2; border-radius: 12px; background: var(--card); }
 .patient-dashboard .patient-record-list { gap: 1.5rem; margin-top: 1.5rem; }
@@ -345,6 +347,20 @@
 .patient-record-finder .patient-entry-toolbar button.active { background: var(--green-2); color: #fffdfa; }
 .patient-record-finder .patient-entry-toolbar button small { min-width: 1ch; margin: 0; padding: 0; background: transparent; color: inherit; font-size: 1rem; font-weight: 500; }
 .patient-record-finder .patient-record-search-row { margin: 0; }
+.patient-dashboard .patient-empty-state { border: 1px solid #ded6cb; border-radius: 16px; background: var(--card); }
+.patient-dashboard .patient-empty-state h2 { margin-bottom: .75rem; font-size: clamp(1.5rem, 3vw, 1.85rem); line-height: 1.3; }
+.patient-record-search-panel { min-width: 0; border: 1px solid #ded6cb; border-radius: 12px; background: var(--card); }
+.patient-record-search-panel > summary { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; min-height: 56px; padding: .75rem 1rem; border-radius: 12px; color: var(--ink); font-size: 1rem; font-weight: 650; cursor: pointer; list-style: none; }
+.patient-record-search-panel > summary::-webkit-details-marker { display: none; }
+.patient-record-search-panel > summary:focus-visible { outline-offset: -4px; }
+.patient-record-search-panel > summary:hover { background: #f7f2e9; }
+.patient-record-search-panel[open] > summary { border-bottom: 1px solid #ded6cb; border-radius: 12px 12px 0 0; background: #f7f2e9; }
+.patient-record-search-panel .patient-record-search-icon { width: 22px; height: 22px; flex: 0 0 auto; color: var(--green-2); }
+.patient-record-search-label { flex: 1 1 auto; min-width: 0; }
+.patient-record-search-state { color: var(--green-2); font-size: 1rem; font-weight: 500; }
+.patient-record-search-panel .patient-record-search-chevron { width: 20px; height: 20px; flex: 0 0 auto; margin-left: auto; }
+.patient-record-search-panel[open] .patient-record-search-chevron { transform: rotate(180deg); }
+.patient-record-search-panel > .patient-record-search-row { padding: 1rem; }
 .patient-record-finder .patient-record-search-row :is(input, select) { height: auto; min-height: 48px; padding: .7rem .8rem; line-height: 1.5; }
 /* Native Safari selects need an explicit text-relative height when text is enlarged. */
 .patient-record-finder .patient-record-search-row select { height: 3rem; }
@@ -363,6 +379,7 @@
   .patient-record-finder .patient-entry-toolbar button > span { min-width: 0; }
   .patient-record-finder .patient-entry-toolbar button small { flex: 0 0 auto; }
   .patient-record-finder .patient-record-search-row { gap: .7rem; }
+  .patient-record-search-panel .patient-record-search-state { flex: 1 0 100%; order: 1; padding-left: 2.1rem; }
 }
 
 /* Stack at large text sizes instead of breaking short filter labels into letters. */
@@ -370,6 +387,9 @@
   .patient-record-finder .patient-entry-toolbar { grid-template-columns: minmax(0, 1fr); }
   .patient-record-finder .patient-entry-toolbar button { justify-content: space-between; padding: .45rem .65rem; }
   .patient-record-finder .patient-entry-toolbar button > span { overflow-wrap: normal; }
+  .patient-record-search-panel > summary { gap: .5rem; padding: .65rem .75rem; }
+  .patient-record-search-panel .patient-record-search-label { flex-basis: calc(100% - 4rem); }
+  .patient-record-search-panel .patient-record-search-state { padding-left: 0; }
 }
 
 @media (max-width: 900px) {

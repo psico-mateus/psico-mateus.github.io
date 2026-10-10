@@ -64,6 +64,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
   });
 
   async function openRecords({ entries = syntheticEntries, pendingEntries = false, pendingSharing = false, pendingDeleting = false, entriesStatus = 200,
+    expandSearch = true,
     viewport = { width: 390, height: 844 } } = {}) {
     const context = await browser.newContext({ viewport, serviceWorkers: "block", reducedMotion: "reduce" });
     const page = await context.newPage();
@@ -191,6 +192,9 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     await expect(page.getByRole("heading", { level: 1, name: "Meus registros", exact: true })).toBeVisible();
     await expect(page.locator("vite-error-overlay, nextjs-portal")).toHaveCount(0);
     assert.equal(new URL(page.url()).origin, origin);
+    if (expandSearch && !pendingEntries && entriesStatus === 200 && entries.length > 0) {
+      await openSearchPanel(page);
+    }
     return fixture;
   }
 
@@ -228,6 +232,15 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       await document.fonts.ready;
       await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
     });
+  }
+
+  async function openSearchPanel(page) {
+    const panel = page.locator(".patient-record-search-panel");
+    const summary = panel.locator(":scope > summary");
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText("Buscar e ordenar");
+    if (await panel.getAttribute("open") === null) await summary.click();
+    await expect(panel).toHaveAttribute("open", "");
   }
 
   async function openNewEditor(fixture) {
@@ -302,9 +315,20 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     const fixture = await openRecords({ entries: [] });
     await loaded(fixture);
     await expect(fixture.page.locator(".patient-records-heading-actions .count")).toHaveText("0 registros");
-    await expect(fixture.page.getByRole("heading", { name: "Seu histórico começa quando você quiser.", exact: true })).toBeVisible();
+    await expect(fixture.page.getByRole("heading", { name: "Ainda não há registros.", exact: true })).toBeVisible();
+    await expect(fixture.page.locator(".patient-empty-state .empty-state-number")).toHaveCount(0);
+    await settleLayout(fixture.page);
+    const createColor = await fixture.page.locator(".patient-records-heading-actions")
+      .getByRole("button", { name: "Novo registro", exact: true })
+      .evaluate(node => getComputedStyle(node).backgroundColor);
+    const firstRecord = fixture.page.locator(".patient-empty-state")
+      .getByRole("button", { name: "Criar o primeiro registro", exact: true });
+    await expect(firstRecord).toHaveCSS("background-color", createColor);
     assert.equal(fixture.controls.mutations.length, 0);
     await checkHealthy(fixture, "records-confirmed-empty");
+    await fixture.page.locator(".patient-records-heading-actions .count").click();
+    await settleLayout(fixture.page);
+    await fixture.page.screenshot({ path: resolve(outputDir, `records-empty-presentation-${browserName}.png`), fullPage: false });
   });
 
   test("loaded history retains accurate total and sharing filters", async () => {
@@ -441,7 +465,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       await expect(finder.getByRole("group", { name: "Filtrar registros por compartilhamento" })).toBeVisible();
       await expect(search).toHaveAccessibleDescription("A busca acontece somente nesta tela.");
       await settleLayout(page);
-      const finderTargets = await finder.locator("button, input, select").evaluateAll(nodes => nodes.map(node => {
+      const finderTargets = await finder.locator("button, input, select, .patient-record-search-panel > summary").evaluateAll(nodes => nodes.map(node => {
         const bounds = node.getBoundingClientRect();
         return { tag: node.tagName, width: bounds.width, height: bounds.height };
       }));
@@ -567,6 +591,127 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
   }
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 900 }]) {
+    test(`history search ${viewport.width}px: secondary controls start closed, records stay visible and keyboard opens the native panel`, async () => {
+      const fixture = await openRecords({ viewport, expandSearch: false });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const panel = page.locator(".patient-record-search-panel");
+      const summary = panel.locator(":scope > summary");
+      const search = page.getByLabel("Buscar nos meus registros");
+      const order = page.getByLabel("Ordenar");
+      const filters = page.getByRole("group", { name: "Filtrar registros por compartilhamento" });
+      await expect(panel).not.toHaveAttribute("open", "");
+      await expect(summary).toContainText("Buscar e ordenar");
+      await expect(search).toHaveCount(1);
+      await expect(search).not.toBeVisible();
+      await expect(order).not.toBeVisible();
+      for (const name of ["Todos 3", "Privados 1", "Com Mateus 2"]) {
+        await expect(filters.getByRole("button", { name, exact: true })).toBeVisible();
+      }
+      await expect(page.locator(".patient-record-card")).toHaveCount(3);
+      await expect(page.locator("#record-synthetic-record-viewed > summary .patient-view-summary")).toHaveText("Visualizado por Mateus");
+      await settleLayout(page);
+      const firstTitle = await page.locator(".patient-record-card > summary strong").first().boundingBox();
+      assert.ok(firstTitle && firstTitle.y >= 0 && firstTitle.y + firstTitle.height <= viewport.height,
+        `The first record title must appear in the initial viewport without opening secondary controls: ${JSON.stringify(firstTitle)}`);
+      await checkHealthy(fixture, `history-search-closed-${viewport.width}`);
+      // Keep the initial focus evidence above; this second image shows the same
+      // layout after an ordinary pointer interaction, without changing focus CSS.
+      await page.locator(".patient-records-heading-actions .count").click();
+      await settleLayout(page);
+      await page.screenshot({ path: resolve(outputDir, `history-presentation-${viewport.width}-${browserName}.png`), fullPage: false });
+
+      await filters.getByRole("button", { name: "Com Mateus 2", exact: true }).focus();
+      const key = browserName === "webkit" ? "Alt+Tab" : "Tab";
+      await page.keyboard.press(key);
+      await expect(summary).toBeFocused();
+      await settleLayout(page);
+      assert.ok(await summary.evaluate(node => Number.parseFloat(getComputedStyle(node).outlineWidth)) >= 2,
+        "The search-panel keyboard focus must remain visible.");
+      await page.keyboard.press("Enter");
+      await expect(panel).toHaveAttribute("open", "");
+      await expect(search).toBeVisible();
+      await expect(order).toBeVisible();
+      await page.keyboard.press(key);
+      await expect(search).toBeFocused();
+      await page.keyboard.press(browserName === "webkit" ? "Alt+Shift+Tab" : "Shift+Tab");
+      await expect(summary).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(panel).not.toHaveAttribute("open", "");
+      await expect(search).not.toBeVisible();
+      assert.equal(controls.mutations.length, 0, "Opening secondary history controls must not change or share records.");
+      await checkHealthy(fixture, `history-search-keyboard-${viewport.width}`);
+    });
+
+    test(`history search ${viewport.width}px: active search and ordering stay disclosed when closed, and clearing outside restores focus`, async () => {
+      const fixture = await openRecords({ viewport, expandSearch: false });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      await openSearchPanel(page);
+      await page.getByRole("button", { name: "Com Mateus 2", exact: true }).click();
+      const panel = page.locator(".patient-record-search-panel");
+      const summary = panel.locator(":scope > summary");
+      const search = page.getByLabel("Buscar nos meus registros");
+      const order = page.getByLabel("Ordenar");
+      await order.selectOption("oldest");
+      await expect(summary).toContainText("Mais antigos primeiro");
+      await summary.click();
+      await expect(panel).not.toHaveAttribute("open", "");
+      await expect(search).not.toBeVisible();
+      await expect(summary).toContainText("Mais antigos primeiro");
+      await openSearchPanel(page);
+      await search.fill("visualizado");
+      await expect(order).toHaveValue("oldest");
+      await expect(page.locator(".patient-record-card")).toHaveCount(1);
+      await expect(summary).toContainText("Busca ativa");
+      await expect(summary).toContainText("Mais antigos primeiro");
+      await summary.click();
+      await expect(panel).not.toHaveAttribute("open", "");
+      await expect(search).not.toBeVisible();
+      await expect(summary).toContainText("Busca ativa");
+      await expect(summary).toContainText("Mais antigos primeiro");
+      const clear = page.getByRole("button", { name: "Limpar busca e filtros", exact: true });
+      await expect(clear).toBeVisible();
+      assert.equal(await clear.evaluate(node => Boolean(node.closest(".patient-record-search-panel"))), false,
+        "Clearing an active search must be available outside the closed secondary panel.");
+      await expect(page.locator("#record-synthetic-record-viewed > summary .patient-view-summary")).toBeVisible();
+      await checkHealthy(fixture, `history-search-active-closed-${viewport.width}`);
+      await clear.click();
+      await expect(panel).toHaveAttribute("open", "");
+      await expect(search).toBeFocused();
+      await expect(search).toHaveValue("");
+      await expect(order).toHaveValue("newest");
+      await expect(page.getByRole("button", { name: "Todos 3", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator(".patient-record-card")).toHaveCount(3);
+      await expect(page.locator(".patient-records-heading-actions .count")).toHaveText("3 registros");
+      await expect(summary).not.toContainText("Busca ativa");
+      await expect(summary).not.toContainText("Mais antigos primeiro");
+      await expect(clear).toHaveCount(0);
+      assert.equal(controls.mutations.length, 0, "Filtering, sorting and clearing must remain read-only.");
+      await checkHealthy(fixture, `history-search-cleared-focus-${viewport.width}`);
+    });
+
+    test(`history search ${viewport.width}px: showing all from an empty sharing filter opens the closed search panel before focus recovery`, async () => {
+      const entries = syntheticEntries.filter(entry => entry.shared_at !== null);
+      const fixture = await openRecords({ entries, viewport, expandSearch: false });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const panel = page.locator(".patient-record-search-panel");
+      await expect(panel).not.toHaveAttribute("open", "");
+      await page.getByRole("button", { name: "Privados 0", exact: true }).click();
+      await expect(page.locator(".patient-record-card")).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Nenhum registro privado agora.", exact: true })).toBeVisible();
+      await expect(panel).not.toHaveAttribute("open", "");
+      await page.getByRole("button", { name: "Mostrar todos", exact: true }).click();
+      await expect(panel).toHaveAttribute("open", "");
+      await expect(page.getByLabel("Buscar nos meus registros")).toBeFocused();
+      await expect(page.locator(".patient-record-card")).toHaveCount(2);
+      await expect(page.getByRole("button", { name: "Todos 2", exact: true })).toHaveAttribute("aria-pressed", "true");
+      assert.equal(controls.mutations.length, 0, "Recovering all records and focus must not alter sharing or content.");
+      assert.deepEqual(controls.entries, entries);
+      await checkHealthy(fixture, `history-search-empty-filter-recovery-${viewport.width}`);
+    });
+
     test(`patient design ${viewport.width}px: history and writing share the home action color and title-first reading order`, async () => {
       const fixture = await openRecords({ viewport });
       const { page, controls } = fixture;
@@ -647,6 +792,8 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
       await expect(summary).toBeFocused();
       await settleLayout(page);
+      await expect(summary).toHaveCSS("outline-offset", "-4px");
+      await expect(summary).toBeFocused();
       const focus = await summary.evaluate(node => {
         const style = getComputedStyle(node);
         return { width: Number.parseFloat(style.outlineWidth), offset: Number.parseFloat(style.outlineOffset),
@@ -975,7 +1122,9 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       if (moveFocus) await expect(search).toBeFocused();
       else {
         await assertUsefulHistoryFocus(page);
-        assert.equal(await page.locator("#record-synthetic-record-shared > summary").evaluate(node => getComputedStyle(node).outlineOffset), "-4px");
+        const nextSummary = page.locator("#record-synthetic-record-shared > summary");
+        await expect(nextSummary).toBeFocused();
+        await expect(nextSummary).toHaveCSS("outline-offset", "-4px");
       }
       await checkHealthy(fixture, `records-delete-focus-${moveFocus ? "moved" : "restored"}`);
     }

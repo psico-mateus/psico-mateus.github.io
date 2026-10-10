@@ -1569,12 +1569,14 @@ function EntryForm({
       </div>
       <div className="entry-form-intro">
         <p className="entry-privacy-note">
-          <strong>{remainsShared ? "Compartilhado com Mateus." : initial ? "Registro privado." : "Começa privado."}</strong>{" "}
-          {remainsShared
-            ? "As alterações salvas também ficarão visíveis para ele."
-            : initial
-              ? "Salvar as alterações não compartilha o registro."
-              : "Você decide depois se quer compartilhar."}
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{remainsShared ? <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" /></> : <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></>}</svg>
+          <span><strong>{remainsShared ? "Compartilhado com Mateus." : initial ? "Registro privado." : "Começa privado."}</strong>{" "}
+            {remainsShared
+              ? "As alterações salvas também ficarão visíveis para ele."
+              : initial
+                ? "Salvar as alterações não compartilha o registro."
+                : "Você decide depois se quer compartilhar."}
+          </span>
         </p>
         <p className="form-requirements-note">
           <strong>Para salvar, bastam dois campos:</strong> “Título breve” e “O que aconteceu?”. O restante é opcional.
@@ -1832,6 +1834,7 @@ function PatientDashboard({
   const [entryQuery, setEntryQuery] = useState("");
   const [entrySort, setEntrySort] = useState<PatientEntrySort>("newest");
   const entrySearchRef = useRef<HTMLInputElement>(null);
+  const entrySearchPanelRef = useRef<HTMLDetailsElement>(null);
   const [entryActions, setEntryActions] = useState<
     Record<string, "sharing" | "removing">
   >({});
@@ -2557,7 +2560,10 @@ function PatientDashboard({
     });
   }
   function focusEntrySearch() {
-    window.requestAnimationFrame(() => entrySearchRef.current?.focus());
+    window.requestAnimationFrame(() => {
+      if (entrySearchPanelRef.current) entrySearchPanelRef.current.open = true;
+      entrySearchRef.current?.focus();
+    });
   }
   const sharedCount = entries.filter(isEntryShared).length;
   const privateCount = entries.length - sharedCount;
@@ -2777,7 +2783,6 @@ function PatientDashboard({
           <section className="records-section" aria-labelledby="records-title">
         <div className="section-heading patient-records-heading">
           <div>
-            <p className="eyebrow">HISTÓRICO</p>
             <h1 id="records-title" tabIndex={-1}>Meus registros</h1>
             <p>Seus registros, privados ou compartilhados com Mateus.</p>
           </div>
@@ -2823,8 +2828,7 @@ function PatientDashboard({
         ) : null}
         {loading ? <div className="empty-state patient-loading"><div className="loader" /><p>Carregando seus registros…</p></div> : entriesError && entries.length === 0 ? null : entries.length === 0 ? (
           <div className="empty-state patient-empty-state">
-            <span className="empty-state-number" aria-hidden="true">01</span>
-            <h2>Seu histórico começa quando você quiser.</h2>
+            <h2>Ainda não há registros.</h2>
             <p>Você pode começar com uma situação breve. Não precisa entender tudo antes de escrever.</p>
             <div className="empty-state-actions"><button className="primary-button" onClick={openNewRecord}>Criar o primeiro registro</button><a className="secondary-button" href={config.guide_url} target="_blank" rel="noopener noreferrer">Explorar o Guia de Emoções <span className="sr-status">(abre em nova aba)</span></a></div>
           </div>
@@ -2844,6 +2848,15 @@ function PatientDashboard({
               </button>
             ))}
           </div>
+          <details className="patient-record-search-panel" ref={entrySearchPanelRef}>
+            <summary>
+              <svg className="patient-record-search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
+              <span className="patient-record-search-label">Buscar e ordenar</span>
+              {hasEntryQuery || entrySort !== "newest" ? (
+                <span className="patient-record-search-state">{hasEntryQuery ? "Busca ativa" : ""}{hasEntryQuery && entrySort !== "newest" ? " · " : ""}{entrySort !== "newest" ? "Mais antigos primeiro" : ""}</span>
+              ) : null}
+              <svg className="patient-record-search-chevron" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </summary>
           <div className="patient-record-search-row">
             <label className="field patient-record-search">
               <span>Buscar nos meus registros</span>
@@ -2869,6 +2882,7 @@ function PatientDashboard({
               </select>
             </label>
           </div>
+          </details>
           {hasActiveEntryControls ? (
             <div className="filter-reset-row">
               <button
