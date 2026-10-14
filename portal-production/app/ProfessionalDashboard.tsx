@@ -1204,6 +1204,19 @@ function PatientAccessView({
     onQueryChange(value);
   }
 
+  function showFewerPatients() {
+    const hidesNoticeComposer = Boolean(
+      noticePatientId && !visiblePatients.slice(0, PATIENT_LIST_PAGE_SIZE)
+        .some((patient) => patient.patient_id === noticePatientId),
+    );
+    if (hidesNoticeComposer && !confirmDraftDiscard()) return;
+    if (hidesNoticeComposer) setNoticePatientId(null);
+    setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
+    window.requestAnimationFrame(() => {
+      document.getElementById("patient-access-title")?.focus();
+    });
+  }
+
   return (
     <section className="professional-section" aria-labelledby="patient-access-title">
       <div className="section-heading professional-section-heading">
@@ -1412,7 +1425,7 @@ function PatientAccessView({
                   type="button"
                   aria-controls="patient-access-list"
                   aria-label={`Mostrar somente os primeiros ${PATIENT_LIST_PAGE_SIZE} acessos`}
-                  onClick={() => setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE)}
+                  onClick={showFewerPatients}
                 >
                   Mostrar menos
                 </button>
@@ -1696,7 +1709,7 @@ export function ProfessionalDashboard({
   const [entriesRefreshing, setEntriesRefreshing] = useState(false);
   const [entriesError, setEntriesError] = useState("");
   const [viewingEntryIds, setViewingEntryIds] = useState<Set<string>>(new Set());
-  const [viewingMapIds, setViewingMapIds] = useState<Set<string>>(new Set());
+  const [viewingMapKeys, setViewingMapKeys] = useState<Set<string>>(new Set());
   const [patientAccesses, setPatientAccesses] = useState<PatientAccess[]>([]);
   const [patientAccessesLoaded, setPatientAccessesLoaded] = useState(false);
   const [patientAccessesLoading, setPatientAccessesLoading] = useState(false);
@@ -1722,6 +1735,8 @@ export function ProfessionalDashboard({
 
   const patientRequest = useRef<AbortController | null>(null);
   const patientRequestSequence = useRef(0);
+  const patientSelection = useRef({ patientId: null as string | null, sequence: 0 });
+  const dashboardActive = useRef(true);
   const viewingEntryLocks = useRef<Set<string>>(new Set());
   const viewingMapLocks = useRef<Set<string>>(new Set());
   const patientAccessRequestLock = useRef(false);
@@ -1737,6 +1752,13 @@ export function ProfessionalDashboard({
     noticeDraftDirty.current = dirty;
     onDraftStateChange?.(dirty);
   }, [onDraftStateChange]);
+
+  useEffect(() => {
+    dashboardActive.current = true;
+    return () => {
+      dashboardActive.current = false;
+    };
+  }, []);
 
   function confirmNoticeDraftDiscard() {
     return !noticeDraftDirty.current || window.confirm(
@@ -1758,12 +1780,13 @@ export function ProfessionalDashboard({
 
   const expireSession = useCallback(() => {
     patientRequest.current?.abort();
+    patientSelection.current = { patientId: null, sequence: patientSelection.current.sequence + 1 };
     setPatients([]);
     setActivity({ total_count: 0, shared_count: 0, private_count: 0 });
     setEntries([]);
     setMapShares([]);
     setViewingEntryIds(new Set());
-    setViewingMapIds(new Set());
+    setViewingMapKeys(new Set());
     setPatientAccesses([]);
     setInvitations([]);
     setLatestCode("");
@@ -1982,6 +2005,10 @@ export function ProfessionalDashboard({
   }, [latestCode]);
 
   function openPatient(patient: PatientSummary) {
+    patientSelection.current = {
+      patientId: patient.patient_id,
+      sequence: patientSelection.current.sequence + 1,
+    };
     setSelectedPatient(patient);
     setNotice(null);
     void loadPatientEntries(patient);
@@ -1993,6 +2020,7 @@ export function ProfessionalDashboard({
   function backToPatients() {
     patientRequest.current?.abort();
     patientRequestSequence.current += 1;
+    patientSelection.current = { patientId: null, sequence: patientSelection.current.sequence + 1 };
     setSelectedPatient(null);
     setEntries([]);
     setMapShares([]);
@@ -2067,27 +2095,36 @@ export function ProfessionalDashboard({
   }
 
   async function markMapViewed(mapId: string) {
-    if (!selectedPatient || viewingMapLocks.current.has(mapId)) return;
+    if (!selectedPatient) return;
+    const patientId = selectedPatient.patient_id;
+    const selectionSequence = patientSelection.current.sequence;
+    const operationKey = `${patientId}:${mapId}`;
+    if (viewingMapLocks.current.has(operationKey)) return;
     const share = mapShares.find((item) => item.map_id === mapId);
     if (!share || !share.is_unread) return;
-    viewingMapLocks.current.add(mapId);
-    setViewingMapIds((current) => new Set(current).add(mapId));
+    const selectionIsCurrent = () => patientSelection.current.patientId === patientId &&
+      patientSelection.current.sequence === selectionSequence;
+    viewingMapLocks.current.add(operationKey);
+    setViewingMapKeys((current) => new Set(current).add(operationKey));
     setNotice(null);
     try {
       const result = await portalRequest<{ viewed_at: string }>(
-        `/professional/patients/${encodeURIComponent(selectedPatient.patient_id)}/map-shares/${encodeURIComponent(mapId)}/viewed`,
+        `/professional/patients/${encodeURIComponent(patientId)}/map-shares/${encodeURIComponent(mapId)}/viewed`,
         { method: "POST", body: JSON.stringify({}) },
         csrf,
       );
-      setMapShares((current) =>
-        current.map((item) =>
-          item.map_id === mapId
-            ? { ...item, is_unread: 0, viewed_at: result.viewed_at }
-            : item,
-        ),
-      );
+      if (!dashboardActive.current) return;
+      if (selectionIsCurrent()) {
+        setMapShares((current) =>
+          current.map((item) =>
+            item.map_id === mapId
+              ? { ...item, is_unread: 0, viewed_at: result.viewed_at }
+              : item,
+          ),
+        );
+      }
       const updatePatient = (patient: PatientSummary) =>
-        patient.patient_id === selectedPatient.patient_id
+        patient.patient_id === patientId
           ? {
               ...patient,
               unread_map_count: Math.max(0, patient.unread_map_count - 1),
@@ -2095,12 +2132,15 @@ export function ProfessionalDashboard({
           : patient;
       setPatients((current) => current.map(updatePatient));
       setSelectedPatient((current) => (current ? updatePatient(current) : current));
-      setNotice({
-        tone: "success",
-        message: "Visualização do mapa confirmada para o paciente.",
-      });
+      if (selectionIsCurrent()) {
+        setNotice({
+          tone: "success",
+          message: "Visualização do mapa confirmada para o paciente.",
+        });
+      }
     } catch (error) {
-      if (!isSessionError(error)) {
+      if (!dashboardActive.current) return;
+      if (!isSessionError(error) && selectionIsCurrent()) {
         setNotice({
           tone: "error",
           message:
@@ -2110,10 +2150,10 @@ export function ProfessionalDashboard({
         });
       }
     } finally {
-      viewingMapLocks.current.delete(mapId);
-      setViewingMapIds((current) => {
+      viewingMapLocks.current.delete(operationKey);
+      if (dashboardActive.current) setViewingMapKeys((current) => {
         const next = new Set(current);
-        next.delete(mapId);
+        next.delete(operationKey);
         return next;
       });
     }
@@ -2434,7 +2474,9 @@ export function ProfessionalDashboard({
             refreshing={entriesRefreshing}
             error={entriesError}
             viewingIds={viewingEntryIds}
-            viewingMapIds={viewingMapIds}
+            viewingMapIds={new Set(mapShares.filter((share) =>
+              viewingMapKeys.has(`${selectedPatient.patient_id}:${share.map_id}`),
+            ).map((share) => share.map_id))}
             onBack={backToPatients}
             onRefresh={() => void refreshSelectedPatient()}
             onViewed={(entryId) => void markEntryViewed(entryId)}

@@ -70,7 +70,7 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     const controls = { patients: structuredClone(patients),
       entriesByPatient: structuredClone(entriesByPatient ?? { [referencePatient.patient_id]: entries }),
       mapsByPatient: structuredClone(mapsByPatient ?? { [referencePatient.patient_id]: maps }),
-      markFailure, mutations: [], requests: [], unexpected: [], foreignRequests: [], runtimeErrors: [] };
+      markFailure, markGates: new Map(), mutations: [], requests: [], unexpected: [], foreignRequests: [], runtimeErrors: [] };
     const fixture = { context, page, controls, releaseMark };
     fixtures.add(fixture);
     page.on("pageerror", (error) => controls.runtimeErrors.push(error.message));
@@ -114,7 +114,9 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
       const viewedRecord = path.match(/^\/professional\/entries\/([^/]+)\/viewed$/u);
       const viewedMap = path.match(/^\/professional\/patients\/([^/]+)\/map-shares\/([^/]+)\/viewed$/u);
       if ((viewedRecord || viewedMap) && method === "POST") {
-        await markGate;
+        const markKey = viewedMap ? `${decodeURIComponent(viewedMap[1])}:${decodeURIComponent(viewedMap[2])}`
+          : decodeURIComponent(viewedRecord[1]);
+        await (controls.markGates.get(markKey) ?? markGate);
         if (controls.markFailure) return respond({ error: "Falha sintética ao confirmar a visualização. Tente novamente." }, controls.markFailure);
         const items = viewedRecord ? Object.values(controls.entriesByPatient).flat()
           : controls.mapsByPatient[decodeURIComponent(viewedMap[1])] ?? [];
@@ -281,6 +283,81 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     assert.deepEqual(entryRequests.map(request => request.path), patients.map(patient => `/professional/patients/${patient.patient_id}/entries`));
     assert.equal(fixture.controls.mutations.length, 0);
     await checkHealthy(fixture, "professional-homonyms");
+  });
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 900 }]) {
+    test(`delayed map confirmation ${viewport.width}px never marks a newly selected patient's same theme seen`, async () => {
+      const patients = ["A", "B"].map(letter => ({ ...referencePatient,
+        patient_id: `synthetic-delayed-${letter}`, patient_name: `Paciente Sintético ${letter}`,
+        shared_count: 0, private_count: 0, unread_count: 0, shared_map_count: 1, unread_map_count: 1 }));
+      const sharedTheme = { ...syntheticMaps[1], map_id: "meu-jeito", map_title: "Meu jeito" };
+      const fixture = await openProfessional({ viewport, patients, selectPatient: false,
+        entriesByPatient: Object.fromEntries(patients.map(patient => [patient.patient_id, []])),
+        mapsByPatient: Object.fromEntries(patients.map(patient => [patient.patient_id, [structuredClone(sharedTheme)]])) });
+      const { page, controls } = fixture;
+      let release;
+      controls.markGates.set(`${patients[0].patient_id}:meu-jeito`, new Promise(resolve => { release = resolve; }));
+      try {
+        await page.getByRole("button", { name: `Abrir conteúdos compartilhados por ${patients[0].patient_name}`, exact: true }).click();
+        const firstTheme = page.locator(mapSelector("meu-jeito"));
+        await firstTheme.locator(":scope > summary").click();
+        await firstTheme.getByRole("button", { name: "Concluir visualização", exact: true }).click();
+        await expect(firstTheme.locator(".record-view-state")).toContainText("Salvando visualização");
+        await page.getByRole("button", { name: "Voltar aos pacientes", exact: false }).click();
+        await page.getByRole("button", { name: `Abrir conteúdos compartilhados por ${patients[1].patient_name}`, exact: true }).click();
+        const secondTheme = page.locator(mapSelector("meu-jeito"));
+        await secondTheme.locator(":scope > summary").click();
+        await expect(secondTheme.locator(".record-view-state")).toHaveText("Não visto");
+        await expect(secondTheme.getByRole("button", { name: "Concluir visualização", exact: true })).toBeEnabled();
+        const response = page.waitForResponse(result => result.url().includes(`/patients/${patients[0].patient_id}/map-shares/meu-jeito/viewed`)
+          && result.request().method() === "POST");
+        release();
+        await response;
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await expect(page.locator("#selected-patient-title")).toHaveText(patients[1].patient_name);
+        await expect(secondTheme.locator(".record-view-state")).toHaveText("Não visto");
+        await expect(page.getByText("Visualização do mapa confirmada para o paciente.", { exact: true })).toHaveCount(0);
+        assert.equal(controls.mapsByPatient[patients[0].patient_id][0].is_unread, 0);
+        assert.equal(controls.mapsByPatient[patients[1].patient_id][0].is_unread, 1);
+        assert.equal(controls.mutations.length, 1);
+        await checkHealthy(fixture, `professional-delayed-other-patient-${viewport.width}`);
+      } finally { release(); }
+    });
+  }
+
+  test("same map ID in two patients has independent in-flight confirmation locks", async () => {
+    const patients = ["A", "B"].map(letter => ({ ...referencePatient,
+      patient_id: `synthetic-independent-${letter}`, patient_name: `Paciente Independente ${letter}`,
+      shared_count: 0, private_count: 0, unread_count: 0, shared_map_count: 1, unread_map_count: 1 }));
+    const sharedTheme = { ...syntheticMaps[1], map_id: "meu-jeito", map_title: "Meu jeito" };
+    const fixture = await openProfessional({ patients, selectPatient: false,
+      entriesByPatient: Object.fromEntries(patients.map(patient => [patient.patient_id, []])),
+      mapsByPatient: Object.fromEntries(patients.map(patient => [patient.patient_id, [structuredClone(sharedTheme)]])) });
+    const { page, controls } = fixture;
+    let release;
+    controls.markGates.set(`${patients[0].patient_id}:meu-jeito`, new Promise(resolve => { release = resolve; }));
+    try {
+      await page.getByRole("button", { name: `Abrir conteúdos compartilhados por ${patients[0].patient_name}`, exact: true }).click();
+      await page.locator(mapSelector("meu-jeito")).locator(":scope > summary").click();
+      await page.locator(mapSelector("meu-jeito")).getByRole("button", { name: "Concluir visualização", exact: true }).click();
+      await expect(page.locator(mapSelector("meu-jeito")).locator(".record-view-state")).toContainText("Salvando visualização");
+      await page.getByRole("button", { name: "Voltar aos pacientes", exact: false }).click();
+      await page.getByRole("button", { name: `Abrir conteúdos compartilhados por ${patients[1].patient_name}`, exact: true }).click();
+      const secondTheme = page.locator(mapSelector("meu-jeito"));
+      await secondTheme.locator(":scope > summary").click();
+      await expect(secondTheme.getByRole("button", { name: "Concluir visualização", exact: true })).toBeEnabled();
+      await secondTheme.getByRole("button", { name: "Concluir visualização", exact: true }).click();
+      await expect(secondTheme.locator(".record-view-state")).toHaveText("Visto");
+      assert.equal(controls.mapsByPatient[patients[0].patient_id][0].is_unread, 1, "First confirmation remains in flight.");
+      assert.equal(controls.mapsByPatient[patients[1].patient_id][0].is_unread, 0);
+      assert.equal(controls.mutations.length, 2);
+      const response = page.waitForResponse(result => result.url().includes(`/patients/${patients[0].patient_id}/map-shares/meu-jeito/viewed`)
+        && result.request().method() === "POST");
+      release();
+      await response;
+      await expect(secondTheme.locator(".record-view-state")).toHaveText("Visto");
+      await checkHealthy(fixture, "professional-independent-map-locks");
+    } finally { release(); }
   });
 
   test("pagination and reading filters preserve all shared contents and accurate visible counts", async () => {

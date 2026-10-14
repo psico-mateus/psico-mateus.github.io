@@ -128,7 +128,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       if (path === "/map-draft" && method === "GET") return respond({ content_version: "mapa-pessoal-refinado-ouro-v1", generation: 1, fields: [] });
       if (path === "/account/mfa-recovery-codes" && method === "GET") return respond({ remaining: 8, total: 8, generated_at: timestamp });
       if (path === "/professional/patients" && method === "GET") return respond({ patients: [], activity: { total_count: 0, shared_count: 0, private_count: 0 } });
-      if (path === "/professional/accesses" && method === "GET") return respond({ patients: [
+      if (path === "/professional/accesses" && method === "GET") return respond({ patients: controls.accesses ?? [
         { patient_id: firstPatientId, patient_name: firstPatientName, access_status: "active", created_at: timestamp, revoked_at: null, last_login_at: null, shared_count: 0 },
         { patient_id: secondPatientId, patient_name: secondPatientName, access_status: "active", created_at: timestamp, revoked_at: null, last_login_at: null, shared_count: 0 },
         { patient_id: "synthetic-revoked", patient_name: "Paciente Sintético Revogado", access_status: "revoked", created_at: timestamp, revoked_at: timestamp, last_login_at: null, shared_count: 0 },
@@ -602,6 +602,71 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     assert.ok(!storage.includes("Rascunho sintético") && !storage.includes("Texto sintético em memória"));
     assert.equal(controls.mutations.length, 0);
     await checkHealthy(page, controls, "professional-empty-desktop");
+  });
+
+  for (const [label, viewport] of [["mobile", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 1000 }]]) {
+    test(`professional ${label}: showing fewer accesses cannot silently hide an unsent notice beyond patient fifteen`, async () => {
+      const accesses = Array.from({ length: 16 }, (_, index) => ({
+        patient_id: `synthetic-paging-${String(index + 1).padStart(2, "0")}`,
+        patient_name: `Paciente de Teste ${String(index + 1).padStart(2, "0")}`,
+        access_status: "active", created_at: timestamp, revoked_at: null, last_login_at: null, shared_count: 0,
+      }));
+      const { page, controls } = await openPortal("therapist", viewport, { accesses });
+      await page.getByRole("button", { name: /^Acessos de pacientes/u }).click();
+      await expect(page.locator(".patient-access-card")).toHaveCount(15);
+      await page.getByRole("button", { name: /Mostrar mais acessos/u }).click();
+      await expect(page.locator(".patient-access-card")).toHaveCount(16);
+      await page.getByRole("button", { name: `Avisos para ${accesses[15].patient_name}`, exact: true }).click();
+      const panel = page.locator(".professional-patient-notices");
+      await panel.getByLabel("Título do aviso").fill("Rascunho sintético do paciente dezesseis");
+      await panel.getByLabel("Texto do aviso").fill("Texto sintético que não pode ser perdido ao recolher a lista.");
+      page.once("dialog", dialog => dialog.dismiss());
+      await page.getByRole("button", { name: /Mostrar somente os primeiros 15 acessos/u }).click();
+      await expect(page.locator(".patient-access-card")).toHaveCount(16);
+      await expect(panel.getByLabel("Título do aviso")).toHaveValue("Rascunho sintético do paciente dezesseis");
+      await expect(panel.getByLabel("Texto do aviso")).toHaveValue("Texto sintético que não pode ser perdido ao recolher a lista.");
+      assert.equal(controls.mutations.length, 0);
+      page.once("dialog", dialog => dialog.accept());
+      await page.getByRole("button", { name: /Mostrar somente os primeiros 15 acessos/u }).click();
+      await expect(page.locator(".patient-access-card")).toHaveCount(15);
+      await expect(panel).toHaveCount(0);
+      await expect(page.locator("#patient-access-title")).toBeFocused();
+      assert.equal(await page.evaluate(() => {
+        const event = new Event("beforeunload", { cancelable: true });
+        window.dispatchEvent(event);
+        return event.defaultPrevented;
+      }), false, "Only an explicitly discarded draft may disappear.");
+      await page.getByRole("button", { name: /Mostrar mais acessos/u }).click();
+      await page.getByRole("button", { name: `Avisos para ${accesses[15].patient_name}`, exact: true }).click();
+      await expect(panel.getByLabel("Título do aviso")).toHaveValue("");
+      await expect(panel.getByLabel("Texto do aviso")).toHaveValue("");
+      assert.equal(controls.mutations.length, 0);
+      await checkHealthy(page, controls, `professional-paging-draft-${label}`);
+    });
+  }
+
+  test("professional: showing fewer accesses retains an unsent notice still among the first fifteen", async () => {
+    const accesses = Array.from({ length: 16 }, (_, index) => ({
+      patient_id: `synthetic-retained-${String(index + 1).padStart(2, "0")}`,
+      patient_name: `Paciente de Teste ${String(index + 1).padStart(2, "0")}`,
+      access_status: "active", created_at: timestamp, revoked_at: null, last_login_at: null, shared_count: 0,
+    }));
+    const { page, controls } = await openPortal("therapist", { width: 390, height: 844 }, { accesses });
+    await page.getByRole("button", { name: /^Acessos de pacientes/u }).click();
+    await page.getByRole("button", { name: /Mostrar mais acessos/u }).click();
+    await page.getByRole("button", { name: `Avisos para ${accesses[0].patient_name}`, exact: true }).click();
+    const panel = page.locator(".professional-patient-notices");
+    await panel.getByLabel("Título do aviso").fill("Rascunho sintético preservado");
+    await panel.getByLabel("Texto do aviso").fill("Continua entre os primeiros quinze acessos.");
+    const dialogs = [];
+    page.on("dialog", dialog => { dialogs.push(dialog.type()); void dialog.dismiss(); });
+    await page.getByRole("button", { name: /Mostrar somente os primeiros 15 acessos/u }).click();
+    await expect(page.locator(".patient-access-card")).toHaveCount(15);
+    await expect(panel.getByLabel("Título do aviso")).toHaveValue("Rascunho sintético preservado");
+    await expect(panel.getByLabel("Texto do aviso")).toHaveValue("Continua entre os primeiros quinze acessos.");
+    assert.deepEqual(dialogs, [], "Keeping the composer visible must not prompt unnecessary discard.");
+    assert.equal(controls.mutations.length, 0);
+    await checkHealthy(page, controls, "professional-paging-retained-draft");
   });
 
   test("professional: denied refreshed access clears notices and composer", async () => {
