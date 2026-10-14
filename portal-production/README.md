@@ -57,6 +57,7 @@ pnpm dev
 pnpm lint
 pnpm build
 pnpm test
+pnpm test:integration:isolated
 pnpm test:restore-local
 pnpm test:smoke-public
 ```
@@ -69,16 +70,27 @@ de registros e sessões e verifica a restauração da cópia com integridade e
 chaves estrangeiras. O diretório temporário é removido ao final. Esse ensaio não
 consulta produção e não comprova o procedimento de Time Travel do Cloudflare D1.
 
-A suíte `pnpm test:integration` aceita somente um servidor local isolado. Ela
-requer `PORTAL_TEST_BASE_URL`, `PORTAL_TEST_SETUP_SECRET` e
-`PORTAL_TEST_DB_PATH`, apontando para o SQLite local criado pelo Miniflare. O
-caminho do banco é usado somente para simular a expiração de um convite
-sintético; a suíte recusa URLs que não sejam locais.
+`pnpm test:integration:isolated` é a opção recomendada: cria um servidor em uma
+porta local exclusiva e um D1/SQLite temporário, usa segredos e contas
+inteiramente sintéticos e aplica as migrações apenas nesse banco vazio. Executa
+a suíte HTTP de cadastro, login, MFA, permissões e recuperação, reinicia o
+servidor e verifica a preservação de contas, registros e sessões, além de logout
+e novo login. Ao terminar, encerra seus processos e remove exclusivamente seu
+diretório temporário. Não usa credenciais Cloudflare nem faz pedidos a produção.
+
+A suíte manual `pnpm test:integration` exige `PORTAL_TEST_BASE_URL`,
+`PORTAL_TEST_SETUP_SECRET` e `PORTAL_TEST_DB_PATH`, apontando para um SQLite
+descartável criado pelo Miniflare. Ela altera dados sintéticos para exercitar
+expiração, concorrência e recuperação. Nunca aponte essa variável para um banco
+de desenvolvimento que você queira conservar. A suíte recusa URLs não locais;
+o runner automático também valida que o arquivo pertence ao seu próprio TMP.
 
 Ao iniciar o servidor isolado, defina segredos exclusivamente sintéticos no
-processo e use `CLOUDFLARE_INCLUDE_PROCESS_ENV=true`. Isso garante que o
-Miniflare priorize esses valores sobre qualquer `.env.local` de desenvolvimento.
-Não reutilize segredos administrativos nessa suíte.
+processo e use `CLOUDFLARE_INCLUDE_PROCESS_ENV=true`. Não dependa apenas dessa
+variável para isolamento: Vite/Vinext/Wrangler também podem carregar `.env*` e
+`.dev.vars*`. Use uma cópia de fontes sem esses arquivos, sem bindings remotos
+e com estado descartável — como o runner automático já faz. Não reutilize
+segredos administrativos nem o banco habitual de desenvolvimento nessa suíte.
 
 `pnpm test:smoke-public` faz somente consultas públicas de leitura ao site, ao
 Guia e aos dois endereços do portal. Ele confirma disponibilidade, o endpoint
@@ -216,3 +228,7 @@ Antes de publicar:
 3. valide login, MFA, convites, compartilhamento, revogação, exportação e exclusão em ambiente isolado;
 4. revise qualquer migração sem executá-la automaticamente;
 5. faça deploy somente após autorização expressa.
+
+O registro de manutenção das dependências, incluindo o alerta upstream ainda
+sem correção oficial e os limites da auditoria, está em
+[`docs/seguranca-dependencias-2026-10-10.md`](docs/seguranca-dependencias-2026-10-10.md).
