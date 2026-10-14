@@ -3,6 +3,7 @@
 import {
   FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -88,6 +89,9 @@ function entrySaveErrorMessage(error: unknown): string {
     error instanceof Error ? error.message : "Não foi possível salvar agora.";
   if (isSessionExpiredError(error)) {
     return `${message} O que você escreveu continua nesta tela por enquanto. Copie o texto antes de recarregar e entre novamente.`;
+  }
+  if (error instanceof PortalRequestError && error.status === 409) {
+    return `${message} O que você escreveu continua nesta tela.`;
   }
   return `${message} O que você escreveu continua nesta tela. Tente salvar novamente quando puder.`;
 }
@@ -2116,7 +2120,7 @@ function PatientDashboard({
     if (editedEntry) {
       await portalRequest(`/entries/${editedEntry.id}`, {
         method: "PATCH",
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, expected_updated_at: editedEntry.updated_at }),
       }, csrf);
     } else {
       const result = await portalRequest<{ id: string }>("/entries", {
@@ -3078,6 +3082,57 @@ function PatientDashboard({
   );
 }
 
+function PatientAccountGroup({
+  enabled = true,
+  title,
+  children,
+}: {
+  enabled?: boolean;
+  title: string;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+  if (!enabled) return <>{children}</>;
+  return (
+    <section className="patient-account-group" aria-labelledby={titleId}>
+      <h3 id={titleId}>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function PatientAccountAction({
+  enabled = true,
+  title,
+  description,
+  titleId,
+  danger = false,
+  children,
+}: {
+  enabled?: boolean;
+  title: string;
+  description: string;
+  titleId?: string;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <details className={`patient-account-action${danger ? " patient-account-action-danger" : ""}`}>
+      <summary>
+        <span className="patient-account-action-copy">
+          <strong className="patient-account-action-title" id={titleId}>{title}</strong>
+          <small>{description}</small>
+        </span>
+        <svg className="patient-account-action-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </summary>
+      <div className="patient-account-action-body">{children}</div>
+    </details>
+  );
+}
+
 function AccountPanel({
   role,
   csrf,
@@ -3454,11 +3509,17 @@ function AccountPanel({
     <details className={`account-panel ${role === "patient" ? "patient-account-panel" : ""}`}>
       <summary>
         <span>{role === "patient" ? "Conta e privacidade" : "Segurança e conta"}</span>
-        {role === "patient" ? <small>Senha, recuperação, sessões, cópia dos dados e exclusão</small> : null}
+        {role === "patient" ? <small>Cuide do seu acesso e dos seus dados</small> : null}
       </summary>
+      <PatientAccountGroup enabled={role === "patient"} title="Acesso e recuperação">
       <div className="account-grid">
+        <PatientAccountAction
+          enabled={role === "patient"}
+          title="Alterar senha"
+          description="Escolha outra senha para entrar na sua conta."
+        >
         <form className="stack panel" onSubmit={password} aria-busy={passwordBusy}>
-          <h3>Alterar senha</h3>
+          {role === "therapist" ? <h3>Alterar senha</h3> : null}
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
           <Field label="Nova senha ou frase-senha" name="new_password" type="password" autoComplete="new-password" required passwordRequirements hint="Não são 12 dígitos: pode ser uma frase curta com espaços. Use palavras fáceis para você e inclua pelo menos um número." />
           <Field
@@ -3484,8 +3545,15 @@ function AccountPanel({
             {passwordBusy ? "Alterando senha…" : "Alterar senha"}
           </button>
         </form>
+        </PatientAccountAction>
+        <PatientAccountAction
+          enabled={role === "patient"}
+          title="Código para recuperar a senha"
+          description="Prepare um código para usar se esquecer sua senha."
+        >
         <form className="stack panel" onSubmit={rotate} aria-busy={recoveryBusy}>
-          <h3>Código para recuperar a senha</h3>
+          {role === "therapist" ? <h3>Código para recuperar a senha</h3> : null}
+          {role === "patient" ? <p>Guarde o novo código em um lugar seguro. Se esquecer a senha, use-o em “Esqueci minha senha”, na tela de entrada.</p> : null}
           <p>
             O código atual deixará de funcionar.
             {role === "therapist" ? " Ele recupera a senha, mas não substitui o aplicativo autenticador." : ""}
@@ -3496,7 +3564,9 @@ function AccountPanel({
             {recoveryBusy ? "Gerando código…" : "Criar novo código"}
           </button>
         </form>
+        </PatientAccountAction>
       </div>
+      </PatientAccountGroup>
       {role === "therapist" ? (
         <section
           className="professional-recovery-codes"
@@ -3617,7 +3687,7 @@ function AccountPanel({
           focusOnMount={!message.includes("alterada") && !invalidPasswordField}
         />
       ) : null}
-      <section className="account-sessions" aria-labelledby={`account-sessions-title-${role}`}>
+      {role === "therapist" ? <section className="account-sessions" aria-labelledby={`account-sessions-title-${role}`}>
         <div>
           <h3 id={`account-sessions-title-${role}`}>Sessões e dispositivos</h3>
           <p>
@@ -3632,16 +3702,22 @@ function AccountPanel({
             {endingSessions ? "Encerrando sessões…" : "Encerrar em todos os dispositivos"}
           </button>
         </form>
-      </section>
+      </section> : null}
       {role === "patient" ? (
+        <>
+        <PatientAccountGroup title="Seus dados">
         <div className="patient-account-actions">
+          <PatientAccountAction
+            title="Baixar uma cópia"
+            titleId="account-data-copy-title"
+            description="Guarde uma cópia dos dados que estão na sua conta."
+          >
           <section
             className="account-data-copy"
             aria-labelledby="account-data-copy-title"
             aria-busy={exportBusy}
           >
             <div>
-              <h3 id="account-data-copy-title">Baixar uma cópia</h3>
               <p>Reúna seus registros, o Meu mapa, os avisos recebidos e os dados básicos da conta em um arquivo para guardar com você.</p>
             </div>
             <p className="account-export-explanation">É uma cópia técnica para guardar ou encaminhar quando precisar. Para ler seus registros no dia a dia, use Meus registros.</p>
@@ -3664,8 +3740,36 @@ function AccountPanel({
             ) : null}
             <small>A cópia inclui registros privados, o rascunho do Meu mapa e as partes que estão compartilhadas. Ela fica salva no seu dispositivo; faça isso somente em um aparelho seguro.</small>
           </section>
+          </PatientAccountAction>
+        </div>
+        </PatientAccountGroup>
+        <PatientAccountGroup title="Ações da conta">
+        <div className="patient-account-actions">
+          <PatientAccountAction
+            title="Sessões e dispositivos"
+            titleId="account-sessions-title-patient"
+            description="Saia dos aparelhos em que sua conta está aberta."
+          >
+            <section className="account-sessions" aria-labelledby="account-sessions-title-patient">
+              <p>
+                Use esta opção se perdeu um aparelho ou deixou sua conta aberta. Você sairá
+                de todos os dispositivos, inclusive deste. Seus registros não serão apagados.
+              </p>
+              <form className="stack" onSubmit={endAllSessions} aria-busy={endingSessions}>
+                <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
+                <button className="danger-button" disabled={endingSessions}>
+                  {endingSessions ? "Encerrando sessões…" : "Encerrar em todos os dispositivos"}
+                </button>
+              </form>
+            </section>
+          </PatientAccountAction>
+          <PatientAccountAction
+            title="Excluir conta"
+            titleId="account-delete-title"
+            description="Apague sua conta e os dados de forma permanente."
+            danger
+          >
           <section className="account-delete" aria-labelledby="account-delete-title">
-            <h3 id="account-delete-title">Excluir conta</h3>
             <p>Esta ação apaga permanentemente sua conta, todos os seus registros, o Meu mapa e os avisos recebidos.</p>
             <form onSubmit={deleteAccount} aria-busy={deletingAccount}>
               <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
@@ -3674,7 +3778,10 @@ function AccountPanel({
               </button>
             </form>
           </section>
+          </PatientAccountAction>
         </div>
+        </PatientAccountGroup>
+        </>
       ) : null}
       <nav className="account-links" aria-label="Outros links da conta">
         <a href="/privacidade/">Aviso de privacidade</a>

@@ -51,7 +51,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     const context = await browser.newContext({ viewport, serviceWorkers: "block", reducedMotion: "reduce" });
     const page = await context.newPage();
     const controls = {
-      entriesStatus: 200, entriesRequests: 0, mutations: [], unexpected: [],
+      entriesStatus: 200, entriesRequests: 0, exportRequests: 0, mutations: [], unexpected: [],
       foreignRequests: [], runtimeErrors: [], expectedHttpFailures: [],
     };
     const fixture = { context, page, controls };
@@ -109,6 +109,10 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
       if (path === "/map-draft" && method === "GET") return respond({
         content_version: "mapa-pessoal-refinado-ouro-v1", generation: 1, fields: [],
       });
+      if (path === "/export" && method === "GET") {
+        controls.exportRequests += 1;
+        return respond({ patient, entries: [], map_draft: { generation: 1, fields: [] }, notices: [] });
+      }
       if (path === "/account/recovery-code" && method === "POST") {
         return respond({ recovery_code: syntheticRecoveryCode });
       }
@@ -147,6 +151,19 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     await page.screenshot({ path: resolve(outputDir, `${label}-${browserName}.png`), fullPage: false });
   }
 
+  function accountAction(page, title) {
+    return page.locator(".patient-account-action").filter({
+      has: page.getByText(title, { exact: true }),
+    });
+  }
+
+  async function openAction(page, title) {
+    const action = accountAction(page, title);
+    await action.locator("summary").click();
+    await expect(action).toHaveAttribute("open", "");
+    return action;
+  }
+
   for (const [label, viewport, enlarged] of [
     ["320", { width: 320, height: 844 }, false],
     ["390", { width: 390, height: 844 }, false],
@@ -158,7 +175,17 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
       const { page, controls } = fixture;
       if (enlarged) await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
       const account = page.locator(".patient-account-panel");
-      const texts = await account.locator(".patient-account-panel > summary small, .field > label > span, .account-sessions p, .patient-account-actions p, .account-data-copy small")
+      await expect(account.locator(".patient-account-group > h3")).toHaveText([
+        "Acesso e recuperação", "Seus dados", "Ações da conta",
+      ]);
+      await expect(account.locator("input:visible")).toHaveCount(0);
+      for (const action of await account.locator(".patient-account-action").all()) {
+        const touchTarget = await action.locator("summary").boundingBox();
+        assert.ok(touchTarget && touchTarget.width >= 44 && touchTarget.height >= 44,
+          "The complete choice row is a full touch target.");
+        await action.locator("summary").click();
+      }
+      const texts = await account.locator(".patient-account-panel > summary small, .patient-account-action-copy small, .field > label > span, .account-sessions p, .patient-account-actions p, .account-data-copy small")
         .evaluateAll(elements => elements.map(element => ({
           text: element.textContent.trim(), fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
         })));
@@ -171,9 +198,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
         });
         assert.ok(dimensions.width >= 44 && dimensions.height >= 44, "Account buttons retain a full touch target.");
       }
-      const recoveryForm = account.locator(".account-grid > form").filter({
-        has: page.getByRole("heading", { name: "Código para recuperar a senha", exact: true }),
-      });
+      const recoveryForm = accountAction(page, "Código para recuperar a senha").locator("form");
       assert.equal(await recoveryForm.evaluate(element => getComputedStyle(element).alignContent), "start",
         "The shorter recovery form must not distribute its empty space between fields and stretch its button.");
       if (!enlarged) {
@@ -187,12 +212,76 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
   }
 
   for (const width of [390, 1366]) {
+    test(`account ${width}px: a chosen action opens by keyboard and preserves typed input when closed`, async () => {
+      const fixture = await openAccount({ width, height: 900 });
+      const { page, controls } = fixture;
+      const action = accountAction(page, "Alterar senha");
+      const summary = action.locator("summary");
+      await expect(action.locator("form")).not.toBeVisible();
+      await summary.focus();
+      await page.keyboard.press("Enter");
+      await expect(action.locator("form")).toBeVisible();
+      await expect(summary).toBeFocused();
+      await expect(summary).toHaveCSS("outline-style", "solid");
+      await expect(summary.locator("svg")).toHaveCSS("transform", "matrix(-1, 0, 0, -1, 0, 0)");
+      await action.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
+      await summary.focus();
+      await page.keyboard.press("Enter");
+      await expect(action.locator("form")).not.toBeVisible();
+      await page.keyboard.press("Enter");
+      await expect(action.getByLabel("Senha atual", { exact: true })).toHaveValue(syntheticPassword);
+      await expect(action.getByRole("button", { name: "Mostrar senha atual", exact: true })).toBeVisible();
+      assert.deepEqual(controls.mutations, [], "Choosing an action never performs an account mutation.");
+      await checkHealthy(fixture, `account-action-keyboard-${width}`);
+    });
+  }
+
+  test("account actions retain cancellation before closing sessions or deleting data", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page, controls } = fixture;
+    for (const [title, buttonName, explanation] of [
+      ["Sessões e dispositivos", "Encerrar em todos os dispositivos", "não serão apagados"],
+      ["Excluir conta", "Excluir conta e registros", "não pode ser desfeita"],
+    ]) {
+      const action = await openAction(page, title);
+      await action.getByLabel("Senha atual para confirmar", { exact: true }).fill(syntheticPassword);
+      let confirmedPrompt = false;
+      page.once("dialog", async dialog => {
+        assert.equal(dialog.type(), "confirm");
+        assert.ok(dialog.message().includes(explanation));
+        confirmedPrompt = true;
+        await dialog.dismiss();
+      });
+      await action.getByRole("button", { name: buttonName, exact: true }).click();
+      assert.equal(confirmedPrompt, true);
+      assert.deepEqual(controls.mutations, [], "Cancellation never sends an account mutation.");
+      await expect(page.getByRole("heading", { level: 1, name: "Olá, Paciente Sintético.", exact: true })).toBeVisible();
+      await action.locator("summary").click();
+    }
+    await checkHealthy(fixture, "account-critical-cancellation");
+  });
+
+  test("account data copy starts only on explicit action and keeps feedback in its section", async () => {
+    const fixture = await openAccount({ width: 1366, height: 900 });
+    const { page, controls } = fixture;
+    const action = await openAction(page, "Baixar uma cópia");
+    assert.equal(controls.exportRequests, 0);
+    const downloadEvent = page.waitForEvent("download");
+    await action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true }).click();
+    const download = await downloadEvent;
+    assert.equal(download.suggestedFilename(), "meus-dados-area-do-paciente.json");
+    await expect(action.getByText("Download iniciado. Procure o arquivo em Downloads.", { exact: true })).toBeVisible();
+    assert.equal(controls.exportRequests, 1);
+    assert.deepEqual(controls.mutations, []);
+    await checkHealthy(fixture, "account-export-feedback");
+  });
+
+  for (const width of [390, 1366]) {
     test(`account ${width}px: session expiry removes an open recovery secret and login never resurrects it`, async () => {
       const fixture = await openAccount({ width, height: 900 });
       const { page, controls } = fixture;
-      const form = page.locator(".account-grid > form").filter({
-        has: page.getByRole("heading", { name: "Código para recuperar a senha", exact: true }),
-      });
+      const action = await openAction(page, "Código para recuperar a senha");
+      const form = action.locator("form");
       await form.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
       assert.deepEqual(controls.mutations, [], "Typing a password must not automatically issue a recovery code.");
       await form.getByRole("button", { name: "Criar novo código", exact: true }).click();

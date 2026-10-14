@@ -32,6 +32,110 @@
 .patient-account-panel form > button { min-height: 48px; height: auto; line-height: 1.5; }
 .patient-account-panel h3 { line-height: 1.3; }
 
+/* A short list of choices comes before any password or sensitive action. */
+.patient-account-panel .patient-account-group {
+  padding: 1.35rem 1.2rem 0;
+}
+.patient-account-panel .patient-account-group > h3 {
+  margin: 0 0 .75rem;
+  color: var(--ink);
+  font-size: 1.3rem;
+}
+.patient-account-panel .patient-account-group:last-of-type { padding-bottom: 1.35rem; }
+.patient-account-panel .patient-account-group .account-grid,
+.patient-account-panel .patient-account-group .patient-account-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .6rem;
+  margin: 0;
+  padding: 0;
+}
+.patient-account-action {
+  min-width: 0;
+  border: 1px solid #ded6cb;
+  border-radius: 12px;
+  background: var(--card);
+}
+.patient-account-action > summary {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  list-style: none;
+  border-radius: 11px;
+}
+.patient-account-action > summary::-webkit-details-marker { display: none; }
+.patient-account-action > summary:hover { background: #f8f4ee; }
+.patient-account-action > summary:focus-visible {
+  outline: 3px solid var(--green-2);
+  outline-offset: 3px;
+}
+.patient-account-action-copy { min-width: 0; }
+.patient-account-action-title {
+  display: block;
+  margin: 0 0 .2rem;
+  color: var(--ink);
+  font: 750 1rem/1.4 var(--sans);
+}
+.patient-account-action-copy small {
+  display: block;
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.patient-account-action-chevron {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  color: var(--green-2);
+}
+.patient-account-action[open] > summary {
+  border-bottom: 1px solid var(--line);
+  border-radius: 11px 11px 0 0;
+  background: #f8f4ee;
+}
+.patient-account-action[open] > summary .patient-account-action-chevron { transform: rotate(180deg); }
+.patient-account-action-body {
+  min-width: 0;
+  padding: 1.15rem 1.1rem;
+}
+.patient-account-panel .patient-account-action-body > .panel,
+.patient-account-panel .patient-account-action-body > .account-sessions,
+.patient-account-panel .patient-account-action-body > .account-data-copy,
+.patient-account-panel .patient-account-action-body > .account-delete {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 1rem;
+  max-width: 44rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.patient-account-panel .patient-account-action-body p,
+.patient-account-panel .patient-account-action-body small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.patient-account-panel .patient-account-action-body form { align-content: start; }
+.patient-account-panel .patient-account-action-body form > button,
+.patient-account-panel .patient-account-action-body .account-export-link {
+  width: fit-content;
+  min-width: 12rem;
+  min-height: 48px;
+  max-width: 100%;
+}
+.patient-account-action-danger { border-color: #e7cbc6; }
+.patient-account-action-danger .patient-account-action-title { color: var(--danger); }
+
 @container patient-account (max-width: 48rem) {
   .patient-account-panel .account-grid,
   .patient-account-panel .account-sessions,
@@ -40,4 +144,12 @@
   .patient-account-panel > summary span { grid-column: 1; grid-row: 1; }
   .patient-account-panel > summary small { grid-column: 1; grid-row: 2; }
   .patient-account-panel > summary::after { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+  .patient-account-panel .patient-account-group { padding-right: 1rem; padding-left: 1rem; }
+}
+
+@container patient-account (max-width: 32rem) {
+  .patient-account-action > summary { gap: .75rem; padding: .9rem; }
+  .patient-account-action-body { padding: 1rem .9rem; }
+  .patient-account-panel .patient-account-action-body form > button,
+  .patient-account-panel .patient-account-action-body .account-export-link { width: 100%; min-width: 0; }
 }

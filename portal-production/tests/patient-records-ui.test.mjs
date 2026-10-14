@@ -179,7 +179,11 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
         if (controls.saveFailure) return respond({ error: "Falha sintética ao salvar. Tente novamente." }, controls.saveFailure);
         const entry = controls.entries.find((item) => item.id === editing[1]);
         if (!entry) return respond({ error: "Registro sintético não encontrado." }, 404);
-        Object.assign(entry, request.postDataJSON(), { updated_at: timestamp });
+        const { expected_updated_at, ...draft } = request.postDataJSON();
+        if (expected_updated_at !== undefined && expected_updated_at !== entry.updated_at) {
+          return respond({ error: "Este registro foi alterado em outra aba ou aparelho. Copie suas alterações antes de sair e reabra o registro atualizado para compará-las." }, 409);
+        }
+        Object.assign(entry, draft, { updated_at: timestamp });
         return respond({ ok: true });
       }
       controls.unexpected.push(`${method} ${path}`);
@@ -996,7 +1000,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       await form.getByRole("button", { name: "Salvar alterações agora", exact: true }).click();
       await expect(form).toHaveCount(0);
       assert.deepEqual(controls.mutations, [{ path: `/entries/${id}`, method: "PATCH",
-        payload: { title, happened: original.happened, ...optionalDraft }, csrf: "synthetic-records-csrf" }]);
+        payload: { title, happened: original.happened, ...optionalDraft, expected_updated_at: original.updated_at }, csrf: "synthetic-records-csrf" }]);
       const saved = controls.entries.find((entry) => entry.id === id);
       assert.equal(saved.shared_at, original.shared_at);
       assert.equal(saved.revoked_at, original.revoked_at);
@@ -1005,6 +1009,52 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       await checkHealthy(fixture, `records-edit-${mode}-optionals-preserved`);
     });
   }
+
+  test("stale entry edit preserves every local answer and does not overwrite a newer version", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    const id = "synthetic-record-private";
+    const card = page.locator(`#record-${id}`);
+    const original = structuredClone(controls.entries.find((entry) => entry.id === id));
+    await card.locator(":scope > summary").click();
+    await card.getByRole("button", { name: "Editar", exact: true }).click();
+    const form = page.locator("#entry-editor");
+    const localTitle = "Edição sintética ainda não salva";
+    const localHappened = "Situação sintética que deve continuar nesta tela.";
+    await form.getByLabel("Título breve").fill(localTitle);
+    await form.getByLabel("O que aconteceu?").fill(localHappened);
+    for (const [label, value] of [
+      ["O que percebeu no corpo?", optionalDraft.body],
+      ["Quais pensamentos apareceram?", optionalDraft.thoughts],
+      ["O que teve vontade de fazer?", optionalDraft.urge],
+      ["O que quero levar", optionalDraft.message],
+    ]) await form.getByLabel(label).fill(value);
+    const remoteEntry = controls.entries.find((entry) => entry.id === id);
+    remoteEntry.title = "Versão sintética salva em outro aparelho";
+    remoteEntry.happened = "Outra situação sintética já salva.";
+    remoteEntry.updated_at = "2026-10-14T14:00:00.000Z";
+    await form.getByRole("button", { name: "Salvar alterações agora", exact: true }).click();
+    const alert = form.getByRole("alert");
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText("outra aba ou aparelho");
+    await expect(alert).toContainText("Copie suas alterações");
+    await expect(alert).toBeFocused();
+    await expect(form.getByLabel("Título breve")).toHaveValue(localTitle);
+    await expect(form.getByLabel("O que aconteceu?")).toHaveValue(localHappened);
+    for (const [label, value] of [
+      ["O que percebeu no corpo?", optionalDraft.body],
+      ["Quais pensamentos apareceram?", optionalDraft.thoughts],
+      ["O que teve vontade de fazer?", optionalDraft.urge],
+      ["O que quero levar", optionalDraft.message],
+    ]) await expect(form.getByLabel(label)).toHaveValue(value);
+    assert.equal(controls.mutations.length, 1);
+    assert.equal(controls.mutations[0].payload.expected_updated_at, original.updated_at);
+    assert.equal(remoteEntry.happened, "Outra situação sintética já salva.");
+    assert.equal(remoteEntry.title, "Versão sintética salva em outro aparelho");
+    assert.equal(remoteEntry.shared_at, original.shared_at);
+    await checkHealthy(fixture, "records-stale-edit-draft-preserved");
+  });
 
   for (const scenario of [
     { filter: "Privados 1", id: "private", action: "Compartilhar com Mateus", shared: true },
