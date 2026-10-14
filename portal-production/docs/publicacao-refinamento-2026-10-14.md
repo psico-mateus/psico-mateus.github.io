@@ -34,7 +34,7 @@ Isso não apaga ou restaura dados. Para o público, reverter os dois commits pub
 - Logs de envio: `/tmp/psico-refino-deploy-{legacy,main}-20261014.log`.
 - Interface publicada conferida em contextos novos Chromium 1366×900 e WebKit 390×844: entrada/cadastro anônimos e Conta e privacidade com API inteiramente simulada. Quatro estados passaram, sem tela vazia, overlay, erros de execução ou overflow; nenhuma escrita de produção. Alternância para cadastro, convite/18+/privacidade e abrir formulário da conta verificados. Capturas e resumo: `/tmp/psico-refino-public-qa-20261014/`; captura da conta publicada aberta e inspecionada.
 
-## Site e Guia — publicação bloqueada por autenticação
+## Site e Guia — bloqueio inicial de autenticação (resolvido)
 
 O checkout público isolado passou novamente em 118 testes, com 59 skips intencionais por projeto, zero falhas. Conteúdo dos 15 paths é idêntico ao lote aprovado no checkout de desenvolvimento. Branch local pública `publicacao/refinamento-20261014`, HEAD `f62ce6b1755b0f6890f916f045e2ac31d46757c8`, preservada no Git mesmo se o worktree temporário desaparecer.
 
@@ -43,3 +43,19 @@ O dry-run do push não conseguiu autenticar no GitHub. A integração GitHub foi
 É necessária ação do usuário: reconectar o GitHub na conta que tem escrita nesse repositório (conta proprietária `psico-mateus`, ou colaborador autorizado). Não enviar senha ou token na conversa. Depois da reconexão, conferir novamente `origin/main`; se continuar na base registrada, enviar somente a branch pública em fast-forward. Se mudou, revisar a diferença antes de prosseguir.
 
 As verificações de interface pós-deploy do portal usam navegador novo e dados fictícios apenas no cliente. Não comprovam login autenticado real em produção. Contas, registros e credenciais reais não foram usados nos testes.
+
+## Site e Guia — publicação concluída em 14/10/2026
+
+- A conexão adicional `psico-mateus` apareceu nas ferramentas durante a reconexão, exigindo seleção explícita de conta (`link_id`). Perfil e acesso ao repositório foram conferidos; o retorno passou a indicar `push: true`. A sessão anterior utilizava `spacegl1de`. Não é necessário refazer o login no Safari.
+- Uma tentativa de criar blob pela API da integração recebeu HTTP 403, sem alterar a branch. O caminho Git autenticado funcionou: dry-run aprovado e push normal em fast-forward, sem force-push, de `f08f26f08f974069e2658e197a454acf6993caba` para `f62ce6b1755b0f6890f916f045e2ac31d46757c8`.
+- Foram enviados somente os dois commits públicos já testados (`24b44b3` e `f62ce6b`), árvore `85d1cd598c8a2367abef834c853f43fbea41266d`: 10 arquivos públicos e 5 testes. Portal, banco, credenciais, permissões de pacientes e configurações de hospedagem não foram alterados neste envio.
+- O worktree público temporário havia desaparecido. A mesma branch foi recuperada sem mudanças em `work/psico-mateus-publicacao-20261014`, dentro do diretório de trabalho persistente. A revisão independente confirmou os mesmos 15 paths e `git diff --check` limpo; não foi necessário reconstruir ou repetir a suíte completa.
+- `git ls-remote` confirmou o novo `main`. As respostas HTTP dos 10 arquivos públicos alterados retornaram 200 e tiveram SHA-256 idêntico aos blobs do commit publicado, incluindo o HTML do Guia, JS/CSS e service worker v31.
+- Checagem renderizada em navegador integrado, larguras 1366 e 390: páginas corretas e não vazias, sem overlay ou erros relevantes de console, largura do documento igual à viewport. No Guia foram exercitados busca, abertura/fechamento de Medo, limpeza da busca e retorno ao início. No site, uma dúvida frequente foi expandida e o retorno ao início funcionou. O seletor automatizado de papel da pergunta não resolveu o summary nativo; a interação pela árvore de acessibilidade passou, sem mudança de código.
+- Capturas de desktop e mobile foram inspecionadas. Este smoke não substitui teste em iPhone físico/VoiceOver; a suíte WebKit e os testes de persistência já registrados não foram repetidos. Nenhum formulário autenticado, cadastro ou conteúdo real de paciente foi utilizado nesta publicação.
+
+### Alertas de dependências do repositório remoto
+
+O GitHub informou 15 alertas na árvore remota (4 críticos, 8 altos, 2 moderados e 1 baixo). Esta publicação pública não alterou manifestos/locks; eles ainda contêm as versões anteriores do código do portal. O Worker já publicado foi construído com as atualizações separadas do commit `791c156`, descritas nos relatórios de manutenção/segurança. Portanto, o aviso remoto não comprova que o runtime publicado tenha as mesmas vulnerabilidades, e tampouco deve ser declarado resolvido ou ignorado.
+
+Pendência separada: reconciliar com revisão própria os três arquivos de dependências de `portal-production` (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`) no GitHub, sem enviar todo o histórico de trabalho nem redeployar o portal inadvertidamente. Não foi realizado novo mapeamento individual dos 15 alertas. O alerta alto de `braces` em dependências de desenvolvimento/build continua documentado como residual; não se afirma auditoria zerada.
