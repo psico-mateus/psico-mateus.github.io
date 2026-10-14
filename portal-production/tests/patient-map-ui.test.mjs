@@ -57,7 +57,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     const page = await context.newPage();
     const controls = { fields: new Map(structuredClone(fields).map(field => [`${field.type}:${field.id}`, field])),
       shares: new Map(structuredClone(shares).map(share => [share.map_id, share])), generation: 1,
-      loadFailure, sharingLoadFailure, saveFailure: 0, saveConflict: null, sharingFailure: 0,
+      loadFailure, sharingLoadFailure, saveFailure: 0, saveConflict: null, saveGates: new Map(), saveSessionLoss: false, sharingFailure: 0,
       unexpected: [], foreignRequests: [], runtimeErrors: [], mutations: [], sharedSnapshots: new Map() };
     const fixture = { context, page, controls };
     fixtures.add(fixture);
@@ -66,7 +66,7 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
       if (!["error", "warning"].includes(message.type())) return;
       const text = message.text();
       if (text === "Service Worker registration blocked by Playwright") return;
-      if (/Failed to load resource: the server responded with a status of (?:409|503)\b/u.test(text)) return;
+      if (/Failed to load resource: the server responded with a status of (?:401|409|503)\b/u.test(text)) return;
       controls.runtimeErrors.push(text);
     });
     const origin = new URL(baseUrl).origin;
@@ -90,6 +90,8 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
         guide_url: "https://psico-mateus.github.io/guia-emocoes/", care_url: "https://psico-mateus.github.io/cuidados/" });
       if (path === "/session" && method === "GET") return respond({
         user: { id: "synthetic-map-patient", name: "Paciente Sintético", role: "patient" }, csrf: "synthetic-map-csrf" });
+      if (path === "/login" && method === "POST") return respond({
+        user: { id: "synthetic-map-patient", name: "Paciente Sintético", role: "patient" }, csrf: "synthetic-map-csrf-restored" });
       if (path === "/entries" && method === "GET") return respond({ entries: [] });
       if (path === "/notices" && method === "GET") return respond({ notices: [], unread_count: 0, next_cursor: null });
       if (path === "/map-draft") {
@@ -98,6 +100,16 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
           : respond({ content_version: version, generation: controls.generation, fields: [...controls.fields.values()] });
         if (method === "PATCH") {
           const body = request.postDataJSON();
+          const key = `${body.field.type}:${body.field.id}`;
+          const saveGate = controls.saveGates.get(key);
+          if (saveGate) {
+            controls.saveGates.delete(key);
+            await saveGate;
+          }
+          if (controls.saveSessionLoss) {
+            controls.saveSessionLoss = false;
+            return respond({ error: "Faça login para continuar." }, 401);
+          }
           if (controls.saveConflict) {
             const field = structuredClone(controls.saveConflict);
             controls.saveConflict = null;
@@ -106,7 +118,6 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
               code: "map_draft_field_conflict", content_version: version, generation: controls.generation, field }, 409);
           }
           if (controls.saveFailure) return respond({ error: "Falha sintética ao salvar o mapa." }, controls.saveFailure);
-          const key = `${body.field.type}:${body.field.id}`;
           const field = { ...body.field, revision: (controls.fields.get(key)?.revision ?? 0) + 1, updated_at: timestamp };
           controls.fields.set(key, field);
           await new Promise(resolveDelay => setTimeout(resolveDelay, 80));
@@ -473,6 +484,69 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
       await healthy(fixture, `map-conflict-${choice}`);
     });
   }
+
+  test("deleting while an older map save is in flight remains deleted when keeping the local conflict choice", async () => {
+    const fields = seedFields.map(field => field.type === "position"
+      ? { ...field, value: { sectionIndex: 0, itemIndex: 0 } } : field);
+    const fixture = await openMap({ fields });
+    await question(fixture);
+    let release;
+    fixture.controls.saveGates.set("answer:meu-jeito.01.1", new Promise(resolve => { release = resolve; }));
+    try {
+      await note(fixture.page).fill("Nota sintética que será apagada antes de o envio terminar.");
+      await expect.poll(() => mapMutations(fixture.controls).filter(mutation => mutation.payload.field?.id === "meu-jeito.01.1").length).toBe(1);
+      await fixture.page.locator(".patient-map-item-management > summary").click();
+      await fixture.page.locator("#patient-map-clear-answer").click();
+      await fixture.page.getByRole("button", { name: "Apagar agora", exact: true }).click();
+      await expect(note(fixture.page)).toHaveValue("");
+      await expect(fixture.page.getByLabel("Combina comigo", { exact: true })).not.toBeChecked();
+      fixture.controls.saveConflict = { ...firstAnswer, revision: 2,
+        value: { response: "contextual", note: "Nota sintética de outra tela." } };
+      release();
+      await fixture.page.getByRole("button", { name: "Manter o que está nesta tela", exact: true }).click();
+      await saved(fixture);
+      await expect(note(fixture.page)).toHaveValue("");
+      await expect(fixture.page.getByLabel("Combina comigo", { exact: true })).not.toBeChecked();
+      assert.equal(fixture.controls.fields.get("answer:meu-jeito.01.1").value, null);
+      assert.deepEqual(fixture.controls.fields.get("answer:meu-jeito.01.2"), seedFields[1]);
+      assert.deepEqual(fixture.controls.fields.get("synthesis:already-fits"), seedFields[3]);
+      await healthy(fixture, "map-deletion-conflict-kept");
+    } finally { release(); }
+  });
+
+  test("same-patient reauthentication restores a pending map deletion without resurrecting the older answer", async () => {
+    const fields = seedFields.map(field => field.type === "position"
+      ? { ...field, value: { sectionIndex: 0, itemIndex: 0 } } : field);
+    const fixture = await openMap({ fields });
+    await question(fixture);
+    let releaseFirst;
+    let releaseRetry;
+    fixture.controls.saveGates.set("answer:meu-jeito.01.1", new Promise(resolve => { releaseFirst = resolve; }));
+    try {
+      await note(fixture.page).fill("Nota sintética que será apagada durante o envio.");
+      await expect.poll(() => mapMutations(fixture.controls).filter(mutation => mutation.payload.field?.id === "meu-jeito.01.1").length).toBe(1);
+      await fixture.page.locator(".patient-map-item-management > summary").click();
+      await fixture.page.locator("#patient-map-clear-answer").click();
+      await fixture.page.getByRole("button", { name: "Apagar agora", exact: true }).click();
+      fixture.controls.saveSessionLoss = true;
+      releaseFirst();
+      await expect(fixture.page.getByText(/^Sua sessão terminou\. Entre novamente/u)).toBeVisible();
+      fixture.controls.saveGates.set("answer:meu-jeito.01.1", new Promise(resolve => { releaseRetry = resolve; }));
+      await fixture.page.getByLabel("E-mail", { exact: true }).fill("mapa.sintetico@example.test");
+      await fixture.page.getByLabel("Senha", { exact: true }).fill("Synthetic-map-test-1357");
+      await fixture.page.locator("#acesso form").getByRole("button", { name: "Entrar", exact: true }).click();
+      await expect(fixture.page.getByRole("heading", { level: 1, name: "Meu mapa", exact: true })).toBeVisible();
+      await question(fixture);
+      await expect(note(fixture.page)).toHaveValue("");
+      await expect(fixture.page.getByLabel("Combina comigo", { exact: true })).not.toBeChecked();
+      releaseRetry();
+      await saved(fixture);
+      assert.equal(fixture.controls.fields.get("answer:meu-jeito.01.1").value, null);
+      assert.deepEqual(fixture.controls.fields.get("answer:meu-jeito.01.2"), seedFields[1]);
+      assert.deepEqual(fixture.controls.fields.get("synthesis:already-fits"), seedFields[3]);
+      await healthy(fixture, "map-deletion-session-recovered");
+    } finally { releaseFirst(); releaseRetry?.(); }
+  });
 
   test("answer, note and autosave do not jump the screen; next question receives useful top focus", async () => {
     const fixture = await openMap();

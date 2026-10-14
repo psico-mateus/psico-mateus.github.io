@@ -76,6 +76,17 @@ type PatientMapDraftQueue = {
   conflict?: PatientMapDraftConflict;
 };
 
+/** A null value is an explicit deletion, not an absent queued change. */
+export function latestPatientMapDraftLocalField(
+  queue: Pick<PatientMapDraftQueue, "active" | "pending" | "next" | "conflict">,
+): PatientMapDraftField | undefined {
+  const mutation = queue.next ?? queue.pending ?? queue.active;
+  if (mutation) return mutation.field;
+  return queue.conflict
+    ? { ...queue.conflict.field, value: queue.conflict.localValue }
+    : undefined;
+}
+
 export type PatientMapDraftRecoverySnapshot = {
   patientId: string;
   contentVersion: typeof PATIENT_MAP_CONTENT_VERSION;
@@ -437,7 +448,7 @@ export function usePatientMapDraft({
         }
         if (error instanceof PortalRequestError && error.status === 409) {
           const remoteField = responseFieldFromError(error);
-          const localValue = latest.next?.field.value ?? mutation.field.value;
+          const localValue = (latest.next?.field ?? mutation.field).value;
           delete latest.next;
           if (remoteField && fieldKey(remoteField) === key) {
             latest.conflict = {
@@ -513,18 +524,9 @@ export function usePatientMapDraft({
       if (recovered && recovered.patientId === patientId) {
         restoreRecoveryQueues(recovered);
         for (const recoveredQueue of recovered.queues) {
-          const localField =
-            recoveredQueue.next?.field ??
-            recoveredQueue.pending?.field ??
-            recoveredQueue.active?.field ??
-            recoveredQueue.conflict?.field;
-          const localValue =
-            recoveredQueue.next?.field.value ??
-            recoveredQueue.pending?.field.value ??
-            recoveredQueue.active?.field.value ??
-            recoveredQueue.conflict?.localValue;
-          if (localField && localValue !== undefined) {
-            nextDraft = applyFieldToDraft(nextDraft, { ...localField, value: localValue });
+          const localField = latestPatientMapDraftLocalField(recoveredQueue);
+          if (localField) {
+            nextDraft = applyFieldToDraft(nextDraft, localField);
           }
         }
       }
@@ -647,15 +649,9 @@ export function usePatientMapDraft({
       const localFields = new Map<string, PatientMapDraftField>();
       if (keepLocal) {
         for (const [key, queue] of queuesRef.current) {
-          const conflict = queue.conflict;
-          const localField = queue.next?.field ?? queue.pending?.field ?? queue.active?.field ?? conflict?.field;
-          const localValue =
-            queue.next?.field.value ??
-            queue.pending?.field.value ??
-            queue.active?.field.value ??
-            conflict?.localValue;
-          if (localField && localValue !== undefined) {
-            localFields.set(key, { ...localField, value: localValue });
+          const localField = latestPatientMapDraftLocalField(queue);
+          if (localField) {
+            localFields.set(key, localField);
           }
         }
       } else {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
 
 const client = await readFile(
   new URL("../app/patient-map-draft-client.ts", import.meta.url),
@@ -15,6 +16,48 @@ const privacy = await readFile(
   new URL("../app/privacidade/page.tsx", import.meta.url),
   "utf8",
 );
+
+// Exercise the actual pure selector without mounting hooks or loading a Worker.
+const parsedClient = ts.createSourceFile("patient-map-draft-client.ts", client,
+  ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+const selectorDeclaration = parsedClient.statements.find((statement) =>
+  ts.isFunctionDeclaration(statement) && statement.name?.text === "latestPatientMapDraftLocalField",
+);
+assert.ok(selectorDeclaration, "The map queue needs one explicit latest-field selector.");
+const selectorJavaScript = ts.transpileModule(
+  selectorDeclaration.getText(parsedClient).replace(/^export\s+/u, ""),
+  { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
+).outputText;
+const latestLocalField = new Function(`${selectorJavaScript}\nreturn latestPatientMapDraftLocalField;`)();
+
+test("latest map deletion beats older next, pending and active values", () => {
+  const oldField = { type: "answer", id: "synthetic-item", value: { response: "fits", note: "Synthetic note" } };
+  const deletion = { ...oldField, value: null };
+  const oldMutation = { field: oldField };
+  const deleteMutation = { field: deletion };
+  for (const queue of [
+    { next: deleteMutation, pending: oldMutation, active: oldMutation },
+    { pending: deleteMutation, active: oldMutation },
+    { active: deleteMutation },
+  ]) {
+    assert.deepEqual(latestLocalField(queue), deletion);
+    assert.equal(latestLocalField(queue).value, null);
+  }
+});
+
+test("map generation conflict and session recovery retain an explicit null local choice", () => {
+  const original = { type: "synthesis", id: "synthetic-prompt", value: "Synthetic previous answer" };
+  const conflict = { field: original, localValue: null, remoteValue: "Synthetic other answer" };
+  assert.deepEqual(latestLocalField({ conflict }), { ...original, value: null });
+  assert.equal(original.value, "Synthetic previous answer", "Reading a conflict must not mutate its older field.");
+  assert.equal(latestLocalField({}), undefined);
+  const changed = { ...original, value: "Synthetic latest answer" };
+  assert.deepEqual(latestLocalField({ next: { field: changed }, conflict }), changed);
+  assert.match(client, /latestPatientMapDraftLocalField\(recoveredQueue\)/u);
+  assert.match(client, /latestPatientMapDraftLocalField\(queue\)/u);
+  assert.doesNotMatch(client, /(?:next|pending|active)\?\.field\.value\s*\?\?/u,
+    "Value coalescing must never confuse null tombstones with absent changes.");
+});
 
 test("map draft client loads before editing and uses one versioned field per mutation", () => {
   assert.match(client, /portalRequest<PatientMapDraftGetResponse>\("\/map-draft"\)/u);
