@@ -2215,14 +2215,34 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
   if (entryMatch) {
     const session = await requireSession(request, "patient");
     requireCsrf(request, session);
-    const entry = await DB.prepare("SELECT id FROM entries WHERE id = ? AND patient_id = ?")
+    const entry = await DB.prepare("SELECT id, updated_at FROM entries WHERE id = ? AND patient_id = ?")
       .bind(entryMatch[1], session.userId)
-      .first<{ id: string }>();
+      .first<{ id: string; updated_at: string }>();
     if (!entry) throw new PortalError(404, "Registro não encontrado.");
+    // Older installed clients omit this field. Preserve their existing request
+    // contract while new clients protect the version they actually opened.
+    const expectedUpdatedAt = input.expected_updated_at === undefined
+      ? entry.updated_at
+      : input.expected_updated_at;
+    if (
+      typeof expectedUpdatedAt !== "string" ||
+      expectedUpdatedAt.length > 40 ||
+      !Number.isFinite(Date.parse(expectedUpdatedAt))
+    ) {
+      throw new PortalError(400, "A versão do registro não pôde ser confirmada.");
+    }
+    const conflictMessage = "Este registro foi alterado em outra aba ou aparelho. Copie suas alterações antes de sair e reabra o registro atualizado para compará-las.";
+    if (expectedUpdatedAt !== entry.updated_at) {
+      throw new PortalError(409, conflictMessage);
+    }
     const values = validateEntry(input);
-    await DB.prepare(
+    // Always advance the version, including two saves in the same millisecond.
+    const previousTime = Date.parse(entry.updated_at);
+    const timestamp = new Date(Math.max(Date.now(), Number.isFinite(previousTime) ? previousTime + 1 : 0)).toISOString();
+    const saved = await DB.prepare(
       `UPDATE entries SET title = ?, happened = ?, body = ?, thoughts = ?, urge = ?,
-        emotion = ?, intensity = ?, message = ?, updated_at = ? WHERE id = ?`,
+        emotion = ?, intensity = ?, message = ?, updated_at = ?
+        WHERE id = ? AND patient_id = ? AND updated_at = ?`,
     )
       .bind(
         values.title,
@@ -2233,12 +2253,15 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
         values.emotion,
         values.intensity,
         values.message,
-        now(),
+        timestamp,
         entry.id,
+        session.userId,
+        expectedUpdatedAt,
       )
       .run();
+    if (saved.meta.changes !== 1) throw new PortalError(409, conflictMessage);
     await audit(session.userId, "update", "entry", entry.id);
-    return json({ ok: true });
+    return json({ ok: true, updated_at: timestamp });
   }
 
   throw new PortalError(404, "Recurso não encontrado.");

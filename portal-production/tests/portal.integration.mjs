@@ -1650,6 +1650,55 @@ expectStatus(
   "revisão que permanece em registro privado",
 );
 
+// Editing must protect the version a new client actually opened. These
+// requests use only the disposable patient account and its private entry.
+const beforeConcurrentEdit = await api("/entries", { auth: patientA });
+const entryBeforeEdit = beforeConcurrentEdit.payload.entries.find((entry) => entry.id === privateEntryA);
+const editBody = Object.fromEntries(
+  ["title", "happened", "body", "thoughts", "urge", "emotion", "intensity", "message"]
+    .map((field) => [field, entryBeforeEdit[field]]),
+);
+const versionedEdit = {
+  ...editBody,
+  expected_updated_at: entryBeforeEdit.updated_at,
+};
+const concurrentEdits = await Promise.all([
+  api(`/entries/${privateEntryA}`, { method: "PATCH", body: versionedEdit, auth: patientA }),
+  api(`/entries/${privateEntryA}`, { method: "PATCH", body: versionedEdit, auth: patientA }),
+]);
+assert.deepEqual(concurrentEdits.map((result) => result.response.status).sort(), [200, 409],
+  "two edits opened at the same version must not both overwrite the entry");
+const afterConcurrentEdit = await api("/entries", { auth: patientA });
+const entryAfterEdit = afterConcurrentEdit.payload.entries.find((entry) => entry.id === privateEntryA);
+assert.ok(entryAfterEdit.updated_at > entryBeforeEdit.updated_at, "every accepted save must advance its version");
+assert.equal(entryAfterEdit.shared_at, entryBeforeEdit.shared_at, "editing must not change sharing");
+for (const [field, value] of Object.entries(editBody)) assert.equal(entryAfterEdit[field], value);
+const staleEdit = await api(`/entries/${privateEntryA}`, {
+  method: "PATCH", auth: patientA,
+  body: { ...versionedEdit, happened: "Synthetic stale overwrite that must be rejected." },
+});
+expectStatus(staleEdit, 409, "stale entry edit rejected without overwriting current text");
+assert.match(staleEdit.payload.error, /outra aba ou aparelho/u);
+const invalidVersionEdit = await api(`/entries/${privateEntryA}`, {
+  method: "PATCH", auth: patientA, body: { ...editBody, expected_updated_at: null },
+});
+expectStatus(invalidVersionEdit, 400, "invalid explicit entry version rejected");
+const wrongOwnerEdit = await api(`/entries/${privateEntryA}`, {
+  method: "PATCH", auth: patientB, body: { ...editBody, expected_updated_at: entryAfterEdit.updated_at },
+});
+expectStatus(wrongOwnerEdit, 404, "another patient's version does not grant editing access");
+const editWithoutCsrf = await api(`/entries/${privateEntryA}`, {
+  method: "PATCH", auth: patientA, includeCsrf: false,
+  body: { ...editBody, expected_updated_at: entryAfterEdit.updated_at },
+});
+expectStatus(editWithoutCsrf, 403, "versioned edit still requires CSRF");
+const legacyCompatibleEdit = await api(`/entries/${privateEntryA}`, {
+  method: "PATCH", auth: patientA, body: editBody,
+});
+expectStatus(legacyCompatibleEdit, 200, "already installed clients remain compatible without the new version field");
+const afterStaleEdit = await api("/entries", { auth: patientA });
+assert.equal(afterStaleEdit.payload.entries.find((entry) => entry.id === privateEntryA).happened, editBody.happened);
+
 const missingCsrf = await api(`/entries/${privateEntryA}/sharing`, {
   method: "PATCH",
   body: { shared: true },
