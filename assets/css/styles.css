@@ -161,7 +161,7 @@ h3 {
 }
 
 .button:hover {
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .button-dark {
@@ -1170,7 +1170,7 @@ h3 {
 }
 
 .legal-aside {
-  color: #736e65;
+  color: #625e56;
   font-size: 0.78rem;
 }
 
@@ -2733,7 +2733,7 @@ h2 {
 .resource-choice:hover {
   border-color: #a98a55;
   box-shadow: 0 14px 30px rgba(58, 49, 37, 0.09);
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .resource-choice:focus-visible {
@@ -3068,20 +3068,36 @@ h2 {
 }
 
 @media (max-width: 720px) {
+  .inner-page .site-header {
+    height: auto;
+  }
+
+  .inner-page .header-inner {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-block: 12px;
+  }
+
   .simple-header-nav {
-    gap: 0.45rem;
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .simple-header-nav .resource-button {
     display: inline-flex;
-    min-height: 38px;
-    padding-inline: 0.7rem;
-    font-size: 0.66rem;
+    min-height: 44px;
+    min-width: 0;
+    padding: 0.6rem 0.45rem;
+    font-size: 0.75rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
 @media (max-width: 540px) {
   .inner-page .brand-copy {
-    display: none;
+    display: block;
   }
 }
