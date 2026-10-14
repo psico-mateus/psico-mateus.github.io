@@ -1,4 +1,4 @@
-const CACHE_NAME = "guia-emocoes-scoped-v30";
+const CACHE_NAME = "guia-emocoes-scoped-v31";
 const CACHE_PREFIX = "guia-emocoes-scoped-";
 const GUIDE_PATH = "/guia-emocoes/";
 const GUIDE_ASSET_PATHS = new Set([
@@ -21,8 +21,8 @@ const CORE_ASSETS = [
   `${GUIDE_PATH}index.html`,
   `${GUIDE_PATH}manifest.webmanifest`,
   "/assets/index-BBQ5DOp1.css?v=20260716-final",
-  "/assets/css/guide-brand.css?v=20261010-guide-flow",
-  "/assets/js/guide-navigation.js?v=20261010-guide-flow",
+  "/assets/css/guide-brand.css?v=20261014-guide-resilience",
+  "/assets/js/guide-navigation.js?v=20261014-guide-resilience",
   ...GUIDE_ASSET_PATHS,
 ];
 
@@ -60,7 +60,13 @@ self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
+        .then(async (response) => {
+          // Uma falha temporária do servidor não deve bloquear o Guia já guardado.
+          // 404 e outras respostas válidas continuam sendo respeitadas.
+          if (response.status >= 500 && response.status <= 599) {
+            const cached = (await caches.match(event.request)) || (await caches.match(GUIDE_PATH));
+            if (cached) return cached;
+          }
           if (response.ok) {
             const copy = response.clone();
             event.waitUntil(

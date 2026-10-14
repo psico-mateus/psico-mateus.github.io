@@ -205,12 +205,12 @@
     if (target) target.setAttribute("tabindex", "-1");
 
     const guidedExplorationLink = header?.querySelector('nav a[href="#registrar"]');
-    if (guidedExplorationLink?.textContent !== "Exploração guiada") {
+    if (guidedExplorationLink && guidedExplorationLink.textContent !== "Exploração guiada") {
       guidedExplorationLink.textContent = "Exploração guiada";
     }
 
     const guidedExplorationEyebrow = guidedExploration?.querySelector(".eyebrow");
-    if (guidedExplorationEyebrow?.textContent !== "EXPLORAÇÃO GUIADA") {
+    if (guidedExplorationEyebrow && guidedExplorationEyebrow.textContent !== "EXPLORAÇÃO GUIADA") {
       guidedExplorationEyebrow.textContent = "EXPLORAÇÃO GUIADA";
     }
 
@@ -289,6 +289,13 @@
       pdfLink.download = "Guia_Pratico_para_Reconhecer_Emocoes.pdf";
       pdfLink.textContent = "Baixar versão em PDF";
       footerLinks.append(pdfLink);
+    }
+
+    if (footerLinks && !footerLinks.querySelector('a[href="/privacidade/"]')) {
+      const privacyLink = document.createElement("a");
+      privacyLink.href = "/privacidade/";
+      privacyLink.textContent = "Privacidade";
+      footerLinks.append(privacyLink);
     }
 
     const heroActions = document.querySelector(".hero-actions");
