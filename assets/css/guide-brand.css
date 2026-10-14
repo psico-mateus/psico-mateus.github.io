@@ -63,6 +63,7 @@ main .hero-actions {
 main .hero-actions > a {
   width: 100%;
   min-width: 0;
+  border-radius: 12px;
 }
 
 main .hero-actions > .guide-portal-link,
@@ -129,6 +130,12 @@ main .record-summary dt {
   letter-spacing: 0.035em;
 }
 
+/* Referências e palavras longas não podem ficar cortadas no resumo. */
+main .record-summary dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 main .record-actions > .button-quiet:not(:disabled) {
   border-color: #d7cab8;
   background: #f6f1e9;
@@ -136,6 +143,28 @@ main .record-actions > .button-quiet:not(:disabled) {
 
 main .guide-optional-note {
   margin-top: 8px;
+}
+
+/* O aviso acompanha o estado real, sem sugerir salvamento quando ele falha. */
+main .local-save-note[data-save-state="unavailable"] {
+  border-color: #aa8957;
+  background: #f5ecdc;
+}
+
+main .local-save-note[data-save-state="unavailable"] > span {
+  color: #7a531a;
+}
+
+main .guide-storage-notice {
+  margin-top: 10px;
+}
+
+main .guide-copy-status {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+  color: #625e56;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 /* A leitura continua inteira; as duas saídas ficam disponíveis durante a rolagem. */
@@ -542,6 +571,20 @@ main .urgent-care .urgent-care-link:hover {
     font-size: clamp(32px, 9vw, 39px);
   }
 
+  main .record.section {
+    gap: 28px;
+    padding-block: 56px;
+  }
+
+  main .record-intro > p:not(.eyebrow) {
+    margin-top: 20px;
+  }
+
+  main .local-save-note {
+    margin-top: 24px;
+    padding: 16px;
+  }
+
   main .explore.section {
     padding-top: 56px;
   }
@@ -576,6 +619,10 @@ main .urgent-care .urgent-care-link:hover {
 @media print {
   main .guide-mobile-nav,
   .guide-skip-link {
+    display: none !important;
+  }
+
+  main .guide-copy-status {
     display: none !important;
   }
 }

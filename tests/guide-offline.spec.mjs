@@ -20,6 +20,7 @@ test("guia e PDF permanecem disponíveis sem internet", async ({ context, page }
     const oldGuideCache = await caches.open("guia-emocoes-scoped-v28");
     await oldGuideCache.put("/teste-cache-antigo", new Response("cache de teste"));
     await caches.open("guia-emocoes-scoped-v29");
+    await caches.open("guia-emocoes-scoped-v30");
     await caches.open("outro-aplicativo-cache-de-teste");
   }, draft);
 
@@ -31,12 +32,13 @@ test("guia e PDF permanecem disponíveis sem internet", async ({ context, page }
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("guia-emocoes-scoped-v28"))).toBe(false);
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("guia-emocoes-scoped-v29"))).toBe(false);
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("guia-emocoes-scoped-v30"))).toBe(false);
   expect(await page.evaluate(async () => (await caches.keys()).includes("outro-aplicativo-cache-de-teste"))).toBe(true);
   await expect(page.getByRole("textbox", { name: "O que aconteceu?", exact: true })).toHaveValue(draft.happened);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("guia-emocoes-rascunho-v1")))).toEqual(draft);
 
   const cacheState = await page.evaluate(async () => {
-    const cache = await caches.open("guia-emocoes-scoped-v30");
+    const cache = await caches.open("guia-emocoes-scoped-v31");
     const [guide, pdf] = await Promise.all([
       cache.match("/guia-emocoes/"),
       cache.match("/assets/downloads/Guia_Pratico_para_Reconhecer_Emocoes.pdf"),
