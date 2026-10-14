@@ -26,7 +26,7 @@ test("site principal e guia não criam rolagem horizontal nos tamanhos críticos
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
 
-    for (const path of ["/", "/guia-emocoes/"]) {
+    for (const path of ["/", "/guia-emocoes/", "/privacidade/", "/cuidados/", "/404.html"]) {
       await page.goto(path);
       const dimensions = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
@@ -36,6 +36,30 @@ test("site principal e guia não criam rolagem horizontal nos tamanhos críticos
         dimensions.clientWidth + 1,
       );
     }
+  }
+});
+
+test("atalhos das páginas auxiliares cabem no celular e mantêm toque e contraste", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/privacidade/", "/cuidados/"]) {
+    await page.goto(path);
+    await expect(page.locator(".brand-copy strong")).toBeVisible();
+    const links = page.getByRole("navigation", { name: "Recursos de Mateus Ribeiro Marcos" }).getByRole("link");
+    await expect(links).toHaveCount(3);
+    const boxes = await links.evaluateAll(elements => elements.map(element => {
+      const box = element.getBoundingClientRect();
+      return { height: box.height, left: box.left, right: box.right };
+    }));
+    for (const box of boxes) {
+      expect(box.height, `${path}: área de toque`).toBeGreaterThanOrEqual(44);
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(390);
+    }
+    const colors = await page.locator(".legal-aside span").evaluate(element => ({
+      background: getComputedStyle(document.body).backgroundColor,
+      foreground: getComputedStyle(element).color,
+    }));
+    expect(contrastRatio(colors.background, colors.foreground), `${path}: texto auxiliar`).toBeGreaterThanOrEqual(4.5);
   }
 });
 
