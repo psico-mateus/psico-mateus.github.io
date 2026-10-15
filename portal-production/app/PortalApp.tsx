@@ -1833,6 +1833,10 @@ function PatientDashboard({
   const [editorAnnouncement, setEditorAnnouncement] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [entriesRefreshAnnouncement, setEntriesRefreshAnnouncement] = useState<{
+    area: PatientArea;
+    message: string;
+  } | null>(null);
   const [entriesError, setEntriesError] = useState("");
   const [entryFilter, setEntryFilter] =
     useState<PatientEntrySharingFilter>("all");
@@ -1897,12 +1901,14 @@ function PatientDashboard({
     entriesRequestsInFlight.current += 1;
     lastEntriesRequestAt.current = Date.now();
     if (showRefreshing) setRefreshing(true);
+    setEntriesRefreshAnnouncement(null);
     setEntriesError("");
     try {
       const result = await portalRequest<{ entries: Entry[] }>("/entries");
       if (sequence !== entriesRequestSequence.current) return;
       setEntries(result.entries);
       restoreRecoveredRecords(result.entries);
+      return result.entries;
     }
     catch (error) {
       if (sequence !== entriesRequestSequence.current) return;
@@ -2148,13 +2154,31 @@ function PatientDashboard({
       patientId: user.id, editing: null, draft: null, editorDirty: false,
       editorPaused: true, entryReturn: null, thoughtReviewSnapshots,
     }));
-    await load();
+    const freshEntries = await load();
+    if (!freshEntries) return;
+    const savedEntry = freshEntries.find((entry) => entry.id === savedId);
+    if (savedEntry) {
+      // A successful save should not look lost behind the previous search.
+      // Remove only controls that hide this record; keep useful filters/order.
+      if (entryFilter !== "all" && isEntryShared(savedEntry) !== (entryFilter === "shared")) {
+        setEntryFilter((current) => current === entryFilter ? "all" : current);
+      }
+      if (entryQuery.trim() && !filterAndSortPatientEntries([savedEntry], "all", entryQuery, entrySort).length) {
+        setEntryQuery((current) => current === entryQuery ? "" : current);
+      }
+    }
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         const card = document.getElementById(`record-${savedId}`);
         const summary = card?.querySelector<HTMLElement>("summary");
-        card?.scrollIntoView({ block: "center", behavior: "auto" });
-        summary?.focus({ preventScroll: true });
+        const target = summary ?? document.getElementById("records-title");
+        const focused = document.activeElement;
+        // A slow history request must not take focus from someone already
+        // searching, filtering, or navigating after the save completed.
+        if (focused instanceof HTMLElement && focused !== document.body &&
+          focused.id !== "records-title" && focused !== target) return;
+        target?.scrollIntoView({ block: summary ? "center" : "start", behavior: "auto" });
+        target?.focus({ preventScroll: true });
       });
     });
   }
@@ -2560,9 +2584,13 @@ function PatientDashboard({
     if (entriesRefreshLock.current || entriesRequestsInFlight.current > 0) return;
     entriesRefreshLock.current = true;
     if (retryAfterError) setLoading(true);
-    void load(!retryAfterError).finally(() => {
-      entriesRefreshLock.current = false;
-    });
+    void load(!retryAfterError)
+      .then((freshEntries) => {
+        if (freshEntries) setEntriesRefreshAnnouncement({ area, message: "Seus registros foram atualizados." });
+      })
+      .finally(() => {
+        entriesRefreshLock.current = false;
+      });
   }
   function focusEntrySearch() {
     window.requestAnimationFrame(() => {
@@ -2649,8 +2677,8 @@ function PatientDashboard({
         </button>
       </nav>
 
-      <p className="sr-status" role="status" aria-live="polite">
-        {refreshing ? "Atualizando seus registros." : ""}
+      <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+        {refreshing ? "Atualizando seus registros." : entriesRefreshAnnouncement?.area === area ? entriesRefreshAnnouncement.message : ""}
       </p>
 
       {recordRecoveryAnnouncement && (Boolean(editing && editorDirty) || blockedEntryRecovery ||
@@ -2694,7 +2722,7 @@ function PatientDashboard({
           <section className="patient-overview" aria-label="Resumo da Área do paciente">
             <header className="patient-overview-heading">
               <h2>Resumo dos registros</h2>
-              <button className="patient-overview-refresh" type="button" disabled={loading || refreshing} onClick={() => refreshEntries()}>
+              <button className="patient-overview-refresh" type="button" disabled={loading} aria-disabled={loading || refreshing} onClick={() => refreshEntries()}>
                 <span aria-hidden="true">↻</span> {refreshing ? "Atualizando…" : "Atualizar"}
               </button>
             </header>
@@ -2805,7 +2833,8 @@ function PatientDashboard({
             <button
               className="secondary-button compact-button patient-record-refresh"
               type="button"
-              disabled={loading || refreshing}
+              disabled={loading}
+              aria-disabled={loading || refreshing}
               onClick={() => refreshEntries()}
             >
               {refreshing ? "Atualizando…" : "Atualizar"}
@@ -3148,7 +3177,12 @@ function AccountPanel({
   setRecovery: (code: string) => void;
   onSessionsEnded: () => void;
 }) {
-  const [message, setMessage] = useState("");
+  type AccountAction = "password" | "recovery" | "sessions" | "delete";
+  const [messages, setMessages] = useState<Partial<Record<AccountAction, {
+    tone: "error" | "success";
+    text: string;
+    focus: boolean;
+  }>>>({});
   const [invalidPasswordField, setInvalidPasswordField] = useState<
     "confirmation" | null
   >(null);
@@ -3257,12 +3291,36 @@ function AccountPanel({
     };
   }, [onSessionsEnded, role]);
 
-  function handleAccountError(error: unknown) {
+  function setAccountMessage(action: AccountAction, text: string, tone: "error" | "success" = "error", focus = tone === "error") {
+    setMessages((current) => ({ ...current, [action]: text ? { tone, text, focus } : undefined }));
+  }
+  function watchAccountActionFocus(formElement: HTMLFormElement) {
+    let movedElsewhere = false;
+    const track = (event: Event) => {
+      const target = event.target;
+      // Safari may leave focus on body after a pointer submission. Only a real
+      // interaction elsewhere should cancel this request's focus destination.
+      if (target instanceof Node && !formElement.contains(target) &&
+        !(event.type === "focusin" && (target === document.body || target === document.documentElement))) {
+        movedElsewhere = true;
+      }
+    };
+    document.addEventListener("focusin", track, true);
+    document.addEventListener("pointerdown", track, true);
+    return {
+      canFocus: () => !movedElsewhere && formElement.isConnected && !formElement.closest("details:not([open])"),
+      stop: () => {
+        document.removeEventListener("focusin", track, true);
+        document.removeEventListener("pointerdown", track, true);
+      },
+    };
+  }
+  function handleAccountError(error: unknown, action: AccountAction, shouldFocus: boolean) {
     if (isSessionExpiredError(error)) {
       onSessionsEnded();
       return;
     }
-    setMessage((error as Error).message);
+    setAccountMessage(action, (error as Error).message, "error", shouldFocus);
   }
   async function password(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -3272,19 +3330,21 @@ function AccountPanel({
     setInvalidPasswordField(null);
     if (form.get("new_password") !== form.get("confirmation")) {
       setInvalidPasswordField("confirmation");
-      setMessage("As novas senhas não coincidem.");
+      setAccountMessage("password", "As novas senhas não coincidem.");
       window.requestAnimationFrame(() => {
         const confirmation = formElement.elements.namedItem("confirmation");
         if (confirmation instanceof HTMLInputElement) confirmation.focus();
       });
       return;
     }
+    const focus = watchAccountActionFocus(formElement);
     passwordRequestInFlight.current = true;
     setPasswordBusy(true);
-    setMessage("");
-    try { await portalRequest("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); formElement.reset(); setMessage("Senha alterada."); }
-    catch (error) { handleAccountError(error); }
+    setAccountMessage("password", "");
+    try { await portalRequest("/account/password", { method: "PATCH", body: JSON.stringify({ current_password: form.get("current_password"), new_password: form.get("new_password"), totp: form.get("totp") }) }, csrf); formElement.reset(); setAccountMessage("password", "Senha alterada.", "success"); }
+    catch (error) { handleAccountError(error, "password", focus.canFocus()); }
     finally {
+      focus.stop();
       passwordRequestInFlight.current = false;
       setPasswordBusy(false);
     }
@@ -3294,13 +3354,14 @@ function AccountPanel({
     if (recoveryRequestInFlight.current) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    setInvalidPasswordField(null);
+    const focus = watchAccountActionFocus(formElement);
     recoveryRequestInFlight.current = true;
     setRecoveryBusy(true);
-    setMessage("");
+    setAccountMessage("recovery", "");
     try { const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); formElement.reset(); setRecovery(result.recovery_code); }
-    catch (error) { handleAccountError(error); }
+    catch (error) { handleAccountError(error, "recovery", focus.canFocus()); }
     finally {
+      focus.stop();
       recoveryRequestInFlight.current = false;
       setRecoveryBusy(false);
     }
@@ -3401,14 +3462,16 @@ function AccountPanel({
     event.preventDefault();
     if (deleteAccountRequestInFlight.current) return;
     if (!window.confirm("Excluir sua conta e todos os registros de forma permanente? Esta ação não pode ser desfeita.")) return;
-    const form = new FormData(event.currentTarget);
-    setInvalidPasswordField(null);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const focus = watchAccountActionFocus(formElement);
     deleteAccountRequestInFlight.current = true;
     setDeletingAccount(true);
-    setMessage("");
+    setAccountMessage("delete", "");
     try { await portalRequest("/account", { method: "DELETE", body: JSON.stringify({ current_password: form.get("current_password") }) }, csrf); window.location.reload(); }
-    catch (error) { handleAccountError(error); }
+    catch (error) { handleAccountError(error, "delete", focus.canFocus()); }
     finally {
+      focus.stop();
       deleteAccountRequestInFlight.current = false;
       setDeletingAccount(false);
     }
@@ -3423,11 +3486,12 @@ function AccountPanel({
     ) {
       return;
     }
-    const form = new FormData(event.currentTarget);
-    setInvalidPasswordField(null);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const focus = watchAccountActionFocus(formElement);
     endSessionsRequestInFlight.current = true;
     setEndingSessions(true);
-    setMessage("");
+    setAccountMessage("sessions", "");
     try {
       await portalRequest(
         "/account/sessions",
@@ -3442,8 +3506,9 @@ function AccountPanel({
       );
       onSessionsEnded();
     } catch (error) {
-      handleAccountError(error);
+      handleAccountError(error, "sessions", focus.canFocus());
     } finally {
+      focus.stop();
       endSessionsRequestInFlight.current = false;
       setEndingSessions(false);
     }
@@ -3533,19 +3598,20 @@ function AccountPanel({
             invalid={invalidPasswordField === "confirmation"}
             errorId={
               invalidPasswordField === "confirmation"
-                ? "account-form-message"
+                ? "account-password-message"
                 : undefined
             }
             onValueChange={() => {
               if (invalidPasswordField !== "confirmation") return;
               setInvalidPasswordField(null);
-              setMessage("");
+              setAccountMessage("password", "");
             }}
           />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
-          <button className="secondary-button" disabled={passwordBusy}>
+          <button className="secondary-button" aria-disabled={passwordBusy}>
             {passwordBusy ? "Alterando senha…" : "Alterar senha"}
           </button>
+          {messages.password ? <Notice id="account-password-message" tone={messages.password.tone} message={messages.password.text} focusOnMount={messages.password.focus && !invalidPasswordField} /> : null}
         </form>
         </PatientAccountAction>
         <PatientAccountAction
@@ -3562,9 +3628,10 @@ function AccountPanel({
           </p>
           <Field label="Senha atual" name="current_password" type="password" autoComplete="current-password" required />
           {role === "therapist" ? <Field label="Código do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Digite ou cole os 6 números. Espaços e hífens são ignorados." required /> : null}
-          <button className="secondary-button" disabled={recoveryBusy}>
+          <button className="secondary-button" aria-disabled={recoveryBusy}>
             {recoveryBusy ? "Gerando código…" : "Criar novo código"}
           </button>
+          {messages.recovery ? <Notice tone={messages.recovery.tone} message={messages.recovery.text} focusOnMount={messages.recovery.focus} /> : null}
         </form>
         </PatientAccountAction>
       </div>
@@ -3681,14 +3748,6 @@ function AccountPanel({
           ) : null}
         </section>
       ) : null}
-      {message ? (
-        <Notice
-          id="account-form-message"
-          tone={message.includes("alterada") ? "success" : "error"}
-          message={message}
-          focusOnMount={!message.includes("alterada") && !invalidPasswordField}
-        />
-      ) : null}
       {role === "therapist" ? <section className="account-sessions" aria-labelledby={`account-sessions-title-${role}`}>
         <div>
           <h3 id={`account-sessions-title-${role}`}>Sessões e dispositivos</h3>
@@ -3700,9 +3759,10 @@ function AccountPanel({
         <form className="stack" onSubmit={endAllSessions} aria-busy={endingSessions}>
           <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
           {role === "therapist" ? <Field label="Código atual do autenticador" name="totp" autoComplete="one-time-code" inputMode="numeric" autoCapitalize="none" spellCheck={false} maxLength={12} hint="Se acabou de entrar, aguarde o número exibido mudar e use o próximo código de 6 dígitos." required /> : null}
-          <button className="danger-button" disabled={endingSessions}>
+          <button className="danger-button" aria-disabled={endingSessions}>
             {endingSessions ? "Encerrando sessões…" : "Encerrar em todos os dispositivos"}
           </button>
+          {messages.sessions ? <Notice tone={messages.sessions.tone} message={messages.sessions.text} focusOnMount={messages.sessions.focus} /> : null}
         </form>
       </section> : null}
       {role === "patient" ? (
@@ -3759,9 +3819,10 @@ function AccountPanel({
               </p>
               <form className="stack" onSubmit={endAllSessions} aria-busy={endingSessions}>
                 <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
-                <button className="danger-button" disabled={endingSessions}>
+                <button className="danger-button" aria-disabled={endingSessions}>
                   {endingSessions ? "Encerrando sessões…" : "Encerrar em todos os dispositivos"}
                 </button>
+                {messages.sessions ? <Notice tone={messages.sessions.tone} message={messages.sessions.text} focusOnMount={messages.sessions.focus} /> : null}
               </form>
             </section>
           </PatientAccountAction>
@@ -3775,9 +3836,10 @@ function AccountPanel({
             <p>Esta ação apaga permanentemente sua conta, todos os seus registros, o Meu mapa e os avisos recebidos.</p>
             <form onSubmit={deleteAccount} aria-busy={deletingAccount}>
               <Field label="Senha atual para confirmar" name="current_password" type="password" autoComplete="current-password" required />
-              <button className="danger-button" disabled={deletingAccount}>
+              <button className="danger-button" aria-disabled={deletingAccount}>
                 {deletingAccount ? "Excluindo conta…" : "Excluir conta e registros"}
               </button>
+              {messages.delete ? <Notice tone={messages.delete.tone} message={messages.delete.text} focusOnMount={messages.delete.focus} /> : null}
             </form>
           </section>
           </PatientAccountAction>

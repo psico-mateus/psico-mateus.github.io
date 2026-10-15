@@ -80,7 +80,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     const patient = { id: "synthetic-records-patient", name: "Paciente Sintético", role: "patient" };
     const controls = {
       entries: structuredClone(entries), entriesStatus, sharingFailure: 0, saveFailure: 0,
-      loginUser: patient, entriesRequests: 0,
+      loginUser: patient, entriesRequests: 0, nextEntriesGate: Promise.resolve(),
       unexpected: [], foreignRequests: [], runtimeErrors: [], expectedHttpFailures: [], mutations: [],
     };
     const fixture = { context, page, controls, releaseEntries, releaseSharing, releaseDeleting };
@@ -133,6 +133,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
       if (path === "/entries" && method === "GET") {
         controls.entriesRequests += 1;
         await entriesGate;
+        await controls.nextEntriesGate;
         return controls.entriesStatus === 200 ? respond({ entries: controls.entries })
           : respond({ error: "Falha sintética ao carregar os registros." }, controls.entriesStatus);
       }
@@ -902,6 +903,121 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await expect(card.locator(":scope > summary")).toBeFocused();
     await checkHealthy(fixture, "records-early-save-minimum");
+  });
+
+  test("successful save reveals a private new record hidden by the previous search and sharing filter", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    await page.getByRole("button", { name: "Com Mateus 2", exact: true }).click();
+    await page.getByLabel("Buscar nos meus registros").fill("compartilhado");
+    await page.getByLabel("Ordenar").selectOption("oldest");
+    const form = await openNewEditor(fixture);
+    await form.getByLabel("Título breve").fill("Nova anotação sintética");
+    await form.getByLabel("O que aconteceu?").fill("Uma situação breve sem relação com a busca anterior.");
+    await form.getByRole("button", { name: "Salvar agora como privado", exact: true }).click();
+    await expect(form).toHaveCount(0);
+    const saved = controls.entries.at(-1);
+    const card = page.locator(`#record-${saved.id}`);
+    await expect(card).toBeVisible();
+    await expect(card.locator(":scope > summary")).toBeFocused();
+    await expect(card.locator(".status.private")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Todos 4", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await openSearchPanel(page);
+    await expect(page.getByLabel("Buscar nos meus registros")).toHaveValue("");
+    await expect(page.getByLabel("Ordenar")).toHaveValue("oldest");
+    assert.equal(controls.mutations.length, 1, "Revealing the saved record must not share it or save twice.");
+    assert.equal(saved.shared_at, null);
+    await checkHealthy(fixture, "records-save-reveals-filtered-new-record");
+  });
+
+  for (const stillMatches of [false, true]) {
+    test(`successful edit ${stillMatches ? "keeps a useful search" : "clears only the hiding search"} and preserves private filter, order and focus`, async () => {
+      const fixture = await openRecords();
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      await page.getByRole("button", { name: "Privados 1", exact: true }).click();
+      await page.getByLabel("Buscar nos meus registros").fill("privado");
+      await page.getByLabel("Ordenar").selectOption("oldest");
+      const card = page.locator("#record-synthetic-record-private");
+      await card.locator(":scope > summary").click();
+      await card.getByRole("button", { name: "Editar", exact: true }).click();
+      const form = page.locator("#entry-editor");
+      const title = stillMatches ? "Privado: anotação sintética revisada" : "Anotação sintética revisada";
+      await form.getByLabel("Título breve").fill(title);
+      await form.getByRole("button", { name: "Salvar alterações agora", exact: true }).click();
+      await expect(form).toHaveCount(0);
+      await expect(card).toBeVisible();
+      await expect(card.locator(":scope > summary")).toBeFocused();
+      await expect(card.locator(":scope > summary strong").first()).toHaveText(title);
+      await expect(page.getByRole("button", { name: "Privados 1", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await openSearchPanel(page);
+      await expect(page.getByLabel("Buscar nos meus registros")).toHaveValue(stillMatches ? "privado" : "");
+      await expect(page.getByLabel("Ordenar")).toHaveValue("oldest");
+      await expect(page.locator(".patient-record-card")).toHaveCount(1);
+      assert.equal(controls.mutations.length, 1);
+      assert.equal(controls.mutations[0].method, "PATCH");
+      assert.equal(controls.entries[0].shared_at, null);
+      await checkHealthy(fixture, `records-save-${stillMatches ? "retains" : "clears"}-search-only`);
+    });
+  }
+
+  test("a failed history refresh after saving does not clear filters, resubmit, or steal focus from its error", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    await page.getByLabel("Buscar nos meus registros").fill("compartilhado");
+    const form = await openNewEditor(fixture);
+    await form.getByLabel("Título breve").fill("Anotação salva antes da falha de leitura");
+    await form.getByLabel("O que aconteceu?").fill("Conteúdo sintético preservado no retorno do servidor.");
+    controls.entriesStatus = 503;
+    await form.getByRole("button", { name: "Salvar agora como privado", exact: true }).click();
+    await expect(form).toHaveCount(0);
+    const error = page.locator(".error-state .notice-error");
+    await expect(error).toBeVisible();
+    await expect(error).toBeFocused();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(error).toBeFocused();
+    await expect(page.locator(".patient-record-search-panel > summary")).toContainText("Busca ativa");
+    assert.equal(controls.mutations.length, 1, "A failed read after a confirmed save must never repeat the POST.");
+    assert.equal(controls.entries.at(-1).title, "Anotação salva antes da falha de leitura");
+    await checkHealthy(fixture, "records-saved-refresh-error");
+  });
+
+  test("a slow post-save refresh preserves a newer search, filter and keyboard focus", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    await page.getByRole("button", { name: "Com Mateus 2", exact: true }).click();
+    await page.getByLabel("Buscar nos meus registros").fill("compartilhado");
+    const form = await openNewEditor(fixture);
+    await form.getByLabel("Título breve").fill("Anotação nova durante a busca");
+    await form.getByLabel("O que aconteceu?").fill("Situação sintética para verificar o retorno lento.");
+    let release;
+    controls.nextEntriesGate = new Promise(resolve => { release = resolve; });
+    try {
+      await form.getByRole("button", { name: "Salvar agora como privado", exact: true }).click();
+      await expect(form).toHaveCount(0);
+      await expect.poll(() => controls.entriesRequests).toBe(2);
+      await openSearchPanel(page);
+      const search = page.getByLabel("Buscar nos meus registros");
+      await search.fill("visualizado");
+      await page.getByRole("button", { name: "Privados 1", exact: true }).click();
+      await search.focus();
+      const refreshed = page.waitForResponse(response => response.url().endsWith("/api/portal/entries") && response.request().method() === "GET");
+      release();
+      await refreshed;
+      await expect(page.getByRole("button", { name: "Privados 2", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(search).toHaveValue("visualizado");
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await expect(search).toBeFocused();
+      await expect(page.locator(".patient-record-card")).toHaveCount(0);
+      assert.equal(controls.mutations.length, 1);
+      assert.equal(controls.entries.at(-1).shared_at, null);
+      await checkHealthy(fixture, "records-saved-refresh-preserves-new-controls");
+    } finally {
+      release();
+    }
   });
 
   test("early save includes optional answers already written farther down the form", async () => {

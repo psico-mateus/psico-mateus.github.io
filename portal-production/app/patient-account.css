@@ -126,6 +126,8 @@
   line-height: 1.6;
 }
 .patient-account-panel .patient-account-action-body form { align-content: start; }
+.patient-account-panel .patient-account-action-body .notice-error { color: #7a2f29; }
+.patient-account-panel .patient-account-action-body .notice-success { color: #265343; }
 .patient-account-panel .patient-account-action-body form > button,
 .patient-account-panel .patient-account-action-body .account-export-link {
   width: fit-content;

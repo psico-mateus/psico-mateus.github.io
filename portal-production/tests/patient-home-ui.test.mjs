@@ -66,6 +66,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
   after(async () => {
     for (const fixture of fixtures) {
       fixture.releaseEntries();
+      fixture.releaseRefresh();
       await fixture.context.close();
     }
     await browser?.close();
@@ -73,8 +74,11 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
 
   async function openHome({
     entries = syntheticEntries,
+    entriesAfterInitial = entries,
     entriesStatus = 200,
+    entriesStatusAfterInitial = entriesStatus,
     pendingEntries = false,
+    pendingRefresh = false,
     name = "Paciente Sintético",
     viewport = { width: 1366, height: 900 },
   } = {}) {
@@ -87,6 +91,9 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     let releaseEntries;
     const entriesGate = new Promise((resolveGate) => { releaseEntries = resolveGate; });
     if (!pendingEntries) releaseEntries();
+    let releaseRefresh;
+    const refreshGate = new Promise((resolveGate) => { releaseRefresh = resolveGate; });
+    if (!pendingRefresh) releaseRefresh();
     const controls = {
       entriesRequests: 0,
       unexpected: [],
@@ -95,7 +102,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
       runtimeErrors: [],
       expectedHttpFailures: [],
     };
-    const fixture = { context, page, controls, releaseEntries };
+    const fixture = { context, page, controls, releaseEntries, releaseRefresh };
     fixtures.add(fixture);
 
     page.on("pageerror", (error) => controls.runtimeErrors.push(error.message));
@@ -103,7 +110,8 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
       if (!["error", "warning"].includes(message.type())) return;
       const text = message.text();
       if (text === "Service Worker registration blocked by Playwright") return;
-      if (entriesStatus >= 400 && /Failed to load resource: the server responded with a status of 503\b/u.test(text)) {
+      if ((entriesStatus >= 400 || entriesStatusAfterInitial >= 400)
+        && /Failed to load resource: the server responded with a status of 503\b/u.test(text)) {
         controls.expectedHttpFailures.push(text);
         return;
       }
@@ -148,10 +156,13 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
       });
       if (path === "/entries") {
         controls.entriesRequests += 1;
+        const initialRead = controls.entriesRequests === 1;
+        const status = initialRead ? entriesStatus : entriesStatusAfterInitial;
         await entriesGate;
-        return entriesStatus === 200
-          ? respond({ entries: structuredClone(entries) })
-          : respond({ error: "Não foi possível consultar os registros neste teste." }, entriesStatus);
+        if (!initialRead) await refreshGate;
+        return status === 200
+          ? respond({ entries: structuredClone(initialRead ? entries : entriesAfterInitial) })
+          : respond({ error: "Não foi possível consultar os registros neste teste." }, status);
       }
       if (path === "/notices") return respond({ notices: [], unread_count: 0, next_cursor: null });
       if (path === "/map-sharing") return respond({ shares: [] });
@@ -308,6 +319,67 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     await checkHealthy(fixture, "home-grouped-plural-mobile");
   });
 
+  test("manual summary refresh announces completion without moving focus or creating another request", async () => {
+    const fixture = await openHome({ pendingRefresh: true });
+    const { page, controls } = fixture;
+    const overview = page.locator(".patient-overview");
+    const status = page.locator(".patient-dashboard > .sr-status");
+    await expect(overview.locator(".overview-number")).toHaveText(["3", "2"]);
+    await expect(status).toBeEmpty();
+    const refresh = overview.locator(".patient-overview-refresh");
+    await expect(refresh).toHaveAccessibleName("Atualizar");
+    await refresh.focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => controls.entriesRequests).toBe(2);
+    await expect(status).toHaveText("Atualizando seus registros.");
+    await expect(refresh).toBeFocused();
+    await page.keyboard.press("Enter");
+    assert.equal(controls.entriesRequests, 2, "A busy refresh must not issue a duplicate read on keyboard activation.");
+    fixture.releaseRefresh();
+    await expect(status).toHaveText("Seus registros foram atualizados.");
+    await expect(refresh).toBeFocused();
+    await expect(overview.locator(".overview-number")).toHaveText(["3", "2"]);
+    await expect(page.locator(".patient-home .notice-success")).toHaveCount(0);
+    assert.equal(controls.entriesRequests, 2, "Only the initial read and one explicit refresh are allowed.");
+    await checkHealthy(fixture, "home-refresh-confirmed");
+  });
+
+  test("a failed manual refresh never announces success and preserves the last loaded summary", async () => {
+    const fixture = await openHome({ pendingRefresh: true, entriesStatusAfterInitial: 503 });
+    const { page, controls } = fixture;
+    const overview = page.locator(".patient-overview");
+    const status = page.locator(".patient-dashboard > .sr-status");
+    await expect(overview.locator(".overview-number")).toHaveText(["3", "2"]);
+    await overview.getByRole("button", { name: "Atualizar", exact: true }).click();
+    await expect(status).toHaveText("Atualizando seus registros.");
+    fixture.releaseRefresh();
+    await expect(page.getByRole("button", { name: "Tentar carregar os registros novamente" })).toBeVisible();
+    await expect(status).not.toContainText("Seus registros foram atualizados.");
+    await expect(overview.locator(".overview-number")).toHaveText(["3", "2"]);
+    await expect(overview).toContainText("Este resumo mostra os últimos dados carregados.");
+    assert.equal(controls.entriesRequests, 2, "A failed explicit refresh must not retry on its own.");
+    await checkHealthy(fixture, "home-refresh-failed");
+  });
+
+  test("automatic refresh after returning to the page does not announce manual success", async () => {
+    const fixture = await openHome({
+      pendingRefresh: true,
+      entriesAfterInitial: [...syntheticEntries, { ...syntheticEntries[0], id: "synthetic-home-private-after-return" }],
+    });
+    const { page, controls } = fixture;
+    const status = page.locator(".patient-dashboard > .sr-status");
+    await expect(page.locator(".patient-overview .overview-number")).toHaveText(["3", "2"]);
+    await page.clock.setFixedTime(new Date(Date.now() + 61_000));
+    await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+    await expect.poll(() => controls.entriesRequests).toBe(2);
+    await expect(status).toBeEmpty();
+    fixture.releaseRefresh();
+    await expect(page.locator(".patient-overview .overview-number")).toHaveText(["4", "2"]);
+    await expect(status).toBeEmpty();
+    assert.equal(controls.entriesRequests, 2, "Returning to the page issues one read, not a polling loop.");
+    await checkHealthy(fixture, "home-refresh-automatic");
+  });
+
   for (const width of [320, 390, 640]) {
     test(`long names reflow and controls remain readable and touchable at ${width}px`, async () => {
       const fixture = await openHome({
@@ -345,8 +417,16 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     await expect.poll(() => page.locator(".patient-home-workspace").evaluate((workspace) =>
       window.getComputedStyle(workspace).gridTemplateColumns.trim().split(/\s+/u).length,
     )).toBe(1);
-    const noticesBounds = await page.locator(".patient-notices").boundingBox();
-    const actionsBounds = await page.locator(".patient-start").boundingBox();
+    // Read both bounds in the same frame: enlarging text reflows the centered
+    // container, so separate browser round trips can observe different frames.
+    const { noticesBounds, actionsBounds } = await page.evaluate(() => {
+      const notices = document.querySelector(".patient-notices");
+      const actions = document.querySelector(".patient-start");
+      return {
+        noticesBounds: notices?.getBoundingClientRect().toJSON(),
+        actionsBounds: actions?.getBoundingClientRect().toJSON(),
+      };
+    });
     assert.ok(noticesBounds && actionsBounds, "Notices and actions must have rendered bounds.");
     assert.ok(noticesBounds.y + noticesBounds.height <= actionsBounds.y,
       "At 200% text size, notices must be above the action section.");
@@ -430,7 +510,8 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
       const toolId = await toolButton.getAttribute("id");
       await toolButton.click();
       await expect(page.locator("#patient-tool-detail-title")).toBeFocused();
-      await page.getByRole("button", { name: "Voltar às ferramentas", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Voltar às ferramentas", exact: true })).toHaveCount(2);
+      await page.locator(".patient-tool-detail > .patient-tool-detail-back").click();
       await expect(page.locator(`#${toolId}`)).toBeFocused();
       await expect(page.getByRole("button", { name: "Estou travado", exact: true })).toHaveAttribute("aria-pressed", "true");
       await checkHealthy(fixture, `resources-tools-${label}`);

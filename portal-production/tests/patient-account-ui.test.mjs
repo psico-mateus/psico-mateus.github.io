@@ -52,6 +52,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     const page = await context.newPage();
     const controls = {
       entriesStatus: 200, entriesRequests: 0, exportRequests: 0, mutations: [], unexpected: [],
+      accountResponses: {},
       foreignRequests: [], runtimeErrors: [], expectedHttpFailures: [],
     };
     const fixture = { context, page, controls };
@@ -61,7 +62,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
       if (!["error", "warning"].includes(message.type())) return;
       const text = message.text();
       if (text === "Service Worker registration blocked by Playwright") return;
-      if (/Failed to load resource: the server responded with a status of 401\b/u.test(text)) {
+      if (/Failed to load resource: the server responded with a status of (?:400|401)\b/u.test(text)) {
         controls.expectedHttpFailures.push(text);
         return;
       }
@@ -112,6 +113,11 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
       if (path === "/export" && method === "GET") {
         controls.exportRequests += 1;
         return respond({ patient, entries: [], map_draft: { generation: 1, fields: [] }, notices: [] });
+      }
+      if (method !== "GET" && controls.accountResponses[path]) {
+        const response = controls.accountResponses[path];
+        if (response.wait) await response.wait;
+        return respond(response.payload, response.status);
       }
       if (path === "/account/recovery-code" && method === "POST") {
         return respond({ recovery_code: syntheticRecoveryCode });
@@ -274,6 +280,128 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     assert.equal(controls.exportRequests, 1);
     assert.deepEqual(controls.mutations, []);
     await checkHealthy(fixture, "account-export-feedback");
+  });
+
+  for (const [label, viewport, enlarged] of [
+    ["390", { width: 390, height: 844 }, false],
+    ["desktop", { width: 1366, height: 900 }, false],
+    ["text-200", { width: 1402, height: 1000 }, true],
+  ]) {
+    test(`account ${label}: password feedback stays beside the form and keeps the field error linked`, async () => {
+      const fixture = await openAccount(viewport);
+      const { page, controls } = fixture;
+      if (enlarged) await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      const action = await openAction(page, "Alterar senha");
+      await action.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
+      await action.getByLabel("Nova senha ou frase-senha", { exact: true }).fill("nova-frase-sintetica-1");
+      const confirmation = action.getByLabel("Repita a nova senha", { exact: true });
+      await confirmation.fill("outra-frase-sintetica-2");
+      const submit = action.getByRole("button", { name: "Alterar senha", exact: true });
+      await submit.click();
+      const message = action.locator("#account-password-message");
+      await expect(message).toHaveText("As novas senhas não coincidem.");
+      await expect(confirmation).toBeFocused();
+      await expect(confirmation).toHaveAttribute("aria-invalid", "true");
+      await expect(confirmation).toHaveAccessibleDescription("As novas senhas não coincidem.");
+      assert.equal(await message.evaluate(element => element.closest("form")?.contains(element)), true);
+      assert.deepEqual(controls.mutations, [], "A mismatch is rejected locally without changing account data.");
+      await confirmation.fill("nova-frase-sintetica-1");
+      await expect(message).toHaveCount(0);
+      await expect(confirmation).not.toHaveAttribute("aria-invalid");
+
+      controls.accountResponses["/account/password"] = { status: 400, payload: { error: "Não foi possível confirmar a senha sintética." } };
+      await submit.click();
+      await expect(message).toHaveText("Não foi possível confirmar a senha sintética.");
+      await expect(message).toBeFocused();
+      await expect(action.getByLabel("Senha atual", { exact: true })).toHaveValue(syntheticPassword);
+      await checkHealthy(fixture, `account-password-feedback-${label}`);
+
+      controls.accountResponses["/account/password"] = { status: 200, payload: {} };
+      await submit.click();
+      await expect(action.getByRole("status").filter({ hasText: "Senha alterada." })).toBeVisible();
+      await expect(action.locator(".notice-error")).toHaveCount(0);
+      await expect(action.getByLabel("Senha atual", { exact: true })).toHaveValue("");
+      assert.deepEqual(controls.mutations.map(({ method, path }) => `${method} ${path}`), ["PATCH /account/password", "PATCH /account/password"]);
+    });
+  }
+
+  test("account errors remain attached to their own action when requests finish in another order", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page, controls } = fixture;
+    let finishRecovery;
+    const recoveryWait = new Promise(resolve => { finishRecovery = resolve; });
+    controls.accountResponses["/account/recovery-code"] = {
+      status: 400, payload: { error: "Não foi possível criar o código sintético." }, wait: recoveryWait,
+    };
+    controls.accountResponses["/account/sessions"] = {
+      status: 400, payload: { error: "Não foi possível encerrar as sessões sintéticas." },
+    };
+    controls.accountResponses["/account"] = {
+      status: 400, payload: { error: "Não foi possível excluir a conta sintética." },
+    };
+    const recovery = await openAction(page, "Código para recuperar a senha");
+    await recovery.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
+    await recovery.getByRole("button", { name: "Criar novo código", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    const pendingButton = recovery.getByRole("button", { name: "Gerando código…", exact: true });
+    await expect(pendingButton).toBeDisabled();
+    await expect(pendingButton).toBeFocused();
+    await page.keyboard.press("Enter");
+    assert.equal(controls.mutations.length, 1, "The busy form retains keyboard focus without creating another recovery code.");
+    const sessions = await openAction(page, "Sessões e dispositivos");
+    await sessions.getByLabel("Senha atual para confirmar", { exact: true }).fill(syntheticPassword);
+    page.once("dialog", async dialog => { await dialog.accept(); });
+    await sessions.getByRole("button", { name: "Encerrar em todos os dispositivos", exact: true }).click();
+    await expect(sessions.getByRole("alert")).toHaveText("Não foi possível encerrar as sessões sintéticas.");
+    await expect(sessions.getByRole("alert")).toBeFocused();
+    finishRecovery();
+    await expect(recovery.getByRole("alert")).toHaveText("Não foi possível criar o código sintético.");
+    await expect(sessions.getByRole("alert")).toHaveText("Não foi possível encerrar as sessões sintéticas.");
+    await expect(sessions.getByRole("alert")).toBeFocused();
+    await expect(page.locator(".patient-account-panel > .notice")).toHaveCount(0);
+
+    const deletion = await openAction(page, "Excluir conta");
+    await deletion.getByLabel("Senha atual para confirmar", { exact: true }).fill(syntheticPassword);
+    page.once("dialog", async dialog => { await dialog.accept(); });
+    await deletion.getByRole("button", { name: "Excluir conta e registros", exact: true }).click();
+    await expect(deletion.getByRole("alert")).toHaveText("Não foi possível excluir a conta sintética.");
+    await expect(deletion.getByRole("alert")).toBeFocused();
+    await expect(recovery.getByRole("alert")).toHaveText("Não foi possível criar o código sintético.");
+    await expect(sessions.getByRole("alert")).toHaveText("Não foi possível encerrar as sessões sintéticas.");
+    assert.deepEqual(controls.mutations.map(({ method, path }) => `${method} ${path}`), [
+      "POST /account/recovery-code", "DELETE /account/sessions", "DELETE /account",
+    ]);
+    await checkHealthy(fixture, "account-independent-errors");
+  });
+
+  test("a late account error stays inside a closed action without taking focus from navigation", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page, controls } = fixture;
+    let finishRecovery;
+    const wait = new Promise(resolve => { finishRecovery = resolve; });
+    controls.accountResponses["/account/recovery-code"] = {
+      status: 400, payload: { error: "Falha sintética depois de fechar a ação." }, wait,
+    };
+    try {
+      const action = await openAction(page, "Código para recuperar a senha");
+      await action.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
+      await action.getByRole("button", { name: "Criar novo código", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await expect(action.getByRole("button", { name: "Gerando código…", exact: true })).toBeFocused();
+      await action.locator(":scope > summary").click();
+      await expect(action).not.toHaveAttribute("open", "");
+      const navigation = page.locator(".patient-navigation").getByRole("button", { name: "Início", exact: true });
+      await navigation.focus();
+      finishRecovery();
+      await expect(action.locator(".notice-error")).toHaveText("Falha sintética depois de fechar a ação.");
+      await expect(action.locator(".notice-error")).not.toBeVisible();
+      await expect(navigation).toBeFocused();
+      await expect(action).not.toHaveAttribute("open", "");
+      assert.equal(controls.mutations.length, 1);
+      await checkHealthy(fixture, "account-late-error-closed-action");
+    } finally {
+      finishRecovery();
+    }
   });
 
   for (const width of [390, 1366]) {

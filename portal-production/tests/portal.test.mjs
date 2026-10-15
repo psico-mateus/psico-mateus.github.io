@@ -462,14 +462,14 @@ test("public UI keeps privacy and safety boundaries visible", async () => {
     app,
     /errorId=\{invalidField === "confirmation" \? "setup-form-message" : undefined\}/,
   );
-  assert.match(app, /id="account-form-message"/);
+  assert.match(app, /id="account-password-message"/);
   assert.match(
     app,
     /setInvalidPasswordField\("confirmation"\)[\s\S]*?confirmation\.focus\(\)/,
   );
   assert.match(
     app,
-    /focusOnMount=\{!message\.includes\("alterada"\) && !invalidPasswordField\}/,
+    /focusOnMount=\{messages\.password\.focus && !invalidPasswordField\}/,
   );
   assert.equal(app.match(/confirmation\.focus\(\)/g)?.length, 3);
   assert.doesNotMatch(
@@ -679,7 +679,7 @@ test("patient access and editing refinements remain accessible and loss-aware", 
   assert.match(app, /if \(isSessionExpiredError\(error\)\) \{\s*onSessionLost\(\)/);
   assert.match(
     app,
-    /function handleAccountError\(error: unknown\)[\s\S]*?onSessionsEnded\(\)/,
+    /function handleAccountError\(error: unknown, action: AccountAction, shouldFocus: boolean\)[\s\S]*?onSessionsEnded\(\)/,
   );
   assert.doesNotMatch(app, /message\.includes\("login"\)/);
   assert.doesNotMatch(app, /Nome novo, mesmo espaço/);
