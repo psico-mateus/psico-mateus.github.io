@@ -79,6 +79,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       sendFailure: 0,
       professionalListFailure: 0,
       listFailure: 0,
+      listGate: null,
       mutations: [],
       unexpected: [],
       runtimeErrors: [],
@@ -135,6 +136,7 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       ] });
       if (path === "/notices" && method === "GET") {
         controls.listRequests.push(url.searchParams.get("cursor"));
+        if (controls.listGate) await controls.listGate;
         if (controls.listFailure) return respond({ error: "Falha sintética ao carregar os avisos." }, controls.listFailure);
         return respond({ notices: url.searchParams.has("cursor") ? controls.earlierNotices : controls.notices, unread_count: controls.notices.filter((notice) => !notice.read_at).length, next_cursor: url.searchParams.has("cursor") ? null : controls.nextCursor });
       }
@@ -411,6 +413,45 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     assert.equal(controls.mutations.length, 0);
     await checkHealthy(page, controls, "patient-initial-failure-retry-mobile");
   });
+
+  for (const width of [390, 1366]) {
+    for (const failure of [0, 503]) {
+      test(`patient ${width}px: manual notice refresh keeps keyboard focus, deduplicates and announces only success (${failure})`, async () => {
+        const { page, controls } = await openPortal("patient", { width, height: 900 });
+        const inbox = page.locator(".patient-notices");
+        const refresh = inbox.locator(".patient-notices-refresh");
+        let releaseList;
+        controls.listGate = new Promise((release) => { releaseList = release; });
+        controls.listFailure = failure;
+        try {
+          await expect(inbox.getByRole("status").filter({ hasText: "Seus avisos foram atualizados." })).toHaveCount(0);
+          await refresh.focus();
+          await page.keyboard.press("Enter");
+          await expect.poll(() => controls.listRequests.length).toBe(2);
+          await expect(refresh).toHaveText("Carregando…");
+          await expect(refresh).toBeFocused();
+          await expect(refresh).toHaveAttribute("aria-disabled", "true");
+          await page.keyboard.press("Enter");
+          await page.keyboard.press("Enter");
+          assert.equal(controls.listRequests.length, 2, "A pending refresh must not start another request.");
+          releaseList();
+          await expect(refresh).toHaveText("Atualizar");
+          await expect(refresh).toBeFocused();
+          const completed = inbox.getByRole("status").filter({ hasText: "Seus avisos foram atualizados." });
+          if (failure) {
+            await expect(inbox.getByRole("alert")).toContainText("Falha sintética");
+            await expect(completed).toHaveCount(0);
+          } else {
+            await expect(completed).toBeAttached();
+          }
+          assert.equal(controls.mutations.length, 0, "Refresh must remain read-only.");
+          await checkHealthy(page, controls, `patient-refresh-${width}-${failure}`);
+        } finally {
+          releaseList();
+        }
+      });
+    }
+  }
 
   test("patient: preview shows two titles; expanding and paging never mark notices read", async () => {
     const additional = { ...noticeTwo, id: "synthetic-third", title: "Terceiro aviso sintético" };

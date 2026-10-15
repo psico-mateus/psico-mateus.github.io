@@ -71,13 +71,13 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
     return false;
   }, []);
 
-  const loadNotices = useCallback(async (cursor?: string) => {
-    if (readRequests.current.size > 0) return;
-    listRequest.current?.abort();
+  const loadNotices = useCallback(async (cursor?: string, announceCompletion = false) => {
+    if (readRequests.current.size > 0 || (listRequest.current && !listRequest.current.signal.aborted)) return;
     const controller = new AbortController();
     listRequest.current = controller;
     setLoading(true);
     setError("");
+    setConfirmation("");
     try {
       const result = await portalRequest<NoticesResult>(
         `/notices?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
@@ -90,6 +90,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
       setUnreadCount(result.unread_count);
       setNextCursor(result.next_cursor ?? null);
       setLoaded(true);
+      if (announceCompletion) setConfirmation("Seus avisos foram atualizados.");
     } catch (failure) {
       if (!active.current || controller.signal.aborted) return;
       if (!handleSessionError(failure)) {
@@ -207,7 +208,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
             ) : null}
           </div>
         </div>
-        <button className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices()} disabled={loading || readingIds.size > 0}>
+        <button className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices(undefined, true)} aria-disabled={loading || readingIds.size > 0}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2-5" /></svg>
           {loading ? "Carregando…" : "Atualizar"}
         </button>
@@ -216,7 +217,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         {error ? (
           <div className="notices-error">
             <p role="alert">{error}</p>
-            <button className="secondary-button" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices()}>Tentar novamente</button>
+            <button className="secondary-button" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(undefined, true)}>Tentar novamente</button>
           </div>
         ) : null}
         {loading && !loaded ? <p className="notices-empty" role="status">Carregando seus avisos…</p> : null}
@@ -257,7 +258,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         </div>
         {!showAll && (notices.length > 2 || nextCursor) ? <button className="secondary-button patient-notices-expand" type="button" aria-controls={listId} aria-expanded={false} onClick={expandNotices}>Ver todos os avisos ({notices.length}{nextCursor ? "+" : ""})</button> : null}
         {showAll && nextCursor ? <button className="secondary-button notices-more" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(nextCursor)}>{loading ? "Carregando…" : "Ver avisos anteriores"}</button> : null}
-        <p className="sr-status" role="status" aria-live="polite">{confirmation}</p>
+        <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">{confirmation}</p>
       </div>
       {notices.length > 0 ? (
         <footer className="patient-notices-footer">
