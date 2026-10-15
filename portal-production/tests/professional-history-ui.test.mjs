@@ -172,6 +172,45 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     }, kind)).toBe(true);
   }
 
+  async function assertReadingFilterState(page, selectedLabel) {
+    // A committed aria-pressed/class change alone does not prove WebKit has
+    // resolved the same visual state. Check the actual palette before axe;
+    // never retry axe or exclude color-contrast to hide a transient mismatch.
+    await expect.poll(() => page.locator(".entry-view-toolbar button").evaluateAll(buttons => buttons.map(button => ({
+      label: button.querySelector("span").textContent,
+      pressed: button.getAttribute("aria-pressed"),
+      background: getComputedStyle(button).backgroundColor,
+      labelColor: getComputedStyle(button.querySelector("span")).color,
+      countColor: getComputedStyle(button.querySelector("small")).color,
+      countBackground: getComputedStyle(button.querySelector("small")).backgroundColor,
+    })))).toEqual(["Todos", "Não vistos", "Vistos"].map(label => ({
+      label,
+      pressed: String(label === selectedLabel),
+      background: label === selectedLabel ? "rgb(36, 36, 35)" : "rgba(0, 0, 0, 0)",
+      labelColor: label === selectedLabel ? "rgb(255, 253, 250)" : "rgb(95, 90, 84)",
+      countColor: label === selectedLabel ? "rgb(255, 253, 250)" : "rgb(95, 90, 84)",
+      countBackground: label === selectedLabel ? "rgba(255, 255, 255, 0.16)" : "rgba(36, 36, 35, 0.08)",
+    })));
+  }
+
+  async function checkReadingFilterContrast(page, state) {
+    const result = await page.evaluate(async () => {
+      const audit = await window.axe.run(document.querySelector(".entry-view-toolbar"), {
+        runOnly: { type: "rule", values: ["color-contrast"] },
+      });
+      const describe = ({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) });
+      return { violations: audit.violations.map(describe), incomplete: audit.incomplete.map(describe),
+        ratios: (audit.passes.find(rule => rule.id === "color-contrast")?.nodes ?? []).flatMap(node =>
+          node.any.filter(check => check.id === "color-contrast" && typeof check.data?.contrastRatio === "number")
+            .map(check => ({ target: node.target, ratio: check.data.contrastRatio }))),
+      };
+    });
+    assert.deepEqual(result.violations, [], `${state}: contrast must pass without retries.`);
+    assert.deepEqual(result.incomplete, [], `${state}: every filter label and count must be measurable.`);
+    assert.equal(result.ratios.length, 6, `${state}: axe must measure all three labels and counts.`);
+    for (const { target, ratio } of result.ratios) assert.ok(ratio >= 4.5, `${state}: ${target} has ${ratio}:1 contrast.`);
+  }
+
   for (const width of [320, 390, 1366]) {
     test(`groups ${width}px: unread records and maps come first, with seen contents separate`, async () => {
       const fixture = await openProfessional({ viewport: { width, height: width > 1000 ? 900 : 844 } });
@@ -373,12 +412,51 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     await page.locator(".entry-view-toolbar button").filter({ hasText: "Não vistos" }).click();
     await expect(page.locator(".professional-record-disclosure")).toHaveCount(10);
     await expect(page.locator('.professional-entry-shares [data-reading-group="viewed"]')).toHaveCount(0);
+    await assertReadingFilterState(page, "Não vistos");
     await page.locator(".entry-view-toolbar button").filter({ hasText: /^Vistos/u }).click();
     await expect(page.locator(".professional-record-disclosure")).toHaveCount(18);
     await expect(page.locator(".professional-record-disclosure.is-unread")).toHaveCount(0);
+    await assertReadingFilterState(page, "Vistos");
     await page.locator(".entry-view-toolbar button").filter({ hasText: "Todos" }).click();
     await expect(page.locator(".professional-record-disclosure")).toHaveCount(20);
+    await assertReadingFilterState(page, "Todos");
     assert.equal(fixture.controls.mutations.length, 0);
     await checkHealthy(fixture, "professional-pagination");
   });
+
+  for (const width of [390, 1366]) {
+    test(`reading filters ${width}px: active and inactive labels and counts retain contrast in normal, hover and keyboard focus states`, async () => {
+      const fixture = await openProfessional({ viewport: { width, height: width > 1000 ? 900 : 844 } });
+      const { page } = fixture;
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      await page.addScriptTag({ content: axe.source });
+      const buttons = page.locator(".entry-view-toolbar button");
+      for (const selectedLabel of ["Não vistos", "Vistos", "Todos"]) {
+        await buttons.filter({ hasText: new RegExp(`^${selectedLabel}`, "u") }).click();
+        await assertReadingFilterState(page, selectedLabel);
+        for (let index = 0; index < 3; index++) {
+          const button = buttons.nth(index);
+          await page.mouse.move(0, 0);
+          await button.evaluate(node => node.blur());
+          assert.equal(await button.evaluate(node => node.matches(":hover, :focus-visible")), false);
+          await checkReadingFilterContrast(page, `${selectedLabel}, normal ${index}`);
+          await button.hover();
+          assert.equal(await button.evaluate(node => node.matches(":hover")), true);
+          await checkReadingFilterContrast(page, `${selectedLabel}, hover ${index}`);
+          await page.mouse.move(0, 0);
+          await buttons.nth(index === 0 ? 1 : index - 1).focus();
+          await page.keyboard.press(browserName === "webkit"
+            ? (index === 0 ? "Alt+Shift+Tab" : "Alt+Tab")
+            : (index === 0 ? "Shift+Tab" : "Tab"));
+          await expect(button).toBeFocused();
+          assert.equal(await button.evaluate(node => node.matches(":focus-visible")), true);
+          await expect(button).toHaveCSS("outline-style", "solid");
+          await expect(button).toHaveCSS("outline-width", "3px");
+          await checkReadingFilterContrast(page, `${selectedLabel}, keyboard focus ${index}`);
+        }
+      }
+      assert.equal(fixture.controls.mutations.length, 0, "Reading filters never mark contents seen.");
+      await checkHealthy(fixture, `professional-filter-states-${width}`);
+    });
+  }
 });

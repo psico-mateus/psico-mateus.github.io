@@ -36,6 +36,7 @@ import {
   clearSessionCookie,
   createSession,
   currentSession,
+  markSharedEntryViewed,
   now,
   prepareAudit,
   prepareSession,
@@ -1792,31 +1793,10 @@ async function handlePost(request: Request, path: string): Promise<Response> {
   if (viewedEntry) {
     const session = await requireSession(request, "therapist");
     requireCsrf(request, session);
-    const entry = await DB.prepare(
-      `SELECT entries.id
-       FROM entries
-       JOIN users ON users.id = entries.patient_id
-       JOIN patient_links ON patient_links.patient_id = entries.patient_id
-       WHERE entries.id = ?
-         AND patient_links.therapist_id = ?
-         AND patient_links.status = 'active'
-         AND users.status = 'active'
-         AND entries.shared_at IS NOT NULL
-         AND entries.revoked_at IS NULL`,
-    )
-      .bind(viewedEntry[1], session.userId)
-      .first<{ id: string }>();
-    if (!entry) throw new PortalError(404, "Registro compartilhado não encontrado.");
-    const viewedAt = now();
-    await DB.prepare(
-      `INSERT INTO entry_views (entry_id, therapist_id, viewed_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT(entry_id, therapist_id) DO UPDATE SET
-         viewed_at = excluded.viewed_at`,
-    )
-      .bind(entry.id, session.userId, viewedAt)
-      .run();
-    await audit(session.userId, "mark_entry_viewed", "entry", entry.id);
+    const viewedAt = await markSharedEntryViewed(
+      viewedEntry[1], session.userId, input.expected_updated_at,
+    );
+    await audit(session.userId, "mark_entry_viewed", "entry", viewedEntry[1]);
     return json({ viewed_at: viewedAt });
   }
   const viewedMapShare = path.match(
@@ -2239,10 +2219,18 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
     // Always advance the version, including two saves in the same millisecond.
     const previousTime = Date.parse(entry.updated_at);
     const timestamp = new Date(Math.max(Date.now(), Number.isFinite(previousTime) ? previousTime + 1 : 0)).toISOString();
+    // A receipt can arrive after the SELECT above. Advance past it atomically,
+    // using the same millisecond arithmetic as the thought-review triggers.
     const saved = await DB.prepare(
       `UPDATE entries SET title = ?, happened = ?, body = ?, thoughts = ?, urge = ?,
-        emotion = ?, intensity = ?, message = ?, updated_at = ?
-        WHERE id = ? AND patient_id = ? AND updated_at = ?`,
+        emotion = ?, intensity = ?, message = ?, updated_at = CASE
+          WHEN COALESCE((SELECT MAX(viewed_at) FROM entry_views WHERE entry_id = entries.id), '') >= ?
+          THEN strftime('%Y-%m-%dT%H:%M:%fZ',
+            julianday((SELECT MAX(viewed_at) FROM entry_views WHERE entry_id = entries.id)) + (1.0 / 86400000.0))
+          ELSE ?
+        END
+        WHERE id = ? AND patient_id = ? AND updated_at = ?
+        RETURNING updated_at`,
     )
       .bind(
         values.title,
@@ -2254,14 +2242,15 @@ async function handlePatch(request: Request, path: string): Promise<Response> {
         values.intensity,
         values.message,
         timestamp,
+        timestamp,
         entry.id,
         session.userId,
         expectedUpdatedAt,
       )
-      .run();
-    if (saved.meta.changes !== 1) throw new PortalError(409, conflictMessage);
+      .first<{ updated_at: string }>();
+    if (!saved) throw new PortalError(409, conflictMessage);
     await audit(session.userId, "update", "entry", entry.id);
-    return json({ ok: true, updated_at: timestamp });
+    return json({ ok: true, updated_at: saved.updated_at });
   }
 
   throw new PortalError(404, "Recurso não encontrado.");

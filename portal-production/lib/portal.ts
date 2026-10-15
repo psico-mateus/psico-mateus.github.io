@@ -238,6 +238,58 @@ export function publicUser(user: Pick<UserRow, "id" | "display_name" | "role">) 
   return { id: user.id, name: user.display_name, role: user.role };
 }
 
+export async function markSharedEntryViewed(
+  entryId: string,
+  therapistId: string,
+  expectedUpdatedAt: unknown,
+): Promise<string> {
+  if (expectedUpdatedAt !== undefined && (
+    typeof expectedUpdatedAt !== "string" ||
+    expectedUpdatedAt.length > 40 ||
+    !Number.isFinite(Date.parse(expectedUpdatedAt))
+  )) {
+    throw new PortalError(400, "A versão do registro não pôde ser confirmada.");
+  }
+  const { DB } = getPortalEnv();
+  // Access and the optional version are checked in the write itself. A share
+  // revoked while this request is in flight must never acquire a read receipt.
+  const viewed = await DB.prepare(
+    `INSERT INTO entry_views (entry_id, therapist_id, viewed_at)
+     SELECT entries.id, ?, MAX(?, entries.updated_at, entries.shared_at)
+     FROM entries
+     JOIN users ON users.id = entries.patient_id
+     JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     WHERE entries.id = ?
+       AND patient_links.therapist_id = ?
+       AND patient_links.status = 'active'
+       AND users.status = 'active'
+       AND entries.shared_at IS NOT NULL
+       AND entries.revoked_at IS NULL
+       AND (? IS NULL OR entries.updated_at = ?)
+     ON CONFLICT(entry_id, therapist_id) DO UPDATE SET
+       viewed_at = MAX(entry_views.viewed_at, excluded.viewed_at)
+     RETURNING viewed_at`,
+  )
+    .bind(therapistId, now(), entryId, therapistId,
+      expectedUpdatedAt ?? null, expectedUpdatedAt ?? null)
+    .first<{ viewed_at: string }>();
+  if (viewed) return viewed.viewed_at;
+
+  // Do not reveal whether an unavailable/private record exists, its version,
+  // or its contents. Only a still-authorized reader can receive a conflict.
+  const accessible = await DB.prepare(
+    `SELECT entries.id FROM entries
+     JOIN users ON users.id = entries.patient_id
+     JOIN patient_links ON patient_links.patient_id = entries.patient_id
+     WHERE entries.id = ? AND patient_links.therapist_id = ?
+       AND patient_links.status = 'active' AND users.status = 'active'
+       AND entries.shared_at IS NOT NULL AND entries.revoked_at IS NULL`,
+  ).bind(entryId, therapistId).first<{ id: string }>();
+  if (!accessible) throw new PortalError(404, "Registro compartilhado não encontrado.");
+  throw new PortalError(409,
+    "Este registro foi atualizado desde que foi aberto. A visualização não foi confirmada. Use Atualizar e leia a versão atual antes de concluir a visualização.");
+}
+
 export async function audit(
   userId: string | null,
   action: string,

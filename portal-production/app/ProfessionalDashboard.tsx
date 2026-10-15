@@ -2037,28 +2037,38 @@ export function ProfessionalDashboard({
   }
 
   async function markEntryViewed(entryId: string) {
+    if (!selectedPatient) return;
     if (viewingEntryLocks.current.has(entryId)) return;
     const entry = entries.find((item) => item.id === entryId);
     if (!entry || !entry.is_unread) return;
+    const patientId = selectedPatient.patient_id;
+    const selectionSequence = patientSelection.current.sequence;
+    const requestSequence = patientRequestSequence.current;
+    const selectionIsCurrent = () => patientSelection.current.patientId === patientId &&
+      patientSelection.current.sequence === selectionSequence &&
+      patientRequestSequence.current === requestSequence;
     viewingEntryLocks.current.add(entryId);
     setViewingEntryIds((current) => new Set(current).add(entryId));
     setNotice(null);
     try {
       const result = await portalRequest<{ viewed_at: string }>(
         `/professional/entries/${encodeURIComponent(entryId)}/viewed`,
-        { method: "POST", body: JSON.stringify({}) },
+        { method: "POST", body: JSON.stringify({ expected_updated_at: entry.updated_at }) },
         csrf,
       );
+      // A refresh or account switch can replace the content during the request.
+      // Never apply an old receipt to a newer version or another reading pane.
+      if (!dashboardActive.current || !selectionIsCurrent()) return;
       setEntries((current) =>
         current.map((item) =>
-          item.id === entryId
+          item.id === entryId && item.updated_at === entry.updated_at
             ? { ...item, is_unread: 0, viewed_at: result.viewed_at }
             : item,
         ),
       );
       if (selectedPatient) {
         const updatePatient = (patient: PatientSummary) =>
-          patient.patient_id === selectedPatient.patient_id
+          patient.patient_id === patientId
             ? {
                 ...patient,
                 unread_count: Math.max(0, patient.unread_count - 1),
@@ -2075,7 +2085,8 @@ export function ProfessionalDashboard({
           "Visualização confirmada. O paciente poderá ver essa confirmação no histórico.",
       });
     } catch (error) {
-      if (!isSessionError(error)) {
+      if (!dashboardActive.current) return;
+      if (!isSessionError(error) && selectionIsCurrent()) {
         setNotice({
           tone: "error",
           message:
@@ -2086,7 +2097,7 @@ export function ProfessionalDashboard({
       }
     } finally {
       viewingEntryLocks.current.delete(entryId);
-      setViewingEntryIds((current) => {
+      if (dashboardActive.current) setViewingEntryIds((current) => {
         const next = new Set(current);
         next.delete(entryId);
         return next;
