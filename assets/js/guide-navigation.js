@@ -44,6 +44,8 @@
   let navigationGeometryReady = false;
   let pendingExplorationNavigation = null;
   let explorationNavigationTimer = null;
+  const dialogBackgroundState = new Map();
+  const dialogFallbackFocusState = new Map();
 
   const explorationView = () => {
     const heading = document.querySelector(".question-copy h3, .record-summary h3");
@@ -133,8 +135,56 @@
 
   const dialogFocusable = (dialog) =>
     Array.from(dialog.querySelectorAll(focusableSelector)).filter(
-      (element) => !element.closest('[aria-hidden="true"]'),
+      (element) => element.tabIndex >= 0 &&
+        !element.closest('[inert], [hidden], [aria-hidden="true"]') &&
+        element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden",
     );
+
+  const restoreDialogBackground = () => {
+    dialogBackgroundState.forEach((state, element) => {
+      if (state.inert === null) element.removeAttribute("inert");
+      else element.setAttribute("inert", state.inert);
+      if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
+      else element.setAttribute("aria-hidden", state.ariaHidden);
+    });
+    dialogBackgroundState.clear();
+    dialogFallbackFocusState.forEach((tabindex, element) => {
+      if (tabindex === null) element.removeAttribute("tabindex");
+      else element.setAttribute("tabindex", tabindex);
+    });
+    dialogFallbackFocusState.clear();
+  };
+
+  const isolateDialogBackground = (dialog) => {
+    // Isola os irmãos em cada nível, nunca um ancestral que contenha o diálogo.
+    // A posição do modal pode mudar sem esconder seu próprio conteúdo.
+    let branch = dialog;
+    while (branch.parentElement && branch !== document.body) {
+      Array.from(branch.parentElement.children).forEach((element) => {
+        if (element === branch) return;
+        if (!dialogBackgroundState.has(element)) {
+          dialogBackgroundState.set(element, {
+            inert: element.getAttribute("inert"),
+            ariaHidden: element.getAttribute("aria-hidden"),
+          });
+        }
+        const supportsInert = "inert" in element;
+        element.setAttribute("inert", "");
+        element.setAttribute("aria-hidden", "true");
+        if (supportsInert) return;
+
+        [
+          ...(element.matches(focusableSelector) ? [element] : []),
+          ...element.querySelectorAll(focusableSelector),
+        ].forEach((focusable) => {
+          if (dialogFallbackFocusState.has(focusable)) return;
+          dialogFallbackFocusState.set(focusable, focusable.getAttribute("tabindex"));
+          focusable.setAttribute("tabindex", "-1");
+        });
+      });
+      branch = branch.parentElement;
+    }
+  };
 
   const enhanceGuideSemantics = () => {
     const main = document.querySelector("main");
@@ -402,6 +452,15 @@
   });
 
   document.addEventListener(
+    "focusin",
+    (event) => {
+      if (!activeDialog || activeDialog.contains(event.target)) return;
+      (dialogFocusable(activeDialog)[0] || activeDialog).focus({ preventScroll: true });
+    },
+    true,
+  );
+
+  document.addEventListener(
     "keydown",
     (event) => {
       if (event.key !== "Tab" || !activeDialog) return;
@@ -434,18 +493,20 @@
     const dialog = document.querySelector(dialogSelector);
 
     if (dialog && dialog !== activeDialog) {
+      restoreDialogBackground();
+      if (!dialogTrigger) dialogTrigger = document.activeElement;
       activeDialog = dialog;
       if (!activeDialog.hasAttribute("tabindex")) activeDialog.tabIndex = -1;
-      window.requestAnimationFrame(() => {
-        if (!document.contains(activeDialog)) return;
-        const first = dialogFocusable(activeDialog)[0] || activeDialog;
-        first.focus({ preventScroll: true });
-      });
+      const first = dialogFocusable(activeDialog)[0] || activeDialog;
+      // Retira o foco do fundo antes de ocultá-lo das tecnologias assistivas.
+      first.focus({ preventScroll: true });
+      isolateDialogBackground(activeDialog);
       return;
     }
 
     if (!dialog && activeDialog) {
       activeDialog = null;
+      restoreDialogBackground();
       const trigger = dialogTrigger;
       dialogTrigger = null;
       if (pendingExplorationNavigation?.kind !== "emotion") {
@@ -454,6 +515,7 @@
         });
       }
     }
+    if (dialog && activeDialog) isolateDialogBackground(activeDialog);
     focusPendingExplorationNavigation();
   });
 
