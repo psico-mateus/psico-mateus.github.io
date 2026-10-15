@@ -54,9 +54,13 @@ export function filterAndSortPatientEntries<T extends PatientSearchableEntry>(
   sort: PatientEntrySort,
 ): T[] {
   const normalizedQuery = normalizePatientEntrySearch(query);
+  const words = normalizedQuery.match(/[\p{L}\p{N}]+/gu) ?? [];
+  // Match remembered words across fields without changing the original text.
+  // A punctuation-only query keeps its literal meaning instead of matching all.
+  const terms = words.length ? [...new Set(words)] : [normalizedQuery];
   const matchingEntries = filterPatientEntries(entries, filter).filter((entry) => {
     if (!normalizedQuery) return true;
-    return [
+    const searchableText = [
       entry.title,
       entry.happened,
       entry.body,
@@ -64,9 +68,8 @@ export function filterAndSortPatientEntries<T extends PatientSearchableEntry>(
       entry.urge,
       entry.emotion,
       entry.message,
-    ].some((value) =>
-      normalizePatientEntrySearch(value ?? "").includes(normalizedQuery),
-    );
+    ].map((value) => normalizePatientEntrySearch(value ?? "")).join("\n");
+    return terms.every((term) => searchableText.includes(term));
   });
 
   return matchingEntries.sort((first, second) => {

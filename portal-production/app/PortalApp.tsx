@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -2583,14 +2584,15 @@ function PatientDashboard({
   );
   const awaitingViewCount =
     sharedViewCounts.unseen + sharedViewCounts.updated + sharedViewCounts.reshared;
-  const visibleEntries = filterAndSortPatientEntries(
-    entries,
-    entryFilter,
-    entryQuery,
-    entrySort,
+  const visibleEntries = useMemo(
+    () => filterAndSortPatientEntries(entries, entryFilter, entryQuery, entrySort),
+    [entries, entryFilter, entryQuery, entrySort],
   );
   const hasEntryQuery = Boolean(entryQuery.trim());
-  const recordMonthGroups = groupPatientEntriesByMonth(visibleEntries);
+  const recordMonthGroups = useMemo(
+    () => groupPatientEntriesByMonth(visibleEntries),
+    [visibleEntries],
+  );
   const hasActiveEntryControls =
     hasEntryQuery || entryFilter !== "all" || entrySort !== "newest";
   const filterLabels: Array<{
@@ -2869,11 +2871,11 @@ function PatientDashboard({
                 type="search"
                 value={entryQuery}
                 onChange={(event) => setEntryQuery(event.target.value)}
-                placeholder="Situação, emoção ou palavra"
+                placeholder="Ex.: trabalho ansiedade"
                 autoComplete="off"
                 aria-describedby="patient-record-search-hint"
               />
-              <small id="patient-record-search-hint">A busca acontece somente nesta tela.</small>
+              <small id="patient-record-search-hint">Pode combinar palavras. A busca acontece somente nesta tela.</small>
             </label>
             <label className="field patient-record-order">
               <span>Ordenar</span>

@@ -467,7 +467,7 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
           `The two history actions should share one balanced row, not wrap into detached rows: ${JSON.stringify({ update, create })}`);
       }
       await expect(finder.getByRole("group", { name: "Filtrar registros por compartilhamento" })).toBeVisible();
-      await expect(search).toHaveAccessibleDescription("A busca acontece somente nesta tela.");
+      await expect(search).toHaveAccessibleDescription("Pode combinar palavras. A busca acontece somente nesta tela.");
       await settleLayout(page);
       const finderTargets = await finder.locator("button, input, select, .patient-record-search-panel > summary").evaluateAll(nodes => nodes.map(node => {
         const bounds = node.getBoundingClientRect();
@@ -595,6 +595,31 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
   }
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 900 }]) {
+    test(`history search ${viewport.width}px: combined words find one record across fields and stay local`, async () => {
+      const entries = syntheticEntries.map(entry => ({ ...entry,
+        title: entry.id === "synthetic-record-private" ? "Conversa no trabalho" : entry.title,
+        emotion: entry.id === "synthetic-record-private" ? "Ansiedade" : entry.emotion,
+      }));
+      const fixture = await openRecords({ entries, viewport });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const readsBeforeSearch = controls.entriesRequests;
+      const search = page.getByLabel("Buscar nos meus registros");
+      await search.fill("  ansiedade, trabalho!  ");
+      await expect(page.locator(".patient-record-card")).toHaveCount(1);
+      await expect(page.locator(".patient-record-card > summary strong")).toHaveText("Conversa no trabalho");
+      await expect(page.locator(".patient-records-heading-actions .count")).toHaveText("1 de 3");
+      await page.getByRole("button", { name: "Com Mateus 2", exact: true }).click();
+      await expect(page.locator(".patient-record-card")).toHaveCount(0);
+      await page.getByRole("button", { name: "Limpar busca e filtros", exact: true }).click();
+      await expect(search).toBeFocused();
+      await expect(page.locator(".patient-record-card")).toHaveCount(3);
+      assert.equal(controls.entriesRequests, readsBeforeSearch, "Typing and filtering must not transmit the search or request records again.");
+      assert.equal(controls.mutations.length, 0);
+      assert.deepEqual(controls.entries, entries, "Search must never rewrite, share or hide saved content permanently.");
+      await checkHealthy(fixture, `history-combined-terms-${viewport.width}`);
+    });
+
     test(`history search ${viewport.width}px: secondary controls start closed, records stay visible and keyboard opens the native panel`, async () => {
       const fixture = await openRecords({ viewport, expandSearch: false });
       const { page, controls } = fixture;
