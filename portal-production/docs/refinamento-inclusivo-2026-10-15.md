@@ -73,3 +73,29 @@ Guia continua público, sem conta, com a mesma chave/serialização de localStor
 **Não fazer:** mudar login/sessões para refino cosmético, reduzir MFA, limpar armazenamento para forçar atualização, alterar conteúdo escrito, adicionar cobrança/serviços pagos, reinventar mapa/catálogos ou declarar “sem chance de erro”.
 
 Depois de autorização e publicação: verificar endpoints, build, assets, sessão anônima e interface dos dois endereços; não apagar conteúdo pendente para atualizar o aplicativo.
+
+## Continuação — contexto ao salvar e feedback junto das ações
+
+Pedido posterior do usuário: melhorar mais e continuar. Commits locais `8f63de9` e `fdaefb0`, **também não publicados**. Nenhuma mudança em API, banco, autenticação, conteúdo clínico ou dependências neste complemento.
+
+Problemas reproduzidos e tratados:
+
+- **Registro salvo escondido pelos filtros:** um novo registro privado podia ficar fora de uma busca/filtro “Com Mateus” anterior, apesar de salvo corretamente. Após confirmação e recarga bem-sucedidas, somente os controles que ocultam esse registro são removidos. Filtros ainda úteis e ordenação ficam como estavam. O cartão salvo recebe foco; se a pessoa já mudou busca, filtro ou destino durante uma resposta lenta, essas escolhas e seu foco são respeitados. Se a consulta posterior falha, não há novo POST, limpeza indevida de filtros ou retirada do foco do erro.
+- **Erros de conta distantes da ação:** senha, recuperação, sessões e exclusão agora têm feedback independente dentro do próprio formulário. Divergência de senha fica vinculada ao campo, preserva texto e não dispara requisição. Uma resposta atrasada não substitui a mensagem de outra ação, não abre uma ação fechada nem puxa foco de outro lugar. O monitor de interação existe somente enquanto a requisição está pendente e é removido em `finally`; trata a ausência de foco de botão em clique por ponteiro no Safari. Botões ocupados mantêm foco por teclado e os bloqueios de requisição existentes continuam impedindo repetição. Confirmações críticas, expiração de sessão e payloads não mudaram.
+- **Atualização sem conclusão acessível:** o status existente anuncia a conclusão de um refresh manual bem-sucedido, sem toast, bloco novo ou autofoco. Falha não anuncia sucesso; refresh automático permanece silencioso. O botão “Atualizar” mantém foco durante a espera e repetição por Enter não gera outra leitura.
+
+Arquivos: `app/PortalApp.tsx`, duas regras de contraste em `app/patient-account.css`, testes de conta/início/registros e contrato estático correspondente em `tests/portal.test.mjs`. A identidade visual foi preservada; não houve motivo comprovado para reconstruir a tela inicial.
+
+Validação desta continuação:
+
+- Lint, tipos e build de Worker aprovados. Fingerprint final preparado **`7205d2d2645a1d72`**, substituindo os artefatos intermediários `9a6fbe89e8bacdf5` e `61982407fd0b9562`. Variáveis geradas novamente removidas pela sanitização.
+- Suíte Node integral **313/313** neste complemento e contrato do portal **51/51** após a última correção de foco; aprovados. A última correção é de efeito de interface e tem sua própria regressão renderizada abaixo, não é exercício de uma API nova.
+- Conta: **15/15 Chromium e 15/15 WebKit**, incluindo 320/390/1366px, texto 200%, erro/sucesso local, respostas em ordem inversa, ação fechada, bloqueio de repetição, exportação e remoção de segredo após sessão expirada.
+- Início: **17/17 Chromium e 17/17 WebKit**, incluindo confirmação manual, falha sem sucesso falso, atualização automática silenciosa e foco de teclado.
+- Histórico/editor na fonte final após `fdaefb0`: **65/65 Chromium e 65/65 WebKit**, zero falhas/skips. Inclui cinco novos cenários de filtros pós-salvamento e respostas lentas, além da regressão de foco que a rodada estável revelou. Total das três superfícies: **194 cenários de interface aprovados**. Site/Guia não foram alterados neste complemento, portanto a suíte pública anterior não foi repetida.
+- A primeira reprodução do registro oculto falhou antes da correção, confirmando o defeito de interface. Não se atribuiu toda falha posterior à temporização do teste: uma rodada estável WebKit revelou uma corrida real entre foco de navegação, renderização do histórico e foco de erro. `fdaefb0` vincula o destino pós-salvamento a um efeito após o render, em vez de supor dois frames após HTTP, e impede a navegação de retirar foco de um erro. Os casos que falhavam passaram depois da correção. No Safari, o teste de manter foco ao ativar por teclado usa teclado de fato, não supõe que um clique por ponteiro foque um botão. Nenhum timeout foi aumentado ou assert de foco removido para obter aprovação.
+- A API/D1 não foi alterada; a integração isolada do primeiro lote não foi repetida neste complemento. Não apresentar esta continuação como novo teste de login real em produção. Testes de UI usam somente localhost, respostas simuladas, dados sintéticos e origens estrangeiras bloqueadas.
+
+Evidências fora do Git: `refinos-20261015b/records-{chromium,webkit}`, `refinos-20261015-next-home` e `refinos-20261015/account-next-{chromium,webkit}`, sob a raiz persistente de capturas acima. Foram inspecionados o erro local do formulário e o histórico após ajuste de filtros. O Browser plugin não está disponível; Playwright existente foi usado como fallback. O plugin Browser pode facilitar futuras prévias integradas, mas não é necessário para usar o portal e não foi instalado.
+
+Ainda não houve teste em iPhone físico, VoiceOver/NVDA ou conta profissional real. Preservar as limitações e pendências já listadas; não confundir refinamento de interface com garantia de ausência de falhas. Não publicar até a aprovação final do usuário.
