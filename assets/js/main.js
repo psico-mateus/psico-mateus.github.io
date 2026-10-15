@@ -17,6 +17,7 @@
   const menu = document.querySelector("[data-menu]");
   let menuTrigger = null;
   let menuFocusTimer;
+  let menuToggleHadFocus = false;
   const menuBackgroundState = new Map();
   const menuFallbackFocusState = new Map();
 
@@ -31,19 +32,25 @@
 
   const menuFocusable = () =>
     menu
-      ? Array.from(
-          menu.querySelectorAll(
-            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ),
+      ? [menuToggle, ...menu.querySelectorAll(focusableSelector)].filter(
+          (element) => element && element.tabIndex >= 0 &&
+            !element.closest('[inert], [hidden], [aria-hidden="true"]') &&
+            element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden",
         )
       : [];
 
-  const menuBackgroundElements = () =>
-    menu
-      ? Array.from(document.body.children).filter(
-          (element) => element !== menu && !element.contains(menu),
-        )
-      : [];
+  const menuBackgroundElements = () => {
+    const elements = [];
+    const visit = (parent) => {
+      Array.from(parent.children).forEach((element) => {
+        if (element === menu || element === menuToggle) return;
+        if (element.contains(menu) || element.contains(menuToggle)) visit(element);
+        else elements.push(element);
+      });
+    };
+    if (menu && menuToggle) visit(document.body);
+    return elements;
+  };
 
   const setMenuBackgroundInert = (isInert) => {
     if (isInert) {
@@ -52,14 +59,13 @@
 
         const supportsInert = "inert" in element;
         menuBackgroundState.set(element, {
-          hadInert: element.hasAttribute("inert"),
+          inert: element.getAttribute("inert"),
           ariaHidden: element.getAttribute("aria-hidden"),
-          supportsInert,
         });
         element.setAttribute("inert", "");
+        element.setAttribute("aria-hidden", "true");
 
         if (supportsInert) return;
-        element.setAttribute("aria-hidden", "true");
         const fallbackFocusable = [
           ...(element.matches(focusableSelector) ? [element] : []),
           ...element.querySelectorAll(focusableSelector),
@@ -77,11 +83,10 @@
     }
 
     menuBackgroundState.forEach((state, element) => {
-      if (!state.hadInert) element.removeAttribute("inert");
-      if (!state.supportsInert) {
-        if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
-        else element.setAttribute("aria-hidden", state.ariaHidden);
-      }
+      if (state.inert === null) element.removeAttribute("inert");
+      else element.setAttribute("inert", state.inert);
+      if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
+      else element.setAttribute("aria-hidden", state.ariaHidden);
     });
     menuBackgroundState.clear();
 
@@ -101,7 +106,7 @@
     setMenuBackgroundInert(false);
     window.clearTimeout(menuFocusTimer);
     menuFocusTimer = undefined;
-    if (restoreFocus && menuTrigger) menuTrigger.focus();
+    if (restoreFocus && menuTrigger) menuTrigger.focus({ preventScroll: true });
   };
 
   const openMenu = () => {
@@ -111,11 +116,20 @@
     menuToggle.setAttribute("aria-expanded", "true");
     menuToggle.setAttribute("aria-label", "Fechar menu");
     document.body.classList.add("menu-open");
+    menuToggle.focus({ preventScroll: true });
     setMenuBackgroundInert(true);
-    menuFocusTimer = window.setTimeout(() => menuFocusable()[0]?.focus(), 180);
+    // Aguarda a transição de visibilidade sem roubar foco de quem já navegou.
+    menuFocusTimer = window.setTimeout(() => {
+      if (menuToggle.getAttribute("aria-expanded") !== "true" || document.activeElement !== menuToggle) return;
+      menuFocusable().find((element) => element !== menuToggle)?.focus({ preventScroll: true });
+    }, 180);
   };
 
   if (menuToggle && menu) {
+    document.addEventListener("focusin", (event) => {
+      menuToggleHadFocus = event.target === menuToggle;
+    });
+
     menuToggle.addEventListener("click", () => {
       const isOpen = menuToggle.getAttribute("aria-expanded") === "true";
       if (isOpen) closeMenu();
@@ -123,19 +137,32 @@
     });
 
     menu.addEventListener("click", (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = event.target.closest("a");
       if (!link) return;
 
       const hash = link.getAttribute("href");
-      const target = hash?.startsWith("#")
-        ? document.getElementById(decodeURIComponent(hash.slice(1)))
-        : null;
+      let target = null;
+      if (hash?.startsWith("#")) {
+        try {
+          target = document.getElementById(decodeURIComponent(hash.slice(1)));
+        } catch {
+          target = document.getElementById(hash.slice(1));
+        }
+      }
 
-      closeMenu({ restoreFocus: false });
+      closeMenu({ restoreFocus: !target });
       if (!target) return;
 
       event.preventDefault();
       window.history.pushState(null, "", hash);
+      if (!target.hasAttribute("tabindex")) {
+        target.tabIndex = -1;
+        target.addEventListener("blur", () => {
+          if (target.getAttribute("tabindex") === "-1") target.removeAttribute("tabindex");
+        }, { once: true });
+      }
+      target.focus({ preventScroll: true });
       target.scrollIntoView({ block: "start" });
     });
 
@@ -154,22 +181,28 @@
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
 
-      if (event.shiftKey && document.activeElement === first) {
+      if (!focusable.includes(document.activeElement)) {
         event.preventDefault();
-        last.focus();
+        (event.shiftKey ? last : first).focus({ preventScroll: true });
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     });
 
     window.addEventListener("resize", () => {
-      if (window.innerWidth > 960) closeMenu({ restoreFocus: false });
+      if (window.innerWidth <= 960) return;
+      const wasToggleFocused = menuToggleHadFocus || document.activeElement === menuToggle;
+      closeMenu({ restoreFocus: false });
+      if (wasToggleFocused) menuFocusable()[0]?.focus({ preventScroll: true });
     });
 
     window.addEventListener("popstate", () => {
       if (menuToggle.getAttribute("aria-expanded") === "true") {
-        closeMenu({ restoreFocus: false });
+        closeMenu();
       }
     });
   }
