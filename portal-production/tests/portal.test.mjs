@@ -1600,7 +1600,7 @@ test("professional API groups by stable patient id and filters every detail quer
   assert.equal(dashboard.match(/const restoreFocusAfterView = useRef\(false\)/g)?.length, 2);
   assert.match(
     dashboard,
-    /if \(!restoreFocusAfterView\.current \|\| viewing\) return;[\s\S]*?if \(!unread\) summaryRef\.current\?\.focus\(\{ preventScroll: true \}\)/,
+    /if \(!restoreFocusAfterView\.current \|\| viewing\) return;[\s\S]*?if \(!unread && receiptFocus\.current\?\.canRestore\(\)\) summaryRef\.current\?\.focus\(\{ preventScroll: true \}\)/,
   );
   assert.match(
     dashboard,

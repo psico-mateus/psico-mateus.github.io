@@ -361,6 +361,27 @@ function ProfessionalNavigation({
   );
 }
 
+function watchDisclosureFocus(disclosure: HTMLDetailsElement) {
+  let movedElsewhere = false;
+  const track = (event: Event) => {
+    const target = event.target;
+    if (target instanceof Node && !disclosure.contains(target) &&
+      !(event.type === "focusin" && (target === document.body || target === document.documentElement))) {
+      movedElsewhere = true;
+    }
+  };
+  document.addEventListener("focusin", track, true);
+  document.addEventListener("pointerdown", track, true);
+  return {
+    canRestore: () => !movedElsewhere && (document.activeElement === document.body ||
+      document.activeElement === document.documentElement || disclosure.contains(document.activeElement)),
+    stop: () => {
+      document.removeEventListener("focusin", track, true);
+      document.removeEventListener("pointerdown", track, true);
+    },
+  };
+}
+
 function RecordDisclosure({
   entry,
   viewing,
@@ -371,13 +392,14 @@ function RecordDisclosure({
   entry: SharedEntry;
   viewing: boolean;
   onViewed: (entryId: string) => void;
-  onOpenChange: (entryId: string, open: boolean) => void;
+  onOpenChange: (entryId: string, open: boolean, canRestoreFocus?: () => boolean) => void;
   concludedInPlace?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const unread = Boolean(entry.is_unread);
   const summaryRef = useRef<HTMLElement>(null);
   const restoreFocusAfterView = useRef(false);
+  const receiptFocus = useRef<ReturnType<typeof watchDisclosureFocus> | null>(null);
   const details = [
     ["O que aconteceu", entry.happened],
     ["Percepções no corpo", entry.body],
@@ -389,8 +411,11 @@ function RecordDisclosure({
   useEffect(() => {
     if (!restoreFocusAfterView.current || viewing) return;
     restoreFocusAfterView.current = false;
-    if (!unread) summaryRef.current?.focus({ preventScroll: true });
+    receiptFocus.current?.stop();
+    if (!unread && receiptFocus.current?.canRestore()) summaryRef.current?.focus({ preventScroll: true });
   }, [unread, viewing]);
+
+  useEffect(() => () => receiptFocus.current?.stop(), []);
 
   return (
     <details
@@ -400,7 +425,7 @@ function RecordDisclosure({
       onToggle={(event) => {
         const nextOpen = event.currentTarget.open;
         setOpen(nextOpen);
-        onOpenChange(entry.id, nextOpen);
+        onOpenChange(entry.id, nextOpen, receiptFocus.current?.canRestore);
       }}
     >
       <summary ref={summaryRef}>
@@ -453,7 +478,9 @@ function RecordDisclosure({
               className="primary-button"
               type="button"
               disabled={viewing}
-              onClick={() => {
+              onClick={(event) => {
+                receiptFocus.current?.stop();
+                receiptFocus.current = watchDisclosureFocus(event.currentTarget.closest("details")!);
                 restoreFocusAfterView.current = true;
                 onViewed(entry.id);
               }}
@@ -482,19 +509,23 @@ function MapShareDisclosure({
   share: SharedPatientMap;
   viewing: boolean;
   onViewed: (mapId: string) => void;
-  onOpenChange: (mapId: string, open: boolean) => void;
+  onOpenChange: (mapId: string, open: boolean, canRestoreFocus?: () => boolean) => void;
   concludedInPlace?: boolean;
 }) {
   const unread = Boolean(share.is_unread);
   const [open, setOpen] = useState(false);
   const summaryRef = useRef<HTMLElement>(null);
   const restoreFocusAfterView = useRef(false);
+  const receiptFocus = useRef<ReturnType<typeof watchDisclosureFocus> | null>(null);
 
   useEffect(() => {
     if (!restoreFocusAfterView.current || viewing) return;
     restoreFocusAfterView.current = false;
-    if (!unread) summaryRef.current?.focus({ preventScroll: true });
+    receiptFocus.current?.stop();
+    if (!unread && receiptFocus.current?.canRestore()) summaryRef.current?.focus({ preventScroll: true });
   }, [unread, viewing]);
+
+  useEffect(() => () => receiptFocus.current?.stop(), []);
 
   return (
     <details
@@ -503,7 +534,7 @@ function MapShareDisclosure({
       open={open}
       onToggle={(event) => {
         setOpen(event.currentTarget.open);
-        onOpenChange(share.map_id, event.currentTarget.open);
+        onOpenChange(share.map_id, event.currentTarget.open, receiptFocus.current?.canRestore);
       }}
     >
       <summary ref={summaryRef}>
@@ -549,7 +580,9 @@ function MapShareDisclosure({
               className="primary-button"
               type="button"
               disabled={viewing}
-              onClick={() => {
+              onClick={(event) => {
+                receiptFocus.current?.stop();
+                receiptFocus.current = watchDisclosureFocus(event.currentTarget.closest("details")!);
                 restoreFocusAfterView.current = true;
                 onViewed(share.map_id);
               }}
@@ -614,6 +647,13 @@ function PatientList({
   function changeSort(value: PatientSort) {
     setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
     onSortChange(value);
+  }
+
+  function showFewerPatients() {
+    setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE);
+    window.requestAnimationFrame(() => {
+      document.getElementById("professional-patient-list-title")?.focus();
+    });
   }
 
   return (
@@ -809,7 +849,7 @@ function PatientList({
                   type="button"
                   aria-controls="professional-patient-list"
                   aria-label={`Mostrar somente os primeiros ${PATIENT_LIST_PAGE_SIZE} pacientes`}
-                  onClick={() => setVisiblePatientLimit(PATIENT_LIST_PAGE_SIZE)}
+                  onClick={showFewerPatients}
                 >
                   Mostrar menos
                 </button>
@@ -859,6 +899,8 @@ function PatientRecordsView({
   const unreadFilterRef = useRef<HTMLButtonElement>(null);
   const pendingViewedFocus = useRef<string | null>(null);
   const pendingMapFocus = useRef<string | null>(null);
+  const pendingViewedFocusAllowed = useRef<(() => boolean) | null>(null);
+  const pendingMapFocusAllowed = useRef<(() => boolean) | null>(null);
   const unreadCount = entries.filter((entry) => Boolean(entry.is_unread)).length;
   const unreadMapCount = mapShares.filter((share) => Boolean(share.is_unread)).length;
   const viewedCount = entries.length - unreadCount;
@@ -876,11 +918,12 @@ function PatientRecordsView({
   );
   const hasContent = entries.length > 0 || mapShares.length > 0;
 
-  function changeEntryOpen(entryId: string, open: boolean) {
+  function changeEntryOpen(entryId: string, open: boolean, canRestoreFocus?: () => boolean) {
     const entry = entries.find((item) => item.id === entryId);
     if (open && !entry?.is_unread) return;
     if (!open && readingEntryIds.has(entryId) && entry && (!entry.is_unread || viewingIds.has(entryId))) {
       pendingViewedFocus.current = entryId;
+      pendingViewedFocusAllowed.current = canRestoreFocus ?? null;
     }
     setReadingEntryIds((current) => {
       if (current.has(entryId) === open) return current;
@@ -891,11 +934,12 @@ function PatientRecordsView({
     });
   }
 
-  function changeMapOpen(mapId: string, open: boolean) {
+  function changeMapOpen(mapId: string, open: boolean, canRestoreFocus?: () => boolean) {
     const share = mapShares.find((item) => item.map_id === mapId);
     if (open && !share?.is_unread) return;
     if (!open && readingMapIds.has(mapId) && share && (!share.is_unread || viewingMapIds.has(mapId))) {
       pendingMapFocus.current = mapId;
+      pendingMapFocusAllowed.current = canRestoreFocus ?? null;
     }
     setReadingMapIds((current) => {
       if (current.has(mapId) === open) return current;
@@ -917,6 +961,7 @@ function PatientRecordsView({
     const frame = window.requestAnimationFrame(() => {
       if (pendingViewedFocus.current !== entryId) return;
       pendingViewedFocus.current = null;
+      if (pendingViewedFocusAllowed.current && !pendingViewedFocusAllowed.current()) return;
       const nextUnreadSummary = sectionRef.current?.querySelector<HTMLElement>(
         ".professional-record-disclosure.is-unread > summary",
       );
@@ -938,6 +983,7 @@ function PatientRecordsView({
     const frame = window.requestAnimationFrame(() => {
       if (pendingMapFocus.current !== mapId) return;
       pendingMapFocus.current = null;
+      if (pendingMapFocusAllowed.current && !pendingMapFocusAllowed.current()) return;
       const nextUnreadSummary = sectionRef.current?.querySelector<HTMLElement>(".professional-map-disclosure.is-unread > summary");
       const movedSummary = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>(".professional-map-disclosure") ?? [])
         .find((element) => element.dataset.mapId === mapId)?.querySelector<HTMLElement>("summary");

@@ -133,7 +133,7 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page).toHaveTitle(/Área do paciente/u);
     await expect(page.getByRole("heading", { level: 1, name: "Olá, Mateus.", exact: true })).toBeVisible();
-    await expect(page.locator(".patient-summary-card")).toHaveCount(patients.length);
+    await expect(page.locator(".patient-summary-card")).toHaveCount(Math.min(patients.length, 15));
     await expect(page.locator("vite-error-overlay, nextjs-portal")).toHaveCount(0);
     assert.equal(new URL(page.url()).origin, origin);
     if (selectPatient) {
@@ -279,6 +279,50 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
       await checkHealthy(fixture, `professional-delayed-${scenario}`);
     });
   }
+
+  for (const kind of ["record", "map"]) {
+    for (const closePending of [false, true]) {
+      test(`${kind}: delayed confirmation respects focus moved to another content${closePending ? " after closing" : ""}`, async () => {
+        const fixture = await openProfessional({ pendingMark: true });
+        const { page } = fixture;
+        const selector = kind === "record" ? recordSelector : mapSelector;
+        const prefix = kind === "map" ? "map-" : "";
+        const item = page.locator(selector(`${prefix}unread-new`));
+        const nextSummary = page.locator(selector(`${prefix}${closePending ? "viewed-old" : "unread-old"}`)).locator(":scope > summary");
+        await item.locator(":scope > summary").click();
+        await item.getByRole("button", { name: "Concluir visualização", exact: true }).click();
+        await expect(item.locator(".record-view-state")).toContainText("Salvando visualização");
+        if (closePending) {
+          await item.locator(":scope > summary").click();
+          await expect(item).not.toHaveAttribute("open", "");
+        }
+        await nextSummary.focus();
+        await expect(nextSummary).toBeFocused();
+        fixture.releaseMark();
+        await expect(item.locator(".record-view-state")).toHaveText("Visto");
+        await expect(nextSummary).toBeFocused();
+        assert.equal(fixture.controls.mutations.length, 1);
+        await checkHealthy(fixture, `professional-delayed-focus-${kind}-${closePending ? "closed" : "open"}`);
+      });
+    }
+  }
+
+  test("collapsing the patient activity list keeps a useful keyboard destination", async () => {
+    const patients = Array.from({ length: 22 }, (_, index) => ({ ...referencePatient,
+      patient_id: `synthetic-pagination-${index}`, patient_name: `Paciente Sintético ${String(index).padStart(2, "0")}` }));
+    const fixture = await openProfessional({ patients, selectPatient: false });
+    const { page } = fixture;
+    await page.getByRole("button", { name: /Mostrar mais pacientes:/u }).click();
+    await expect(page.locator(".patient-summary-card")).toHaveCount(22);
+    const less = page.getByRole("button", { name: "Mostrar somente os primeiros 15 pacientes", exact: true });
+    await less.focus();
+    await less.press("Enter");
+    await expect(page.locator(".patient-summary-card")).toHaveCount(15);
+    await expect(page.locator("#professional-patient-list-title")).toBeFocused();
+    await expect(page.getByRole("button", { name: /Mostrar mais pacientes:/u })).toBeVisible();
+    assert.equal(fixture.controls.mutations.length, 0);
+    await checkHealthy(fixture, "professional-patient-list-collapse");
+  });
 
   for (const kind of ["record", "map"]) {
     test(`${kind}: a failed delayed confirmation after closing remains unread, with focus and retry available`, async () => {
