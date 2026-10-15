@@ -1,5 +1,7 @@
 # Refinamento inclusivo — 15 de outubro de 2026
 
+> Atualização: este conjunto foi aprovado e publicado em 15/10. Estado efetivo, versões, verificações e retorno rápido estão em `publicacao-refinamento-inclusivo-2026-10-15.md`. As indicações de “não publicado” abaixo são o registro histórico da preparação, não o estado atual.
+
 ## Estado e escopo
 
 Este lote é continuação do trabalho existente, não reconstrução do produto. Branch `agent/refinos-inclusivos-20261014`, iniciada em `59b129f`. **Preparado localmente; não publicado, sem push ou merge.** A aprovação da publicação anterior não foi reaproveitada para publicar este lote novo.
