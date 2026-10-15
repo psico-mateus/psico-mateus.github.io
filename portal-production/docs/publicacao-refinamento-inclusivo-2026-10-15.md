@@ -1,5 +1,7 @@
 # Publicação do refinamento inclusivo — 15 de outubro de 2026
 
+> Houve uma segunda publicação do portal nesta data, aprovada com “poste”. O estado mais recente e os pontos de retorno desse lote estão na seção **Continuação publicada — foco, avisos e compartilhamento conferido** ao final. O registro abaixo do primeiro lote permanece histórico; Pages/Guia não foram modificados no segundo lote.
+
 O usuário respondeu “pode mudar” à pergunta explícita “Posso publicar o conjunto preparado?”. O escopo aprovado é o conjunto descrito em `refinamento-inclusivo-2026-10-15.md`. Nenhuma migração, troca de segredo, mudança de permissões, serviço pago ou manipulação de dados reais foi incluída.
 
 ## Antes do envio
@@ -51,3 +53,48 @@ O GitHub voltou a informar 15 alertas de dependências na árvore remota durante
 Não haverá criação de conta, submit de login/MFA real ou leitura de registros de pacientes em produção. Verificação pública é anônima; verificação de telas autenticadas usa contextos novos e API completamente simulada, com requisições estrangeiras bloqueadas. O teste isolado de cadastro/login/sessão/D1 do primeiro lote permanece registrado no relatório de preparação, não deve ser apresentado como teste autenticado real em produção.
 
 Para carregar a atualização no app já aberto, salvar qualquer texto em edição antes de atualizar a página. Não limpar armazenamento do navegador ou reinstalar para forçar a atualização.
+
+## Continuação publicada — foco, avisos e compartilhamento conferido
+
+Publicação aprovada pelo usuário com **“poste”**, após o resumo das melhorias e dos testes. Fonte `96fcbc4`, branch `agent/refinos-inclusivos-20261014`, árvore limpa antes do envio. Commits do lote: `71c4f4d`, `6897429` e `96fcbc4`.
+
+Escopo exato: três componentes de interface e quatro arquivos de testes. No profissional, confirmação atrasada de leitura respeita a navegação e “Mostrar menos” mantém um destino de teclado. Avisos mantêm foco e anunciam a conclusão de atualização manual, sem duplicar consulta. No mapa, respostas lentas respeitam foco/navegação; uma resposta perdida após compartilhar/revogar deixa o estado não confirmado até consulta explícita, sem repetir a alteração ou afirmar que nada mudou. O caso em que o salvamento falha antes de enviar compartilhamento continua descrito como sem alteração.
+
+Não houve alteração de autenticação, MFA, sessões, API, esquema, migrações, segredos, dependências, catálogo ou conteúdo clínico. Nenhum serviço novo foi configurado. Mesmo D1 e mesmos modos `proxy`/`local`; site profissional e Guia permanecem na publicação anterior, sem push ou merge neste lote.
+
+### Artefato e validação anterior
+
+- Build sanitizado **`9ee10b1041674e18`**, já aprovado no lote de implementação; não foi reconstruído durante o envio.
+- Snapshot persistente: `/Users/mateus/.codex/visualizations/2026/07/16/019f6c30-8c73-7f00-8e04-df9350c76276/publicacao-next-20261015-96fcbc4-SqDnHb`. Comparação recursiva confirmou 129 arquivos idênticos ao build validado, configurações existentes idênticas, nenhum symlink ou arquivo de ambiente. Dry-runs dos dois modos passaram fora do checkout de desenvolvimento.
+- Lint, tipos e build aprovados; **313/313** testes gerais. Interface local: avisos **27/27**, profissional/recibos **26/26**, mapa **37/37**, em cada um de Chromium e WebKit: **180 casos aprovados**, sem falhas/skips. Casos novos foram reproduzidos antes das correções; APIs simuladas e origens externas bloqueadas.
+- Evidências locais: `refinos-20261015-next/notices-{chromium,webkit}`, `refinos-20261015-next-history/{chromium,webkit}` e `refinos-20261015-next-map/verified-{chromium,webkit}`, sob a mesma raiz persistente de visualizações.
+
+### Versões efetivamente publicadas
+
+As versões anteriores foram consultadas imediatamente antes do envio. Legado publicado primeiro, com saúde/sessão anônima/build conferidos antes da conclusão do principal. Ambos enviados com `--keep-vars`, sem envio/troca de segredos.
+
+| Ambiente | Versão atual | Versão anterior para retorno deste lote |
+|---|---|---|
+| Principal `area-do-paciente` | `166726e0-03ad-4fee-892c-fd2187882d64` | `7457e7e9-8fd7-4c11-a790-72ca21303f87` |
+| Legado/API `registros` | `734273fc-631b-4766-80d3-7e13bde89fd3` | `4ec8a8ca-4a39-4406-a387-214b0c09cc32` |
+
+Wrangler confirmou 100% do tráfego nas versões atuais: deployment principal `830c47d0-3cfc-4089-96ca-48bd2d046bac`, legado `817fbb27-76ad-4295-b441-c7cb4d4cdfd1`, ambos em 15/10/2026.
+
+Somente se necessário por regressão deste lote, usar os pontos de retorno acima, não os alvos mais antigos do primeiro lote:
+
+```sh
+pnpm exec wrangler rollback 7457e7e9-8fd7-4c11-a790-72ca21303f87 --config wrangler.jsonc --message "Retorno anterior ao lote 96fcbc4" --yes
+pnpm exec wrangler rollback 4ec8a8ca-4a39-4406-a387-214b0c09cc32 --config wrangler.legacy.jsonc --message "Retorno anterior ao lote 96fcbc4" --yes
+```
+
+Isso retorna código/assets, não apaga nem restaura o banco. Não executar retorno somente porque os comandos estão documentados.
+
+### Conferência após publicação
+
+- Smoke público existente aprovado: páginas/health 200, HTTP→HTTPS 308, cabeçalhos de proteção e ausência de cookie público. SW dos dois endereços corresponde ao build **`9ee10b1041674e18`**; sessão anônima retorna `user: null`.
+- Browser plugin não disponível; Playwright existente, contextos novos, Chromium 1366×900 e WebKit 390×844. **8/8 cenários aprovados**: dois endereços × dois motores × anônimo/API inteiramente simulada. Identidade/conteúdo, console, ausência de overlay/overflow, acessibilidade automatizada e imagens conferidos.
+- Anônimo: alternância login/cadastro, convite, 18+, privacidade, senha, manifest e ícones, sem submit real. Simulado: atualização de avisos por teclado com deduplicação; perda de resposta após compartilhar e após revogar o mapa, estado não confirmado e recuperação explícita por GET, exatamente um PATCH por ação.
+- Zero escritas reais, APIs autenticadas reais ou requisições estrangeiras nesses testes. Script/JSON/32 capturas em `qa/` dentro do snapshot; capturas representativas mobile/desktop abertas e inspecionadas.
+- Sem teste em iPhone físico, VoiceOver/NVDA ou login/cadastro autenticado real em produção. Esses resultados não são garantia de ausência absoluta de erro nem uma nova auditoria de dependências.
+
+Para receber a atualização em uma aba/app já aberto, salvar textos pendentes antes de atualizar. Não limpar cookies/armazenamento nem reinstalar para forçar a versão.
