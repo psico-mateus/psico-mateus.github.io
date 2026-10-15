@@ -1838,6 +1838,7 @@ function PatientDashboard({
     message: string;
   } | null>(null);
   const [entriesError, setEntriesError] = useState("");
+  const [savedEntryToFocus, setSavedEntryToFocus] = useState<string | null>(null);
   const [entryFilter, setEntryFilter] =
     useState<PatientEntrySharingFilter>("all");
   const [entryQuery, setEntryQuery] = useState("");
@@ -2062,13 +2063,34 @@ function PatientDashboard({
       // A late navigation effect must not replace that useful focus with the title.
       const focused = document.activeElement;
       if (area === "records" && focused instanceof HTMLElement &&
-        focused.matches(".patient-record-card > summary")) return;
+        focused.matches(".patient-record-card > summary, .notice-error")) return;
       const target = document.getElementById(targetId);
       target?.scrollIntoView({ block: "start", behavior: "auto" });
       target?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [area, editing, editorVisible, resourceView, selectedEducationSlug, selectedToolId]);
+
+  useEffect(() => {
+    if (!savedEntryToFocus) return;
+    // Wait for the history/filter render, not an assumed number of frames after
+    // the HTTP response. Slow rendering must not lose the post-save destination.
+    const frame = window.requestAnimationFrame(() => {
+      if (area === "records" && !editorVisible) {
+        const card = document.getElementById(`record-${savedEntryToFocus}`);
+        const summary = card?.querySelector<HTMLElement>("summary");
+        const target = summary ?? document.getElementById("records-title");
+        const focused = document.activeElement;
+        if (!(focused instanceof HTMLElement) || focused === document.body ||
+          focused.id === "records-title" || focused === target) {
+          target?.scrollIntoView({ block: summary ? "center" : "start", behavior: "auto" });
+          target?.focus({ preventScroll: true });
+        }
+      }
+      setSavedEntryToFocus(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [savedEntryToFocus, area, editorVisible, entries, entryFilter, entryQuery]);
 
   useEffect(() => {
     const snapshot = pendingRecordRecovery ?? createPatientRecordRecoverySnapshot({
@@ -2167,20 +2189,7 @@ function PatientDashboard({
         setEntryQuery((current) => current === entryQuery ? "" : current);
       }
     }
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const card = document.getElementById(`record-${savedId}`);
-        const summary = card?.querySelector<HTMLElement>("summary");
-        const target = summary ?? document.getElementById("records-title");
-        const focused = document.activeElement;
-        // A slow history request must not take focus from someone already
-        // searching, filtering, or navigating after the save completed.
-        if (focused instanceof HTMLElement && focused !== document.body &&
-          focused.id !== "records-title" && focused !== target) return;
-        target?.scrollIntoView({ block: summary ? "center" : "start", behavior: "auto" });
-        target?.focus({ preventScroll: true });
-      });
-    });
+    setSavedEntryToFocus(savedId);
   }
   async function sharing(entry: Entry) {
     if (entryActionLocks.current.has(entry.id)) return;
