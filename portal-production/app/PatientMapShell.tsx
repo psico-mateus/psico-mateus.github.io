@@ -74,6 +74,12 @@ type PatientMapShareStatus = {
   viewed_at: string | null;
 };
 
+type PatientMapSharingFocus = {
+  mapId: string;
+  canFocus: () => boolean;
+  stop: () => void;
+};
+
 function PatientMapPersistenceStatus({
   state,
   message,
@@ -204,7 +210,8 @@ export function PatientMapShell({
   const [synthesisIndex, setSynthesisIndex] = useState(0);
   const mapTriggerElementIdRef = useRef<string | null>(null);
   const sharesRequestIdRef = useRef(0);
-  const sharingActionFocusMapIdRef = useRef<string | null>(null);
+  const sharingActionFocusRef = useRef<PatientMapSharingFocus | null>(null);
+  const sharingActionWatchRef = useRef<PatientMapSharingFocus | null>(null);
   const sharingViewFocusMapIdRef = useRef<string | null>(null);
   const restoreOverviewTriggerRef = useRef(false);
   const focusSynthesisQuestionRef = useRef(false);
@@ -257,18 +264,65 @@ export function PatientMapShell({
   }, [loadMapShares]);
 
   useEffect(() => {
-    const mapId = sharingActionFocusMapIdRef.current;
-    if (!mapId) return;
-    sharingActionFocusMapIdRef.current = null;
-    const target = document.getElementById(`patient-map-share-action-${mapId}`);
-    if (target?.isConnected) {
-      target.focus({ preventScroll: true });
-      return;
-    }
-    const fallback = document.getElementById("patient-map-sharing-feedback");
-    fallback?.scrollIntoView({ block: "center", behavior: "auto" });
-    fallback?.focus({ preventScroll: true });
-  }, [shares]);
+    const pending = sharingActionFocusRef.current;
+    if (!pending) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (sharingActionFocusRef.current !== pending) return;
+      sharingActionFocusRef.current = null;
+      if (pending.canFocus()) {
+        const target = document.getElementById(`patient-map-share-action-${pending.mapId}`);
+        if (target?.isConnected) {
+          target.focus({ preventScroll: true });
+        } else {
+          const fallback = document.getElementById("patient-map-sharing-feedback");
+          fallback?.scrollIntoView({ block: "center", behavior: "auto" });
+          fallback?.focus({ preventScroll: true });
+        }
+      }
+      pending.stop();
+      if (sharingActionWatchRef.current === pending) sharingActionWatchRef.current = null;
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (sharingActionFocusRef.current === pending) sharingActionFocusRef.current = null;
+      pending.stop();
+      if (sharingActionWatchRef.current === pending) sharingActionWatchRef.current = null;
+    };
+  }, [shares, sharesLoadError]);
+
+  useEffect(() => () => {
+    sharingActionWatchRef.current?.stop();
+    sharingActionFocusRef.current?.stop();
+  }, []);
+
+  function watchSharingActionFocus(mapId: string): PatientMapSharingFocus {
+    const row = document.getElementById(`patient-map-sharing-row-${mapId}`);
+    const panel = row?.closest(".patient-map-sharing-view");
+    let movedElsewhere = false;
+    let stopped = false;
+    const track = (event: Event) => {
+      const target = event.target;
+      // Disabled controls may leave Safari focus on body. A later interaction
+      // outside this row, not that blur alone, cancels the focus destination.
+      if (target instanceof Node && !row?.contains(target) &&
+        !(event.type === "focusin" && (target === document.body || target === document.documentElement))) {
+        movedElsewhere = true;
+      }
+    };
+    document.addEventListener("focusin", track, true);
+    document.addEventListener("pointerdown", track, true);
+    return {
+      mapId,
+      // The same panel must still exist: going away and returning creates a
+      // new destination that must not inherit an older request's autofocus.
+      canFocus: () => !stopped && !movedElsewhere && Boolean(panel?.isConnected),
+      stop: () => {
+        stopped = true;
+        document.removeEventListener("focusin", track, true);
+        document.removeEventListener("pointerdown", track, true);
+      },
+    };
+  }
 
   async function changeMapSharing(map: PatientMapDefinition, shared: boolean) {
     if (sharingMapId) return;
@@ -283,21 +337,25 @@ export function PatientMapShell({
         : `Parar de compartilhar “${map.navigationTitle}”? Mateus perderá o acesso à versão enviada, mas suas respostas continuarão salvas e privadas para você.`,
     );
     if (!confirmed) return;
+    const focus = watchSharingActionFocus(map.id);
+    sharingActionWatchRef.current = focus;
     setSharingMapId(map.id);
     setSharingMessage("");
     setSharingMessageTone("success");
+    let requestedSharingChange = false;
     try {
       if (shared && !(await onSaveAndExit())) {
-        setSharingMessage("Espere o salvamento terminar antes de compartilhar.");
+        setSharingMessage("Espere o salvamento terminar antes de compartilhar. Nenhum compartilhamento foi alterado.");
         setSharingMessageTone("error");
         return;
       }
+      requestedSharingChange = true;
       const result = await portalRequest<{ share?: PatientMapShareStatus }>(
         `/map-sharing/${encodeURIComponent(map.id)}`,
         { method: "PATCH", body: JSON.stringify({ shared }) },
         csrf,
       );
-      sharingActionFocusMapIdRef.current = map.id;
+      sharingActionFocusRef.current = focus;
       setShares((current) => {
         const next = { ...current };
         if (shared && result.share) next[map.id] = result.share;
@@ -310,6 +368,13 @@ export function PatientMapShell({
       setSharingMessage(message);
       setSharingMessageTone("success");
     } catch (error) {
+      if (requestedSharingChange) {
+        // A lost response cannot tell us whether the server applied the change.
+        // Reuse the guarded lookup state instead of presenting stale certainty
+        // or automatically repeating a versioned sharing request.
+        sharingActionFocusRef.current = focus;
+        setSharesLoadError("Não foi possível confirmar o resultado desta mudança. Consulte novamente para ver o que está compartilhado.");
+      }
       setSharingMessage(
         error instanceof Error
           ? error.message
@@ -317,6 +382,10 @@ export function PatientMapShell({
       );
       setSharingMessageTone("error");
     } finally {
+      if (sharingActionFocusRef.current !== focus) {
+        focus.stop();
+        if (sharingActionWatchRef.current === focus) sharingActionWatchRef.current = null;
+      }
       setSharingMapId(null);
     }
   }
@@ -826,7 +895,6 @@ export function PatientMapShell({
                 tabIndex={-1}
               >
                 {sharingMessage}
-                {sharingMessageTone === "error" ? " Nenhum compartilhamento foi alterado." : ""}
               </p>
             ) : null}
             {sharesLoading ? (

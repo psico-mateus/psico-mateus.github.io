@@ -57,7 +57,8 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     const page = await context.newPage();
     const controls = { fields: new Map(structuredClone(fields).map(field => [`${field.type}:${field.id}`, field])),
       shares: new Map(structuredClone(shares).map(share => [share.map_id, share])), generation: 1,
-      loadFailure, sharingLoadFailure, saveFailure: 0, saveConflict: null, saveGates: new Map(), saveSessionLoss: false, sharingFailure: 0,
+      loadFailure, sharingLoadFailure, saveFailure: 0, saveConflict: null, saveGates: new Map(), saveSessionLoss: false,
+      sharingFailure: 0, sharingGate: null, sharingResponseLoss: false, expectedSharingResponseLossUrls: new Set(),
       unexpected: [], foreignRequests: [], runtimeErrors: [], mutations: [], sharedSnapshots: new Map() };
     const fixture = { context, page, controls };
     fixtures.add(fixture);
@@ -66,6 +67,8 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
       if (!["error", "warning"].includes(message.type())) return;
       const text = message.text();
       if (text === "Service Worker registration blocked by Playwright") return;
+      if (controls.expectedSharingResponseLossUrls.has(message.location().url)
+        && text.startsWith("Failed to load resource:")) return;
       if (/Failed to load resource: the server responded with a status of (?:401|409|503)\b/u.test(text)) return;
       controls.runtimeErrors.push(text);
     });
@@ -135,18 +138,27 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
         : respond({ shares: [...controls.shares.values()] });
       const sharing = path.match(/^\/map-sharing\/([a-z0-9-]+)$/u);
       if (sharing && method === "PATCH") {
+        if (controls.sharingGate) await controls.sharingGate;
         if (controls.sharingFailure) return respond({ error: "Falha sintética ao compartilhar." }, controls.sharingFailure);
+        const respondAfterSharingChange = payload => {
+          if (controls.sharingResponseLoss) {
+            controls.sharingResponseLoss = false;
+            controls.expectedSharingResponseLossUrls.add(url.href);
+            return route.abort("failed");
+          }
+          return respond(payload);
+        };
         const { shared } = request.postDataJSON();
         if (shared) {
           const share = { map_id: sharing[1], shared_at: timestamp, viewed_at: null };
           controls.shares.set(sharing[1], share);
           controls.sharedSnapshots.set(sharing[1], structuredClone([...controls.fields.values()].filter(field =>
             field.type === "answer" && field.id.startsWith(`${sharing[1]}.`))));
-          return respond({ ok: true, share });
+          return respondAfterSharingChange({ ok: true, share });
         }
         controls.shares.delete(sharing[1]);
         controls.sharedSnapshots.delete(sharing[1]);
-        return respond({ ok: true });
+        return respondAfterSharingChange({ ok: true });
       }
       controls.unexpected.push(`${method} ${path}`);
       return respond({ error: "Rota não simulada; nenhuma requisição foi encaminhada ao servidor." }, 500);
@@ -357,15 +369,155 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     fixture.page.once("dialog", dialog => dialog.accept());
     await share.click();
     await expect(fixture.page.getByRole("button", { name: "Enviar novamente Meu jeito", exact: true })).toBeVisible();
+    await expect(fixture.page.getByRole("button", { name: "Enviar novamente Meu jeito", exact: true })).toBeFocused();
     assert.deepEqual(shareMutations(fixture.controls).map(({ payload }) => payload), [{ shared: true }]);
     assert.equal(fixture.controls.sharedSnapshots.get("meu-jeito").length, 2);
     assert.equal(fixture.controls.sharedSnapshots.get("meu-jeito").some(field => field.type === "synthesis"), false);
     fixture.page.once("dialog", dialog => dialog.accept());
     await fixture.page.getByRole("button", { name: "Parar de compartilhar Meu jeito", exact: true }).click();
     await expect(share).toBeVisible();
+    await expect(share).toBeFocused();
     assert.deepEqual(shareMutations(fixture.controls).map(({ payload }) => payload), [{ shared: true }, { shared: false }]);
     assert.deepEqual(fixture.controls.fields.get("answer:meu-jeito.01.1"), firstAnswer);
     await healthy(fixture, "map-sharing-revoked");
+  });
+
+  for (const sharingFailure of [0, 503]) {
+    test(`delayed map sharing ${sharingFailure ? "error" : "success"} does not take focus back from help opened while waiting`, async () => {
+      const fixture = await openMap({ fields: seedFields });
+      await fixture.page.locator("#patient-map-view-sharing").click();
+      let release;
+      fixture.controls.sharingGate = new Promise(resolve => { release = resolve; });
+      fixture.controls.sharingFailure = sharingFailure;
+      try {
+        fixture.page.once("dialog", dialog => dialog.accept());
+        await fixture.page.getByRole("button", { name: "Compartilhar Meu jeito com Mateus", exact: true }).click();
+        await expect.poll(() => shareMutations(fixture.controls).length).toBe(1);
+        const help = fixture.page.locator(".patient-map-sharing-help > summary");
+        await help.focus();
+        await fixture.page.keyboard.press("Enter");
+        await expect(fixture.page.locator(".patient-map-sharing-help")).toHaveAttribute("open", "");
+        release();
+        await expect(fixture.page.locator("#patient-map-sharing-feedback")).toContainText(sharingFailure
+          ? "Falha sintética ao compartilhar." : "A versão atual de “Meu jeito” foi enviada para Mateus.");
+        await fixture.page.evaluate(() => new Promise(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))));
+        await expect(help).toBeFocused();
+        await healthy(fixture, `map-sharing-delayed-help-${sharingFailure || "success"}-focus`);
+      } finally { release(); }
+    });
+  }
+
+  test("delayed map sharing respects navigation away and back to the sharing screen", async () => {
+    const fixture = await openMap({ fields: seedFields });
+    await fixture.page.locator("#patient-map-view-sharing").click();
+    let release;
+    fixture.controls.sharingGate = new Promise(resolve => { release = resolve; });
+    try {
+      fixture.page.once("dialog", dialog => dialog.accept());
+      await fixture.page.getByRole("button", { name: "Compartilhar Meu jeito com Mateus", exact: true }).click();
+      await expect.poll(() => shareMutations(fixture.controls).length).toBe(1);
+      await fixture.page.locator("#patient-map-view-overview").click();
+      await expect(fixture.page.locator("#patient-map-title")).toBeFocused();
+      await fixture.page.locator("#patient-map-view-sharing").click();
+      await expect(fixture.page.locator("#patient-map-sharing-title")).toBeFocused();
+      release();
+      await expect(fixture.page.getByRole("button", { name: "Enviar novamente Meu jeito", exact: true })).toBeEnabled();
+      await fixture.page.evaluate(() => new Promise(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))));
+      await expect(fixture.page.locator("#patient-map-sharing-title")).toBeFocused();
+      await healthy(fixture, "map-sharing-delayed-return-focus");
+    } finally { release(); }
+  });
+
+  test("revoking the last empty shared theme focuses feedback when its row disappears", async () => {
+    const fixture = await openMap({ shares: [{ map_id: "meu-jeito", shared_at: timestamp, viewed_at: null }] });
+    await fixture.page.locator("#patient-map-view-sharing").click();
+    fixture.page.once("dialog", dialog => dialog.accept());
+    await fixture.page.getByRole("button", { name: "Parar de compartilhar Meu jeito", exact: true }).click();
+    await expect(fixture.page.locator("#patient-map-sharing-row-meu-jeito")).toHaveCount(0);
+    await expect(fixture.page.locator("#patient-map-sharing-feedback")).toBeFocused();
+    assert.deepEqual(shareMutations(fixture.controls).map(({ payload }) => payload), [{ shared: false }]);
+    assert.equal(fixture.controls.fields.size, 0);
+    await healthy(fixture, "map-sharing-last-row-removed-focus");
+  });
+
+  test("leaving Meu mapa stops request focus listeners before a late sharing response", async () => {
+    const fixture = await openMap({ fields: seedFields });
+    await fixture.page.locator("#patient-map-view-sharing").click();
+    await fixture.page.evaluate(() => {
+      const pending = new Map([["focusin", new Set()], ["pointerdown", new Set()]]);
+      const add = document.addEventListener.bind(document);
+      const remove = document.removeEventListener.bind(document);
+      window.__mapPendingFocusListenerCount = () => [...pending.values()].reduce((count, listeners) => count + listeners.size, 0);
+      document.addEventListener = (type, listener, options) => {
+        pending.get(type)?.add(listener);
+        return add(type, listener, options);
+      };
+      document.removeEventListener = (type, listener, options) => {
+        pending.get(type)?.delete(listener);
+        return remove(type, listener, options);
+      };
+    });
+    let release;
+    fixture.controls.sharingGate = new Promise(resolve => { release = resolve; });
+    try {
+      fixture.page.once("dialog", dialog => dialog.accept());
+      await fixture.page.getByRole("button", { name: "Compartilhar Meu jeito com Mateus", exact: true }).click();
+      await expect.poll(() => shareMutations(fixture.controls).length).toBe(1);
+      assert.equal(await fixture.page.evaluate(() => window.__mapPendingFocusListenerCount()), 2,
+        "Transient focus and pointer listeners exist only during this request.");
+      await fixture.page.locator(".patient-navigation").getByRole("button", { name: "Início", exact: true }).click();
+      await expect(fixture.page.locator("#patient-home-title")).toBeFocused();
+      assert.equal(await fixture.page.evaluate(() => window.__mapPendingFocusListenerCount()), 0,
+        "Unmount removes in-flight map focus listeners.");
+      release();
+      await expect.poll(() => fixture.controls.shares.has("meu-jeito")).toBe(true);
+      await fixture.page.evaluate(() => new Promise(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))));
+      await expect(fixture.page.locator("#patient-home-title")).toBeFocused();
+      assert.equal(await fixture.page.evaluate(() => window.__mapPendingFocusListenerCount()), 0);
+      await healthy(fixture, "map-sharing-unmount-cleans-focus");
+    } finally { release(); }
+  });
+
+  for (const initiallyShared of [false, true]) {
+    test(`lost response after committed map ${initiallyShared ? "revocation" : "sharing"} is unknown until an explicit lookup without repeating the change`, async () => {
+      const fixture = await openMap({ fields: seedFields, shares: initiallyShared
+        ? [{ map_id: "meu-jeito", shared_at: timestamp, viewed_at: null }] : [] });
+      await fixture.page.locator("#patient-map-view-sharing").click();
+      fixture.controls.sharingResponseLoss = true;
+      fixture.page.once("dialog", dialog => dialog.accept());
+      await fixture.page.getByRole("button", { name: initiallyShared
+        ? "Parar de compartilhar Meu jeito" : "Compartilhar Meu jeito com Mateus", exact: true }).click();
+      await expect(fixture.page.locator(".patient-map-sharing-error")).toContainText("Não foi possível confirmar o resultado desta mudança.");
+      await expect(fixture.page.locator(".patient-map-sharing-heading")).toContainText("Estado indisponível");
+      await expect(fixture.page.locator('[id^="patient-map-share-action-"]')).toHaveCount(0);
+      await expect(fixture.page.locator("#patient-map-sharing-feedback")).not.toContainText("Nenhum compartilhamento foi alterado");
+      assert.equal(fixture.controls.shares.has("meu-jeito"), !initiallyShared,
+        "The synthetic server applied the change before the response was lost.");
+      assert.deepEqual(shareMutations(fixture.controls).map(({ payload }) => payload), [{ shared: !initiallyShared }]);
+      await fixture.page.getByRole("button", { name: "Tentar consultar novamente", exact: true }).click();
+      await expect(fixture.page.locator(".patient-map-sharing-error")).toHaveCount(0);
+      await expect(fixture.page.getByRole("button", { name: initiallyShared
+        ? "Compartilhar Meu jeito com Mateus" : "Enviar novamente Meu jeito", exact: true })).toBeEnabled();
+      assert.equal(shareMutations(fixture.controls).length, 1, "Recovery is a GET, not an automatic sharing retry.");
+      assert.deepEqual(fixture.controls.fields.get("answer:meu-jeito.01.1"), firstAnswer);
+      await healthy(fixture, `map-${initiallyShared ? "revoke" : "share"}-response-loss-recovered`);
+    });
+  }
+
+  test("failed keyboard sharing keeps useful focus on feedback after guarded actions disappear", async () => {
+    const fixture = await openMap({ fields: seedFields });
+    await fixture.page.locator("#patient-map-view-sharing").click();
+    await expect(fixture.page.locator("#patient-map-sharing-title")).toBeFocused();
+    fixture.controls.sharingFailure = 503;
+    const share = fixture.page.getByRole("button", { name: "Compartilhar Meu jeito com Mateus", exact: true });
+    await share.focus();
+    fixture.page.once("dialog", dialog => dialog.accept());
+    await fixture.page.keyboard.press("Enter");
+    await expect(fixture.page.locator(".patient-map-sharing-error")).toBeVisible();
+    await expect(fixture.page.locator('[id^="patient-map-share-action-"]')).toHaveCount(0);
+    await expect(fixture.page.locator("#patient-map-sharing-feedback")).toBeFocused();
+    assert.equal(shareMutations(fixture.controls).length, 1);
+    await healthy(fixture, "map-sharing-error-keyboard-feedback-focus");
   });
 
   test("synthesis remains optional, private and separate from theme sharing", async () => {
