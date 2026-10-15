@@ -82,6 +82,12 @@ test("patient tools component is private, accessible and free of persistence", a
   assert.match(source, /role="status" aria-live="polite" aria-atomic="true"/u);
   assert.match(source, /aria-label=\{`Abrir ferramenta: \$\{tool\.title\}`\}/u);
   assert.match(source, /Voltar às ferramentas/u);
+  assert.equal(source.match(/Voltar às ferramentas/gu)?.length, 2,
+    "Long tools provide a return action at the beginning and end.");
+  assert.match(source, /patient-tool-detail-footer/u);
+  assert.match(source, /root\.style\.scrollBehavior = "auto"/u);
+  assert.equal(source.match(/cancelAnimationFrame\(frame\)/gu)?.length, 2,
+    "Focus callbacks are canceled when the tools view changes before the next frame.");
   assert.match(source, /Abrir ou usar uma ferramenta não cria histórico nem informa Mateus/u);
   assert.match(source, /\{onCreateRecord \? \(/u);
   assert.match(source, /onCreateRecord\(tool\.id\)/u);

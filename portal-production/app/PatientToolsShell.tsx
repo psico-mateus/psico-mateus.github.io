@@ -38,7 +38,7 @@ function PatientToolDetail({
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
       const root = document.documentElement;
       const previousScrollBehavior = root.style.scrollBehavior;
       root.style.scrollBehavior = "auto";
@@ -46,6 +46,7 @@ function PatientToolDetail({
       titleRef.current?.focus({ preventScroll: true });
       root.style.scrollBehavior = previousScrollBehavior;
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [tool.id]);
 
   return (
@@ -118,6 +119,12 @@ function PatientToolDetail({
           </button>
         </section>
       ) : null}
+
+      <footer className="patient-tool-detail-footer">
+        <button className="back-button" type="button" onClick={onBack}>
+          <span aria-hidden="true">←</span> Voltar às ferramentas
+        </button>
+      </footer>
     </article>
   );
 }
@@ -141,19 +148,23 @@ export function PatientToolsShell({
     if (selectedToolId) return;
     const shouldRestoreTool = Boolean(previousToolId);
     if (!shouldRestoreTool && !firstLibraryFocusRef.current) return;
-    firstLibraryFocusRef.current = false;
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
+      firstLibraryFocusRef.current = false;
       const returnToolId = returnToolIdRef.current;
       const target = shouldRestoreTool && returnToolId
         ? document.getElementById(`patient-tool-card-${returnToolId}`)
         : document.getElementById("patient-tools-title");
-      if (!target?.isConnected) {
-        document.getElementById("patient-tools-title")?.focus();
-        return;
-      }
-      target.scrollIntoView({ block: "center", behavior: "auto" });
-      target.focus({ preventScroll: true });
+      const focusTarget = target?.isConnected
+        ? target
+        : document.getElementById("patient-tools-title");
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      focusTarget?.scrollIntoView({ block: "center", behavior: "auto" });
+      focusTarget?.focus({ preventScroll: true });
+      root.style.scrollBehavior = previousScrollBehavior;
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [selectedToolId]);
 
   function openTool(toolId: string) {

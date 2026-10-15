@@ -169,7 +169,7 @@ function EducationArticleView({
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
       const root = document.documentElement;
       const previousScrollBehavior = root.style.scrollBehavior;
       root.style.scrollBehavior = "auto";
@@ -177,6 +177,7 @@ function EducationArticleView({
       titleRef.current?.focus({ preventScroll: true });
       root.style.scrollBehavior = previousScrollBehavior;
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [article.slug]);
 
   return (
@@ -340,9 +341,9 @@ export function PatientEducation({
     if (selectedArticle) return;
     const articleSlug = restoreArticleSlug.current ?? previousArticleSlug;
     if (!articleSlug && !firstLibraryFocusRef.current) return;
-    firstLibraryFocusRef.current = false;
-    restoreArticleSlug.current = null;
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
+      firstLibraryFocusRef.current = false;
+      restoreArticleSlug.current = null;
       const trigger = articleSlug
         ? document.getElementById(`education-read-${articleSlug}`)
         : null;
@@ -355,6 +356,7 @@ export function PatientEducation({
       target?.focus({ preventScroll: true });
       root.style.scrollBehavior = previousScrollBehavior;
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [selectedArticle]);
 
   if (selectedArticle) {
@@ -364,7 +366,7 @@ export function PatientEducation({
         guideUrl={guideUrl}
         careUrl={careUrl}
         onBack={() => {
-          restoreArticleSlug.current = selectedArticle.slug;
+          restoreArticleSlug.current ??= selectedArticle.slug;
           onArticleChange(null, "return");
         }}
         onOpenRelated={(slug) => onArticleChange(slug, "replace")}
@@ -513,7 +515,10 @@ export function PatientEducation({
                         className="secondary-button"
                         type="button"
                         aria-label={`Ler: ${article.title}`}
-                        onClick={() => onArticleChange(article.slug)}
+                        onClick={() => {
+                          restoreArticleSlug.current = article.slug;
+                          onArticleChange(article.slug);
+                        }}
                       >
                         <span>Ler texto</span>
                         <span aria-hidden="true">→</span>
@@ -527,6 +532,9 @@ export function PatientEducation({
                     type="button"
                     aria-expanded={expanded}
                     aria-controls={listId}
+                    aria-label={expanded
+                      ? `Mostrar menos textos de ${group.category}`
+                      : `Mostrar mais ${hiddenCount} ${hiddenCount === 1 ? "texto" : "textos"} de ${group.category}`}
                     onClick={() => {
                       setExpandedCategories((current) => {
                         const next = new Set(current);

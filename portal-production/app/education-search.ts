@@ -10,6 +10,7 @@ export function normalizeEducationSearch(value: string): string {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLocaleLowerCase("pt-BR")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, " ")
     .trim();
 }
 
@@ -18,16 +19,16 @@ export function filterEducationArticles(
   query: string,
   category: EducationCategoryFilter,
 ): EducationArticle[] {
-  const normalizedQuery = normalizeEducationSearch(query);
+  const queryTerms = normalizeEducationSearch(query).split(" ").filter(Boolean);
 
   return articles.filter((article) => {
     if (category !== "all" && article.category !== category) return false;
-    if (!normalizedQuery) return true;
+    if (queryTerms.length === 0) return true;
 
     const searchable = normalizeEducationSearch(
       [article.title, article.summary, ...article.keywords].join(" "),
     );
-    return searchable.includes(normalizedQuery);
+    return queryTerms.every((term) => searchable.includes(term));
   });
 }
 

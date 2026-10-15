@@ -416,6 +416,30 @@ test("education search is pure and does not request the network", () => {
   }
 });
 
+test("education search accepts repeated spaces, punctuation and terms in a different order", () => {
+  assert.equal(normalizeEducationSearch("  SONO,  SAÚDE\tMENTAL! "), "sono saude mental");
+  const expectedSlug = "sono-e-saude-mental";
+  for (const query of ["sono   saúde", "SAÚDE, SONO", "saúde\nsono", "saude—sono"]) {
+    assert.ok(filterEducationArticles(educationArticles, query, "all")
+      .some((article) => article.slug === expectedSlug), query);
+  }
+  assert.deepEqual(filterEducationArticles(educationArticles, "sono termoquenaoexiste", "all"), []);
+  assert.deepEqual(filterEducationArticles(educationArticles, "?!", "all"), educationArticles);
+  assert.deepEqual(filterEducationArticles(educationArticles, "saúde sono", "Como a mente funciona"), []);
+});
+
+test("education search preserves catalog order and finds words across existing metadata", () => {
+  const fixture = {
+    ...educationArticles[0],
+    title: "Título sintético",
+    summary: "Descrição sintética",
+    keywords: ["palavra auxiliar"],
+  };
+  assert.deepEqual(filterEducationArticles([fixture], "auxiliar título", "all"), [fixture]);
+  const matches = filterEducationArticles(educationArticles, "ansiedade", "all");
+  assert.deepEqual(matches, educationArticles.filter((article) => matches.includes(article)));
+});
+
 test("education remains patient-only and isolated from API, database and storage", async () => {
   const [app, resources, education, professional, route, schema] = await Promise.all([
     readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),

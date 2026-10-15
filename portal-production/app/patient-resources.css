@@ -1,5 +1,5 @@
 /* Patient resources only. Catalogs, privacy rules and saved content are unchanged. */
-.patient-dashboard :is(.patient-resources, .patient-tools-library, .patient-tool-detail, .education-library) {
+.patient-dashboard :is(.patient-resources, .patient-tools-library, .patient-tool-detail, .education-library, .education-article) {
   container: patient-resources / inline-size;
 }
 .patient-dashboard :is(.patient-resources, .patient-tools-library, .patient-tool-detail) .patient-module-header,
@@ -55,6 +55,27 @@
 .patient-dashboard .education-card-meta small { white-space: normal; }
 .patient-dashboard .patient-tool-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .patient-dashboard .patient-tool-steps li { line-height: 1.7; }
+.patient-dashboard .education-article-summary,
+.patient-dashboard .education-article-body > section:not(.education-observe),
+.patient-dashboard :is(.patient-tool-steps, .patient-tool-adaptations) li,
+.patient-dashboard :is(.patient-tool-stop, .patient-tool-safety) p { max-width: 70ch; }
+.patient-dashboard :is(.education-reading-time, .education-references li, .education-guide-link p,
+  .education-record-cta p:not(.eyebrow), .education-search > span) {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+.patient-dashboard .education-diagnostic-note { font-size: 1rem !important; }
+.patient-dashboard :is(.education-article, .patient-tool-detail) { overflow-wrap: anywhere; }
+.patient-dashboard :is(.education-article, .patient-tools-library, .patient-tool-detail) .back-button {
+  min-height: 48px;
+  text-align: left;
+}
+.patient-dashboard .patient-tool-detail-footer {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.patient-dashboard .patient-tool-detail-footer .back-button { margin-bottom: 0; }
 
 @media (max-width: 560px) {
   .patient-dashboard :is(.patient-resource-card, .patient-tool-card, .education-card, .education-tools) { padding: 1.15rem; }
@@ -70,6 +91,9 @@
   .patient-tools-filters button { width: 100%; border-radius: 10px; }
   .patient-guide-resource, .patient-tool-record-cta { grid-template-columns: minmax(0, 1fr); }
   .patient-guide-resource .secondary-button, .patient-tool-record-cta .primary-button { width: 100%; white-space: normal; }
+  .education-guide-link { flex-direction: column; align-items: stretch; }
+  .education-record-cta { grid-template-columns: minmax(0, 1fr); }
+  .education-guide-link .secondary-button, .education-record-cta .primary-button { width: 100%; white-space: normal; }
 }
 
 @media (prefers-contrast: more) {
