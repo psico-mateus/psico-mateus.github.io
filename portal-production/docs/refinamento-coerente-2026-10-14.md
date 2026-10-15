@@ -1,5 +1,7 @@
 # Refinamento coerente e preservação de escrita — 14 de outubro de 2026
 
+> Registro histórico de preparação. A publicação deste lote já foi concluída e está documentada em `publicacao-refinamento-2026-10-14.md`. A continuação local de 15/10 está em `refinamento-inclusivo-2026-10-15.md`; as pendências de foco/modal e confirmação de versão listadas abaixo foram tratadas nessa continuação, ainda sujeita à própria aprovação de publicação.
+
 ## Publicado versus preparado
 
 A manutenção de dependências de `681b944` foi publicada com autorização, nos dois portais, sem migrações, alteração de credenciais ou escrita de dados de produção. IDs e retorno rápido estão em `publicacao-manutencao-2026-10-14.md`.
