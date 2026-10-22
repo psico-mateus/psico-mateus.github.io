@@ -1567,7 +1567,7 @@ function EntryForm({
       <div className="section-heading entry-form-heading">
         <div>
           <p className="eyebrow">{initial ? "EDITAR REGISTRO" : "NOVO REGISTRO"}</p>
-          <h1 id="entry-form-title">{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h1>
+          <h1 id="entry-form-title" tabIndex={-1}>{initial ? "Revise sua anotação" : "O que você quer guardar?"}</h1>
         </div>
         <button className="icon-button" type="button" onClick={onCancel} aria-label="Fechar formulário" disabled={busy}>
           <span aria-hidden="true">×</span>
@@ -2595,7 +2595,14 @@ function PatientDashboard({
   function refreshEntries(retryAfterError = false) {
     if (entriesRefreshLock.current || entriesRequestsInFlight.current > 0) return;
     entriesRefreshLock.current = true;
-    if (retryAfterError) setLoading(true);
+    if (retryAfterError) {
+      // The retry button disappears when load clears the error. Hand focus to
+      // the current, persistent heading before that commit, never after await.
+      const targetId = area === "home" ? "patient-home-title"
+        : editorVisible ? "entry-form-title" : "records-title";
+      document.getElementById(targetId)?.focus();
+      setLoading(true);
+    }
     void load(!retryAfterError)
       .then((freshEntries) => {
         if (freshEntries) setEntriesRefreshAnnouncement({ area, message: "Seus registros foram atualizados." });

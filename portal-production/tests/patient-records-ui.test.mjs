@@ -882,6 +882,155 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     await checkHealthy(fixture, "records-editor-keyboard-optionals");
   });
 
+  test("history retry preserves keyboard focus, filters and a paused draft while only reading records", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    await page.getByRole("button", { name: "Privados 1", exact: true }).click();
+    await page.getByLabel("Buscar nos meus registros").fill("privado");
+    await page.getByLabel("Ordenar").selectOption("oldest");
+    const form = await openNewEditor(fixture);
+    await form.getByLabel("Título breve").fill("Rascunho sintético antes da nova consulta");
+    await form.getByLabel("O que aconteceu?").fill("Texto sintético que não deve ser salvo nem descartado por uma leitura.");
+    await page.locator(".patient-navigation").getByRole("button", { name: "Meus registros", exact: true }).click();
+    await expect(form).toHaveCount(0);
+    const originalEntries = structuredClone(controls.entries);
+    controls.entriesStatus = 503;
+    await page.locator(".patient-records-heading-actions").getByRole("button", { name: "Atualizar", exact: true }).click();
+    await expect(page.locator(".error-state .notice-error")).toBeFocused();
+    let release;
+    controls.nextEntriesGate = new Promise(resolveGate => { release = resolveGate; });
+    try {
+      controls.entriesStatus = 200;
+      const retry = page.getByRole("button", { name: "Tentar carregar os registros novamente", exact: true });
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(retry).toHaveCount(0);
+      await expect(page.locator("#records-title")).toBeFocused();
+      await expect.poll(() => controls.entriesRequests).toBe(3);
+      // Enter on the stable heading must not trigger another read or any write.
+      await page.keyboard.press("Enter");
+      assert.equal(controls.entriesRequests, 3);
+      release();
+      await loaded(fixture);
+      await expect(page.locator("#records-title")).toBeFocused();
+      await expect(page.getByRole("button", { name: "Privados 1", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await openSearchPanel(page);
+      await expect(page.getByLabel("Buscar nos meus registros")).toHaveValue("privado");
+      await expect(page.getByLabel("Ordenar")).toHaveValue("oldest");
+      await page.getByRole("button", { name: "Continuar escrevendo", exact: true }).click();
+      await expect(form.getByLabel("Título breve")).toHaveValue("Rascunho sintético antes da nova consulta");
+      await expect(form.getByLabel("O que aconteceu?")).toHaveValue("Texto sintético que não deve ser salvo nem descartado por uma leitura.");
+      assert.deepEqual(controls.entries, originalEntries);
+      assert.deepEqual(controls.mutations, []);
+      await checkHealthy(fixture, "records-retry-focus-preserves-controls-draft");
+    } finally {
+      release();
+    }
+  });
+
+  test("home history retry keeps keyboard focus on a stable destination through successful loading", async () => {
+    const fixture = await openRecords({ entriesStatus: 503 });
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    await page.locator(".patient-navigation").getByRole("button", { name: "Início", exact: true }).click();
+    await expect(page.locator("#patient-home-title")).toBeFocused();
+    let release;
+    controls.nextEntriesGate = new Promise(resolveGate => { release = resolveGate; });
+    try {
+      controls.entriesStatus = 200;
+      const retry = page.getByRole("button", { name: "Tentar carregar os registros novamente", exact: true });
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(retry).toHaveCount(0);
+      await expect(page.locator("#patient-home-title")).toBeFocused();
+      await expect.poll(() => controls.entriesRequests).toBe(2);
+      release();
+      await expect(page.locator(".patient-overview-refresh")).toBeEnabled();
+      await expect(page.locator("#patient-home-title")).toBeFocused();
+      assert.equal(controls.entriesRequests, 2);
+      assert.deepEqual(controls.mutations, []);
+      await checkHealthy(fixture, "home-retry-focus-success");
+    } finally {
+      release();
+    }
+  });
+
+  test("history retry during active editing preserves every draft answer and newer field focus", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    const form = await openNewEditor(fixture);
+    const answers = [
+      ["Título breve", "Rascunho sintético ainda no formulário"],
+      ["O que aconteceu?", "Situação sintética que deve continuar apenas no rascunho."],
+      ["O que percebeu no corpo?", "Detalhe corporal sintético."],
+      ["Quais pensamentos apareceram?", "Pensamento sintético."],
+      ["O que teve vontade de fazer?", "Vontade sintética."],
+      ["O que quero levar", "Assunto sintético para outra sessão."],
+    ];
+    for (const [label, value] of answers) await form.getByLabel(label).fill(value);
+    controls.entriesStatus = 503;
+    await page.evaluate(() => {
+      const previousNow = Date.now;
+      Date.now = () => previousNow() + 61_000;
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(page.locator(".error-state .notice-error")).toBeFocused();
+    let release;
+    controls.nextEntriesGate = new Promise(resolveGate => { release = resolveGate; });
+    try {
+      controls.entriesStatus = 200;
+      const retry = page.getByRole("button", { name: "Tentar carregar os registros novamente", exact: true });
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(retry).toHaveCount(0);
+      await expect(page.locator("#entry-form-title")).toBeFocused();
+      await expect.poll(() => controls.entriesRequests).toBe(3);
+      const field = form.getByLabel("Quais pensamentos apareceram?");
+      await field.focus();
+      const response = page.waitForResponse(item => item.url().endsWith("/api/portal/entries") && item.request().method() === "GET");
+      release();
+      await response;
+      await settleLayout(page);
+      await expect(field).toBeFocused();
+      for (const [label, value] of answers) await expect(form.getByLabel(label)).toHaveValue(value);
+      await expect(form.locator(".entry-privacy-note")).toContainText("Começa privado.");
+      assert.deepEqual(controls.mutations, []);
+      await checkHealthy(fixture, "records-retry-preserves-active-editor");
+    } finally {
+      release();
+    }
+  });
+
+  test("history retry completion respects a newer navigation and never pulls focus back", async () => {
+    const fixture = await openRecords({ entriesStatus: 503 });
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    let release;
+    controls.nextEntriesGate = new Promise(resolveGate => { release = resolveGate; });
+    try {
+      controls.entriesStatus = 200;
+      const retry = page.getByRole("button", { name: "Tentar carregar os registros novamente", exact: true });
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(retry).toHaveCount(0);
+      await expect.poll(() => controls.entriesRequests).toBe(2);
+      await page.locator(".patient-navigation").getByRole("button", { name: "Recursos", exact: true }).click();
+      const target = page.locator("#patient-resources-title");
+      await expect(target).toBeFocused();
+      const response = page.waitForResponse(item => item.url().endsWith("/api/portal/entries") && item.request().method() === "GET");
+      release();
+      await response;
+      await settleLayout(page);
+      await expect(target).toBeFocused();
+      await expect(page.locator("#records-title")).toHaveCount(0);
+      assert.deepEqual(controls.mutations, []);
+      await checkHealthy(fixture, "records-retry-preserves-new-navigation");
+    } finally {
+      release();
+    }
+  });
+
   test("early save accepts only title and situation and creates a private record", async () => {
     const fixture = await openRecords();
     const { page, controls } = fixture;
