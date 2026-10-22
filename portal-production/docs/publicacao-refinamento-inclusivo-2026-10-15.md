@@ -1,4 +1,6 @@
-# Publicação do refinamento inclusivo — 15 de outubro de 2026
+# Publicações do refinamento inclusivo — outubro de 2026
+
+> Última publicação: **22/10/2026**, fonte `7f7f7c2`, build `3293a66cfef38d7a`. Estado e retorno atuais estão na seção **Continuação de 22/10 — avisos, atualizações e respostas de conta** ao final. As seções anteriores são históricas; seus alvos de rollback não devem ser confundidos com os deste último lote.
 
 > Houve uma segunda publicação do portal nesta data, aprovada com “poste”. O estado mais recente e os pontos de retorno desse lote estão na seção **Continuação publicada — foco, avisos e compartilhamento conferido** ao final. O registro abaixo do primeiro lote permanece histórico; Pages/Guia não foram modificados no segundo lote.
 
@@ -98,3 +100,55 @@ Isso retorna código/assets, não apaga nem restaura o banco. Não executar reto
 - Sem teste em iPhone físico, VoiceOver/NVDA ou login/cadastro autenticado real em produção. Esses resultados não são garantia de ausência absoluta de erro nem uma nova auditoria de dependências.
 
 Para receber a atualização em uma aba/app já aberto, salvar textos pendentes antes de atualizar. Não limpar cookies/armazenamento nem reinstalar para forçar a versão.
+
+## Continuação de 22/10 — avisos, atualizações e respostas de conta
+
+Publicação já aprovada pelo usuário com **“sim”** à pergunta de publicação deste conjunto, retomada após a interrupção com **“continue”**. Fonte `7f7f7c2a9ebf27665bc1f4085ae63cacc0ff1ec3`, branch `agent/refinos-inclusivos-20261014`, checkout limpo antes do envio. Commits preparados: `8e56d07`, `0d1f294`, `7f7f7c2`. Não houve nova implementação durante esta etapa de transporte.
+
+### Escopo publicado
+
+- `app/PatientNotices.tsx`: retry de avisos tem destino de foco estável; paginação conserva a navegação, deduplica consultas e move o foco para o primeiro aviso novo somente quando a pessoa não mudou de destino. Página final/vazia e erros têm fallback apropriado, com limpeza dos observadores.
+- `app/ProfessionalDashboard.tsx`: atualização manual da lista e dos conteúdos preserva o botão focado, evita consultas repetidas e anuncia apenas a conclusão da área correspondente. Retentativa não perde o foco; respostas antigas respeitam seleção e desmontagem.
+- `app/PortalApp.tsx`: exportação e emissão de código de recuperação ignoram respostas antigas após saída/troca da conta, inclusive no intervalo anterior à desmontagem da tela. Cancelamento e guardas não alteram payloads, permissões ou funcionamento do servidor. Cancelar uma consulta não desfaz uma operação já aceita pelo servidor.
+- Três arquivos de testes acompanham essas correções: `tests/patient-notices-ui.test.mjs`, `tests/professional-history-ui.test.mjs`, `tests/patient-account-ui.test.mjs`.
+
+Revisão independente confirmou exatamente esses seis paths desde `a28f08d`. Worker/API, autenticação, MFA, sessões, banco, schema/migrações, segredos, dependências, configurações de hospedagem e conteúdo clínico não mudaram. Não há novo serviço ou plano pago. Nenhum dado real de paciente foi acrescentado ao repositório. Os casos tardios de conta foram reproduções sintéticas controladas, não evidência de incidente em produção.
+
+### Artefato e validação anterior ao envio
+
+- Build sanitizado **`3293a66cfef38d7a`**, reutilizado sem reconstrução. Snapshot persistente: `/Users/mateus/.codex/visualizations/2026/07/16/019f6c30-8c73-7f00-8e04-df9350c76276/publicacao-20261021-7f7f7c2-AaW8k2`. O nome da pasta preserva a preparação de 21/10; o envio efetivo foi em 22/10.
+- Comparação recursiva confirmou os 129 arquivos de build e as duas configurações idênticos à fonte validada, sem symlinks ou arquivos de ambiente. Revisão independente recalculou e confirmou o fingerprint. Os dois dry-runs passaram no snapshot externo, sem redirecionamento de configuração de desenvolvimento.
+- Lint, tipos, build e **313/313 testes gerais** aprovados na preparação. Interface: avisos **38/38**, profissional/recibos **35/35**, conta **26/26**, em cada motor Chromium e WebKit (**198 casos**). Nove casos direcionados de atualização profissional foram repetidos após a organização final exigida pelo lint. Testes locais usam APIs simuladas, sem dados reais.
+- Evidências locais preservadas sob a mesma raiz: `refinos-20261021/notices-final-{chromium,webkit}`, `refino-20261021-professional/final-{chromium,webkit}`, `refino-20261021-professional/final-version-{chromium,webkit}`, `refino-20261021-professional/lint-verified` e `refino-20261021-export/final-{chromium,webkit}`.
+- Site profissional e Guia não tiveram arquivos publicados neste lote. `git ls-remote` confirmou `main` ainda em `c708a7ef8ab4b28e51b5a61a0359b7d8768be6e6`. Não houve push nem merge.
+
+### Versões atuais e retorno deste lote
+
+Versões anteriores consultadas novamente imediatamente antes do envio. Legado publicado primeiro, com saúde/sessão anônima/build verificados antes da publicação principal. Ambos enviados com `--keep-vars`, sem envio/troca de segredos. Mesmo D1 `f2c23652-0c2d-49f0-ad25-99fc61c2ac6a`, modo `local` no legado e `proxy`/`LEGACY_PORTAL=registros` no principal.
+
+| Ambiente | Versão publicada em 22/10 | Versão anterior para retorno deste lote |
+|---|---|---|
+| Principal `area-do-paciente` | `149496d9-421d-42cd-878a-1b758cae545b` | `166726e0-03ad-4fee-892c-fd2187882d64` |
+| Legado/API `registros` | `4f4b37f6-0108-4a72-8fe9-e97426511417` | `734273fc-631b-4766-80d3-7e13bde89fd3` |
+
+Wrangler confirmou **100% do tráfego**: deployment principal `d5d88a67-af04-4602-bdbf-6aa9100b6408` às 20:24:39 UTC e legado `931e5d4c-8a33-42c2-8ba6-085230c5170c` às 20:24:09 UTC de 22/10/2026.
+
+Somente se necessário por regressão, executar no snapshot externo para evitar a configuração gerada pelo Vite. Os comandos abaixo retornam código/assets; não apagam nem restauram o banco e não devem ser executados apenas por estarem documentados:
+
+```sh
+export PATH="/Users/mateus/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH"
+cd "/Users/mateus/.codex/visualizations/2026/07/16/019f6c30-8c73-7f00-8e04-df9350c76276/publicacao-20261021-7f7f7c2-AaW8k2"
+WRANGLER="/Users/mateus/Documents/Codex/2026-07-16/computador-plugin-computer-use-openai-bundled/work/psico-mateus-fase-1/portal-production/node_modules/.bin/wrangler"
+"$WRANGLER" rollback 166726e0-03ad-4fee-892c-fd2187882d64 --config wrangler.jsonc --message "Retorno anterior ao lote 7f7f7c2" --yes
+"$WRANGLER" rollback 734273fc-631b-4766-80d3-7e13bde89fd3 --config wrangler.legacy.jsonc --message "Retorno anterior ao lote 7f7f7c2" --yes
+```
+
+### Conferência após o envio
+
+- Saúde e SW dos dois endereços retornaram 200, com build **`3293a66cfef38d7a`**; sessão anônima retornou `user: null`, sem criar cookie. `scripts/smoke-public.mjs` aprovado: site/Guia/portais/health 200, HTTP→HTTPS 308 e cabeçalhos de proteção conferidos.
+- Browser plugin indisponível; usado Playwright existente, contextos novos e descartáveis. Rodada final **12/12 cenários aprovados**: dois endereços × Chromium 1366×900/WebKit 390×844 × anônimo/avisos simulados/profissional simulado. Login/cadastro foram apenas alternados e inspecionados, sem submit; convite, 18+/privacidade, senha, manifesto e ícones conferidos.
+- Com todas as APIs autenticadas inteiramente interceptadas: retry/paginação dos avisos, foco no primeiro aviso novo, atualização da lista profissional e dos conteúdos, deduplicação de GET e anúncios de conclusão passaram. Zero escritas reais, requisições autenticadas reais ou requisições estrangeiras. Sem overlay, overflow, erro inesperado de runtime/console ou violação axe nos estados finais verificados. Script/JSON/capturas em `qa/` no snapshot; capturas representativas mobile e desktop foram abertas e inspecionadas.
+- Ressalva de teste: a primeira rodada parou após oito cenários aprovados por uma asserção intermitente de foco no profissional WebKit logo após navegar para um paciente. Não voltou a falhar no caso isolado (1/1), sequência WebKit (6/6) ou rodada final (12/12), mantendo as asserções. Uma disputa com o foco agendado da navegação é hipótese, não causa confirmada. Sem alteração do produto ou enfraquecimento da asserção para obter aprovação; acompanhar se houver reprodução consistente.
+- Não houve teste em iPhone físico, VoiceOver/NVDA humano ou cadastro/login autenticado real em produção. As rotinas autenticadas/D1 não foram repetidas neste lote somente de frontend; não afirmar que o transporte anônimo prova o funcionamento de todo login. Não foi feita nova auditoria de dependências. Pendências upstream/remotas já registradas continuam separadas.
+
+Salvar qualquer texto em edição antes de atualizar uma aba/app aberto. Não limpar cookies/localStorage nem reinstalar para forçar a atualização. Guia continua público, sem conta e sem alteração do armazenamento local neste lote; registros continuam privados por padrão, compartilhamento opcional, profissional sem edição do texto, MFA obrigatório e convites de uso único/18+ preservados por ausência de mudança nessas regras.
