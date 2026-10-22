@@ -453,6 +453,174 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
     }
   }
 
+  for (const width of [390, 1366]) {
+    test(`patient ${width}px: retry notices keeps a stable keyboard destination while its error disappears`, async () => {
+      const { page, controls } = await openPortal("patient", { width, height: 900 }, { listFailure: 503 });
+      const inbox = page.locator(".patient-notices");
+      const refresh = inbox.locator(".patient-notices-refresh");
+      let releaseList;
+      controls.listGate = new Promise((release) => { releaseList = release; });
+      controls.listFailure = 0;
+      try {
+        await inbox.getByRole("button", { name: "Tentar novamente", exact: true }).focus();
+        await page.keyboard.press("Enter");
+        await expect.poll(() => controls.listRequests.length).toBe(2);
+        await expect(inbox.getByRole("button", { name: "Tentar novamente", exact: true })).toHaveCount(0);
+        await expect(refresh).toBeFocused();
+        releaseList();
+        await expect(inbox.locator(".notice-item")).toHaveCount(2);
+        await expect(refresh).toHaveText("Atualizar");
+        await expect(refresh).toBeFocused();
+        assert.equal(controls.mutations.length, 0);
+        await checkHealthy(page, controls, `patient-retry-stable-focus-${width}`);
+      } finally { releaseList(); }
+    });
+
+    test(`patient ${width}px: the last notice page retains pending focus and opens a useful destination`, async () => {
+      const third = { ...noticeTwo, id: "synthetic-paging-third", title: "Terceiro aviso sintético" };
+      const earlier = { ...noticeTwo, id: "synthetic-paging-earlier", title: "Aviso anterior sintético" };
+      const { page, controls } = await openPortal("patient", { width, height: 900 }, {
+        notices: [structuredClone(noticeOne), structuredClone(noticeTwo), third],
+        earlierNotices: [structuredClone(noticeTwo), earlier], nextCursor: "synthetic-paging-cursor",
+      });
+      const inbox = page.locator(".patient-notices");
+      await inbox.getByRole("button", { name: "Ver todos os avisos (3+)" }).click();
+      await expect(inbox.locator(".notice-item").filter({ hasText: third.title }).locator("summary")).toBeFocused();
+      const more = inbox.getByRole("button", { name: "Ver avisos anteriores", exact: true });
+      let releaseList;
+      controls.listGate = new Promise((release) => { releaseList = release; });
+      try {
+        await more.focus();
+        await page.keyboard.press("Enter");
+        await expect.poll(() => controls.listRequests.length).toBe(2);
+        await expect(inbox.locator(".notices-more")).toBeFocused();
+        await page.keyboard.press("Enter");
+        assert.equal(controls.listRequests.length, 2, "Pending pagination cannot request the same page again.");
+        releaseList();
+        await expect(inbox.locator(".notice-item")).toHaveCount(4);
+        await expect(inbox.locator(".notices-more")).toHaveCount(0);
+        await expect(inbox.locator(".notice-item").filter({ hasText: earlier.title }).locator("summary")).toBeFocused();
+        assert.equal(controls.mutations.length, 0);
+        assert.deepEqual(controls.listRequests, [null, "synthetic-paging-cursor"]);
+        await checkHealthy(page, controls, `patient-last-page-focus-${width}`);
+      } finally { releaseList(); }
+    });
+  }
+
+  async function openPagingNotices(initialControls = {}) {
+    const third = { ...noticeTwo, id: "synthetic-paging-third", title: "Terceiro aviso sintético" };
+    const earlier = { ...noticeTwo, id: "synthetic-paging-earlier", title: "Aviso anterior sintético" };
+    const fixture = await openPortal("patient", { width: 390, height: 900 }, {
+      notices: [structuredClone(noticeOne), structuredClone(noticeTwo), third],
+      earlierNotices: [structuredClone(noticeTwo), earlier],
+      nextCursor: "synthetic-paging-cursor", ...initialControls,
+    });
+    const inbox = fixture.page.locator(".patient-notices");
+    await inbox.getByRole("button", { name: "Ver todos os avisos (3+)" }).click();
+    await expect(inbox.locator(".notice-item").filter({ hasText: third.title }).locator("summary")).toBeFocused();
+    return { ...fixture, inbox, earlier, more: inbox.locator(".notices-more") };
+  }
+
+  for (const emptyPage of [false, true]) {
+    test(`patient: a last notice page with ${emptyPage ? "no rows" : "duplicates only"} restores focus without duplicating data`, async () => {
+      const { page, controls, inbox, more } = await openPagingNotices({
+        earlierNotices: emptyPage ? [] : [structuredClone(noticeTwo)],
+      });
+      await more.focus();
+      await page.keyboard.press("Enter");
+      await expect(more).toHaveCount(0);
+      await expect(inbox.getByRole("heading", { name: "Avisos de Mateus", exact: true })).toBeFocused();
+      await expect(inbox.locator(".notice-item")).toHaveCount(3);
+      assert.deepEqual(controls.listRequests, [null, "synthetic-paging-cursor"]);
+      assert.equal(controls.mutations.length, 0);
+      await checkHealthy(page, controls, `patient-last-page-${emptyPage ? "empty" : "duplicates"}-focus`);
+    });
+  }
+
+  for (const movement of ["keyboard", "pointer"]) {
+    test(`patient: delayed notice pagination does not take focus back after ${movement} interaction elsewhere`, async () => {
+      const { page, controls, inbox, more, earlier } = await openPagingNotices();
+      let releaseList;
+      controls.listGate = new Promise((release) => { releaseList = release; });
+      try {
+        await more.focus();
+        await page.keyboard.press("Enter");
+        await expect.poll(() => controls.listRequests.length).toBe(2);
+        const nextAction = page.getByRole("button", { name: /^Ver recursos/u });
+        if (movement === "keyboard") await nextAction.focus();
+        else await page.locator(".patient-start header").click();
+        releaseList();
+        await expect(inbox.locator(".notice-item")).toHaveCount(4);
+        await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+        if (movement === "keyboard") await expect(nextAction).toBeFocused();
+        await expect(inbox.locator(".notice-item").filter({ hasText: earlier.title }).locator("summary")).not.toBeFocused();
+        assert.equal(controls.mutations.length, 0);
+        await checkHealthy(page, controls, `patient-delayed-page-${movement}-focus`);
+      } finally { releaseList(); }
+    });
+  }
+
+  test("patient: pagination failure retains focus and cannot announce a successful update", async () => {
+    const { page, controls, inbox, more } = await openPagingNotices();
+    controls.listFailure = 503;
+    await more.focus();
+    await page.keyboard.press("Enter");
+    await expect(inbox.getByRole("alert")).toContainText("Falha sintética");
+    await expect(more).toBeFocused();
+    await expect(inbox.locator(".notice-item")).toHaveCount(3);
+    await expect(inbox.getByRole("status").filter({ hasText: "Seus avisos foram atualizados." })).toHaveCount(0);
+    assert.equal(controls.mutations.length, 0);
+    await checkHealthy(page, controls, "patient-page-failure-focus");
+  });
+
+  test("patient: denied paginated access removes stale notices and focuses the remaining heading", async () => {
+    const { page, controls, inbox, more } = await openPagingNotices();
+    controls.listFailure = 403;
+    await more.focus();
+    await page.keyboard.press("Enter");
+    await expect(inbox.getByRole("alert")).toContainText("Falha sintética");
+    await expect(inbox.locator(".notice-item")).toHaveCount(0);
+    await expect(more).toHaveCount(0);
+    await expect(inbox.getByRole("heading", { name: "Avisos de Mateus", exact: true })).toBeFocused();
+    assert.equal(controls.mutations.length, 0);
+    await checkHealthy(page, controls, "patient-page-denied-focus");
+  });
+
+  test("patient: leaving notices removes paging focus listeners and a delayed result cannot refocus the page", async () => {
+    const { page, controls, more } = await openPagingNotices();
+    await page.evaluate(() => {
+      const listeners = new Map([["focusin", new Set()], ["pointerdown", new Set()]]);
+      const add = document.addEventListener.bind(document);
+      const remove = document.removeEventListener.bind(document);
+      document.addEventListener = (type, listener, options) => {
+        listeners.get(type)?.add(listener);
+        return add(type, listener, options);
+      };
+      document.removeEventListener = (type, listener, options) => {
+        listeners.get(type)?.delete(listener);
+        return remove(type, listener, options);
+      };
+      window.__noticePagingListenerCount = () => [...listeners.values()].reduce((count, items) => count + items.size, 0);
+    });
+    let releaseList;
+    controls.listGate = new Promise((release) => { releaseList = release; });
+    try {
+      await more.focus();
+      await page.keyboard.press("Enter");
+      await expect.poll(() => controls.listRequests.length).toBe(2);
+      assert.equal(await page.evaluate(() => window.__noticePagingListenerCount()), 2);
+      await page.locator(".patient-navigation").getByRole("button", { name: "Recursos", exact: true }).click();
+      await expect(page.locator("#patient-resources-title")).toBeFocused();
+      assert.equal(await page.evaluate(() => window.__noticePagingListenerCount()), 0);
+      releaseList();
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+      await expect(page.locator("#patient-resources-title")).toBeFocused();
+      assert.equal(await page.evaluate(() => window.__noticePagingListenerCount()), 0);
+      assert.equal(controls.mutations.length, 0);
+      await checkHealthy(page, controls, "patient-page-unmount-focus");
+    } finally { releaseList(); }
+  });
+
   test("patient: preview shows two titles; expanding and paging never mark notices read", async () => {
     const additional = { ...noticeTwo, id: "synthetic-third", title: "Terceiro aviso sintético" };
     const earlier = { ...noticeTwo, id: "synthetic-earlier-preview", title: "Aviso de outra página" };

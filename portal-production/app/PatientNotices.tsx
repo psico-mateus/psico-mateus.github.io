@@ -24,6 +24,13 @@ export type PatientNoticesProps = {
   onSessionLost: () => void;
 };
 
+type NoticePagingFocus = {
+  knownIds: Set<string>;
+  targetId: string | null;
+  canFocus: () => boolean;
+  stop: () => void;
+};
+
 const previewDateFormatter = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" });
 
 function formatPreviewDate(value: string) {
@@ -53,8 +60,11 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
   const sessionLost = useRef(onSessionLost);
   const listRequest = useRef<AbortController | null>(null);
   const readRequests = useRef(new Map<string, AbortController>());
+  const refreshButton = useRef<HTMLButtonElement | null>(null);
   const panelSummary = useRef<HTMLHeadingElement | null>(null);
   const noticeSummaries = useRef(new Map<string, HTMLElement>());
+  const pagingWatch = useRef<NoticePagingFocus | null>(null);
+  const pendingPagingFocus = useRef<NoticePagingFocus | null>(null);
 
   useEffect(() => {
     sessionLost.current = onSessionLost;
@@ -71,8 +81,12 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
     return false;
   }, []);
 
-  const loadNotices = useCallback(async (cursor?: string, announceCompletion = false) => {
-    if (readRequests.current.size > 0 || (listRequest.current && !listRequest.current.signal.aborted)) return;
+  const loadNotices = useCallback(async (cursor?: string, announceCompletion = false, pageFocus?: NoticePagingFocus) => {
+    if (readRequests.current.size > 0 || (listRequest.current && !listRequest.current.signal.aborted)) {
+      pageFocus?.stop();
+      if (pagingWatch.current === pageFocus) pagingWatch.current = null;
+      return;
+    }
     const controller = new AbortController();
     listRequest.current = controller;
     setLoading(true);
@@ -84,6 +98,10 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         { signal: controller.signal },
       );
       if (!active.current || controller.signal.aborted) return;
+      if (pageFocus) {
+        pageFocus.targetId = result.notices.find((notice) => !pageFocus.knownIds.has(notice.id))?.id ?? null;
+        pendingPagingFocus.current = pageFocus;
+      }
       setNotices((current) => cursor
         ? [...current, ...result.notices.filter((item) => !current.some((existing) => existing.id === item.id))]
         : result.notices);
@@ -95,6 +113,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
       if (!active.current || controller.signal.aborted) return;
       if (!handleSessionError(failure)) {
         if (failure instanceof PortalRequestError && failure.status === 403) {
+          if (pageFocus) pendingPagingFocus.current = pageFocus;
           setNotices([]);
           setUnreadCount(0);
           setNextCursor(null);
@@ -103,6 +122,10 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         setError(failure instanceof Error ? failure.message : "Não foi possível carregar os avisos.");
       }
     } finally {
+      if (pageFocus && pendingPagingFocus.current !== pageFocus) {
+        pageFocus.stop();
+        if (pagingWatch.current === pageFocus) pagingWatch.current = null;
+      }
       if (active.current && listRequest.current === controller) {
         listRequest.current = null;
         setLoading(false);
@@ -119,8 +142,67 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
       listRequest.current?.abort();
       for (const controller of requests.values()) controller.abort();
       requests.clear();
+      pagingWatch.current?.stop();
+      pendingPagingFocus.current?.stop();
     };
   }, [loadNotices]);
+
+  useEffect(() => {
+    const pending = pendingPagingFocus.current;
+    if (!pending) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (pendingPagingFocus.current !== pending) return;
+      pendingPagingFocus.current = null;
+      if (active.current && pending.canFocus()) {
+        const target = pending.targetId ? noticeSummaries.current.get(pending.targetId) : null;
+        (target ?? panelSummary.current)?.focus();
+      }
+      pending.stop();
+      if (pagingWatch.current === pending) pagingWatch.current = null;
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (pendingPagingFocus.current === pending) pendingPagingFocus.current = null;
+      pending.stop();
+      if (pagingWatch.current === pending) pagingWatch.current = null;
+    };
+  }, [notices]);
+
+  function retryNotices() {
+    if (readRequests.current.size > 0 || (listRequest.current && !listRequest.current.signal.aborted)) return;
+    // The error and its retry button disappear immediately. Keep the explicit
+    // action's focus on the stable refresh control, not on the document body.
+    refreshButton.current?.focus();
+    void loadNotices(undefined, true);
+  }
+
+  function loadEarlierNotices(trigger: HTMLButtonElement) {
+    if (!nextCursor || readRequests.current.size > 0 || (listRequest.current && !listRequest.current.signal.aborted)) return;
+    const panel = trigger.closest(".patient-notices");
+    let movedElsewhere = false;
+    let stopped = false;
+    const track = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && !trigger.contains(target) &&
+        !(event.type === "focusin" && (target === document.body || target === document.documentElement))) {
+        movedElsewhere = true;
+      }
+    };
+    document.addEventListener("focusin", track, true);
+    document.addEventListener("pointerdown", track, true);
+    const focus: NoticePagingFocus = {
+      knownIds: new Set(notices.map((notice) => notice.id)),
+      targetId: null,
+      canFocus: () => !stopped && !movedElsewhere && Boolean(panel?.isConnected),
+      stop: () => {
+        stopped = true;
+        document.removeEventListener("focusin", track, true);
+        document.removeEventListener("pointerdown", track, true);
+      },
+    };
+    pagingWatch.current = focus;
+    void loadNotices(nextCursor, false, focus);
+  }
 
   async function markRead(notice: PatientNotice) {
     if (notice.read_at || listRequest.current || readRequests.current.has(notice.id)) return;
@@ -208,7 +290,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
             ) : null}
           </div>
         </div>
-        <button className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices(undefined, true)} aria-disabled={loading || readingIds.size > 0}>
+        <button ref={refreshButton} className="secondary-button patient-notices-refresh" type="button" aria-label={loading ? "Carregando avisos" : "Atualizar avisos"} onClick={() => void loadNotices(undefined, true)} aria-disabled={loading || readingIds.size > 0}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5M20 12a8 8 0 1 1-2-5" /></svg>
           {loading ? "Carregando…" : "Atualizar"}
         </button>
@@ -217,7 +299,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
         {error ? (
           <div className="notices-error">
             <p role="alert">{error}</p>
-            <button className="secondary-button" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(undefined, true)}>Tentar novamente</button>
+            <button className="secondary-button" type="button" disabled={loading || readingIds.size > 0} onClick={retryNotices}>Tentar novamente</button>
           </div>
         ) : null}
         {loading && !loaded ? <p className="notices-empty" role="status">Carregando seus avisos…</p> : null}
@@ -257,7 +339,7 @@ function PatientNoticesContent({ csrf, onSessionLost }: PatientNoticesProps) {
           ))}
         </div>
         {!showAll && (notices.length > 2 || nextCursor) ? <button className="secondary-button patient-notices-expand" type="button" aria-controls={listId} aria-expanded={false} onClick={expandNotices}>Ver todos os avisos ({notices.length}{nextCursor ? "+" : ""})</button> : null}
-        {showAll && nextCursor ? <button className="secondary-button notices-more" type="button" disabled={loading || readingIds.size > 0} onClick={() => void loadNotices(nextCursor)}>{loading ? "Carregando…" : "Ver avisos anteriores"}</button> : null}
+        {showAll && nextCursor ? <button className="secondary-button notices-more" type="button" aria-disabled={loading || readingIds.size > 0} onClick={(event) => loadEarlierNotices(event.currentTarget)}>{loading ? "Carregando…" : "Ver avisos anteriores"}</button> : null}
         <p className="sr-status" role="status" aria-live="polite" aria-atomic="true">{confirmation}</p>
       </div>
       {notices.length > 0 ? (
