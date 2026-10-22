@@ -52,6 +52,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     const page = await context.newPage();
     const controls = {
       entriesStatus: 200, entriesRequests: 0, exportRequests: 0, mutations: [], unexpected: [],
+      exportWait: null, exportStatus: 200, loginUser: patient,
       accountResponses: {},
       foreignRequests: [], runtimeErrors: [], expectedHttpFailures: [],
     };
@@ -62,7 +63,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
       if (!["error", "warning"].includes(message.type())) return;
       const text = message.text();
       if (text === "Service Worker registration blocked by Playwright") return;
-      if (/Failed to load resource: the server responded with a status of (?:400|401)\b/u.test(text)) {
+      if (/Failed to load resource: the server responded with a status of (?:400|401|503)\b/u.test(text)) {
         controls.expectedHttpFailures.push(text);
         return;
       }
@@ -112,6 +113,8 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
       });
       if (path === "/export" && method === "GET") {
         controls.exportRequests += 1;
+        if (controls.exportWait) await controls.exportWait;
+        if (controls.exportStatus !== 200) return respond({ error: "Falha sintética ao preparar a cópia." }, controls.exportStatus);
         return respond({ patient, entries: [], map_draft: { generation: 1, fields: [] }, notices: [] });
       }
       if (method !== "GET" && controls.accountResponses[path]) {
@@ -123,7 +126,7 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
         return respond({ recovery_code: syntheticRecoveryCode });
       }
       if (path === "/login" && method === "POST") {
-        return respond({ user: patient, csrf: "synthetic-account-reauthenticated-csrf" });
+        return respond({ user: controls.loginUser, csrf: "synthetic-account-reauthenticated-csrf" });
       }
       controls.unexpected.push(`${method} ${path}`);
       return respond({ error: "Rota não simulada; nenhuma requisição foi encaminhada ao servidor." }, 500);
@@ -280,6 +283,288 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     assert.equal(controls.exportRequests, 1);
     assert.deepEqual(controls.mutations, []);
     await checkHealthy(fixture, "account-export-feedback");
+  });
+
+  async function observeExportCompletion(page, holdBody = false) {
+    await page.evaluate((holdBody) => {
+      const originalFetch = window.fetch.bind(window);
+      const originalClick = HTMLAnchorElement.prototype.click;
+      window.__accountExport = { completed: 0, bodyReady: false, clicks: 0, releaseBody: null };
+      const bodyGate = holdBody ? new Promise((resolve) => { window.__accountExport.releaseBody = resolve; }) : Promise.resolve();
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.download === "meus-dados-area-do-paciente.json") window.__accountExport.clicks += 1;
+        return originalClick.call(this);
+      };
+      window.fetch = async (...args) => {
+        if (args[0] !== "/api/portal/export") return originalFetch(...args);
+        try {
+          const response = await originalFetch(...args);
+          const originalBlob = response.blob.bind(response);
+          response.blob = async () => {
+            const blob = await originalBlob();
+            window.__accountExport.bodyReady = true;
+            await bodyGate;
+            window.__accountExport.completed += 1;
+            return blob;
+          };
+          return response;
+        } catch (error) {
+          window.__accountExport.completed += 1;
+          throw error;
+        }
+      };
+    }, holdBody);
+  }
+
+  test("an intentional pending export stays single and completes if only its disclosure is closed", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page, controls } = fixture;
+    let releaseExport;
+    controls.exportWait = new Promise((resolve) => { releaseExport = resolve; });
+    try {
+      const action = await openAction(page, "Baixar uma cópia");
+      const trigger = action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true });
+      await trigger.click();
+      await expect.poll(() => controls.exportRequests).toBe(1);
+      await expect(action.getByRole("button", { name: "Preparando cópia…", exact: true })).toBeDisabled();
+      await action.locator("button.account-export-link").evaluate((button) => { button.click(); button.click(); });
+      assert.equal(controls.exportRequests, 1, "Repeated activation cannot duplicate the pending export.");
+      await action.locator(":scope > summary").click();
+      await expect(action).not.toHaveAttribute("open", "");
+      const downloadEvent = page.waitForEvent("download");
+      releaseExport();
+      assert.equal((await downloadEvent).suggestedFilename(), "meus-dados-area-do-paciente.json");
+      await expect(action.locator(".notice-success")).toHaveText("Download iniciado. Procure o arquivo em Downloads.");
+      await expect(action.locator(".notice-success")).not.toBeVisible();
+      await expect(action).not.toHaveAttribute("open", "");
+      assert.equal(controls.exportRequests, 1);
+      assert.deepEqual(controls.mutations, []);
+      await action.locator(":scope > summary").click();
+      await checkHealthy(fixture, "account-export-closed-disclosure");
+    } finally { releaseExport(); }
+  });
+
+  test("a failed export keeps the explicit retry available without creating a private file", async () => {
+    const fixture = await openAccount({ width: 1366, height: 900 });
+    const { page, controls } = fixture;
+    controls.exportStatus = 503;
+    await observeExportCompletion(page);
+    const action = await openAction(page, "Baixar uma cópia");
+    const trigger = action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true });
+    await trigger.click();
+    await expect(action.getByRole("alert")).toHaveText("Falha sintética ao preparar a cópia.");
+    await expect(action.getByRole("alert")).toBeFocused();
+    await expect(trigger).toBeEnabled();
+    assert.equal(await page.evaluate(() => window.__accountExport.clicks), 0);
+    assert.equal(controls.exportRequests, 1);
+    controls.exportStatus = 200;
+    const downloadEvent = page.waitForEvent("download");
+    await trigger.click();
+    assert.equal((await downloadEvent).suggestedFilename(), "meus-dados-area-do-paciente.json");
+    await expect(action.locator(".notice-success")).toHaveText("Download iniciado. Procure o arquivo em Downloads.");
+    assert.equal(controls.exportRequests, 2, "Only the patient's explicit retry starts a second export.");
+    assert.equal(await page.evaluate(() => window.__accountExport.clicks), 1);
+    assert.deepEqual(controls.mutations, []);
+    await checkHealthy(fixture, "account-export-error-retry");
+  });
+
+  async function expireAccountSession(fixture) {
+    const { page, controls } = fixture;
+    controls.entriesStatus = 401;
+    await page.evaluate(() => {
+      const originalNow = Date.now;
+      Date.now = () => originalNow() + 61_000;
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(page.locator("#auth-title")).toHaveText("Entre na sua conta");
+    await expect(page.locator(".patient-account-panel")).toHaveCount(0);
+  }
+
+  async function loginOtherAccount(fixture) {
+    const { page, controls } = fixture;
+    controls.entriesStatus = 200;
+    controls.loginUser = { id: "synthetic-account-second", name: "Outra Pessoa Sintética", role: "patient" };
+    const auth = page.locator(".auth-card form");
+    await auth.getByLabel("E-mail", { exact: true }).fill("synthetic-account-second@example.invalid");
+    await auth.getByLabel("Senha", { exact: true }).fill(syntheticPassword);
+    await auth.getByRole("button", { name: "Entrar", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Olá, Outra Pessoa Sintética.", exact: true })).toBeVisible();
+  }
+
+  async function observeRecoveryCompletion(page, holdBody = false) {
+    await page.evaluate((holdBody) => {
+      const originalFetch = window.fetch.bind(window);
+      window.__accountRecovery = { completed: 0, bodyReady: false, releaseBody: null };
+      const bodyGate = holdBody ? new Promise((resolve) => { window.__accountRecovery.releaseBody = resolve; }) : Promise.resolve();
+      window.fetch = async (...args) => {
+        if (args[0] !== "/api/portal/account/recovery-code") return originalFetch(...args);
+        try {
+          const response = await originalFetch(...args);
+          const originalJson = response.json.bind(response);
+          response.json = async () => {
+            const payload = await originalJson();
+            window.__accountRecovery.bodyReady = true;
+            await bodyGate;
+            window.__accountRecovery.completed += 1;
+            return payload;
+          };
+          return response;
+        } catch (error) {
+          window.__accountRecovery.completed += 1;
+          throw error;
+        }
+      };
+    }, holdBody);
+  }
+
+  for (const [label, status, otherLogin, holdBody] of [
+    ["success-after-expiry", 200, false, false],
+    ["success-after-other-login", 200, true, false],
+    ["expired-error-after-other-login", 401, true, false],
+    ["body-after-other-login", 200, true, true],
+  ]) {
+    test(`late recovery-code ${label} cannot reveal a previous account secret or end the new session`, async () => {
+      const fixture = await openAccount({ width: 390, height: 844 });
+      const { page, controls } = fixture;
+      await observeRecoveryCompletion(page, holdBody);
+      let releaseRecovery;
+      controls.accountResponses["/account/recovery-code"] = {
+        status,
+        payload: status === 200 ? { recovery_code: syntheticRecoveryCode } : { error: "Sessão sintética anterior encerrada." },
+        wait: holdBody ? null : new Promise((resolve) => { releaseRecovery = resolve; }),
+      };
+      try {
+        const action = await openAction(page, "Código para recuperar a senha");
+        await action.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
+        await action.getByRole("button", { name: "Criar novo código", exact: true }).click();
+        await expect.poll(() => controls.mutations.filter(({ path }) => path === "/account/recovery-code").length).toBe(1);
+        if (holdBody) await expect.poll(() => page.evaluate(() => window.__accountRecovery.bodyReady)).toBe(true);
+        await expireAccountSession(fixture);
+        if (otherLogin) await loginOtherAccount(fixture);
+        if (holdBody) await page.evaluate(() => window.__accountRecovery.releaseBody());
+        else releaseRecovery();
+        await expect.poll(() => page.evaluate(() => window.__accountRecovery.completed)).toBe(1);
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await expect(page.getByRole("dialog", { name: "Seu código de recuperação", exact: true })).toHaveCount(0);
+        await expect(page.getByText(syntheticRecoveryCode, { exact: true })).toHaveCount(0);
+        if (otherLogin) await expect(page.getByRole("heading", { level: 1, name: "Olá, Outra Pessoa Sintética.", exact: true })).toBeVisible();
+        else await expect(page.locator("#auth-title")).toHaveText("Entre na sua conta");
+        assert.equal(controls.mutations.filter(({ path }) => path === "/account/recovery-code").length, 1,
+          "An obsolete result never automatically creates another recovery code.");
+        await checkHealthy(fixture, `account-recovery-late-${label}`);
+      } finally {
+        releaseRecovery?.();
+        await page.evaluate(() => window.__accountRecovery?.releaseBody?.());
+      }
+    });
+  }
+
+  for (const holdBody of [false, true]) {
+    test(`late export ${holdBody ? "body" : "response"} cannot download private data after session expiry${holdBody ? " and another account login" : ""}`, async () => {
+      const fixture = await openAccount({ width: 390, height: 844 });
+      const { page, controls } = fixture;
+      await observeExportCompletion(page, holdBody);
+      let releaseExport;
+      controls.exportWait = holdBody ? null : new Promise((resolve) => { releaseExport = resolve; });
+      try {
+        const action = await openAction(page, "Baixar uma cópia");
+        await action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true }).click();
+        await expect.poll(() => controls.exportRequests).toBe(1);
+        if (holdBody) await expect.poll(() => page.evaluate(() => window.__accountExport.bodyReady)).toBe(true);
+        await expireAccountSession(fixture);
+        if (holdBody) {
+          await loginOtherAccount(fixture);
+          await page.evaluate(() => window.__accountExport.releaseBody());
+        } else releaseExport();
+        await expect.poll(() => page.evaluate(() => window.__accountExport.completed)).toBe(1);
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        assert.equal(await page.evaluate(() => window.__accountExport.clicks), 0,
+          "An expired account must never start a private export, even when its response arrives after another login.");
+        await expect(page.getByText("Download iniciado. Procure o arquivo em Downloads.", { exact: true })).toHaveCount(0);
+        assert.equal(controls.exportRequests, 1, "No automatic export retry after session expiry.");
+        await checkHealthy(fixture, `account-export-expired-${holdBody ? "body-other-login" : "response"}`);
+      } finally {
+        releaseExport?.();
+        await page.evaluate(() => window.__accountExport?.releaseBody?.());
+      }
+    });
+  }
+
+  test("a recovery body released during session clearing cannot restore a secret to the guest screen", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page } = fixture;
+    await observeRecoveryCompletion(page, true);
+    const action = await openAction(page, "Código para recuperar a senha");
+    await action.getByLabel("Senha atual", { exact: true }).fill(syntheticPassword);
+    await action.getByRole("button", { name: "Criar novo código", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.__accountRecovery.bodyReady)).toBe(true);
+    await page.evaluate(() => {
+      const originalScroll = window.scrollTo.bind(window);
+      let released = false;
+      window.scrollTo = (...args) => {
+        originalScroll(...args);
+        if (!released) {
+          released = true;
+          window.__accountRecovery.releaseBody();
+        }
+      };
+    });
+    await expireAccountSession(fixture);
+    await expect.poll(() => page.evaluate(() => window.__accountRecovery.completed)).toBe(1);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(page.getByRole("dialog", { name: "Seu código de recuperação", exact: true })).toHaveCount(0);
+    await expect(page.getByText(syntheticRecoveryCode, { exact: true })).toHaveCount(0);
+    await checkHealthy(fixture, "account-recovery-session-clearing-microtask");
+  });
+
+  test("an export body released during session clearing cannot start a private download", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page } = fixture;
+    await observeExportCompletion(page, true);
+    const action = await openAction(page, "Baixar uma cópia");
+    await action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.__accountExport.bodyReady)).toBe(true);
+    await page.evaluate(() => {
+      const originalScroll = window.scrollTo.bind(window);
+      let released = false;
+      window.scrollTo = (...args) => {
+        originalScroll(...args);
+        if (!released) {
+          released = true;
+          window.__accountExport.releaseBody();
+        }
+      };
+    });
+    await expireAccountSession(fixture);
+    await expect.poll(() => page.evaluate(() => window.__accountExport.completed)).toBe(1);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await page.evaluate(() => window.__accountExport.clicks), 0,
+      "Session invalidation must stop the old response before React commits the guest screen.");
+    await checkHealthy(fixture, "account-export-session-clearing-microtask");
+  });
+
+  test("an export body released by the session-transition DOM commit cannot start a private download", async () => {
+    const fixture = await openAccount({ width: 390, height: 844 });
+    const { page, controls } = fixture;
+    await observeExportCompletion(page, true);
+    const action = await openAction(page, "Baixar uma cópia");
+    await action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.__accountExport.bodyReady)).toBe(true);
+    await page.evaluate(() => {
+      const observer = new MutationObserver(() => {
+        if (!document.querySelector("#auth-title")) return;
+        observer.disconnect();
+        window.__accountExport.releaseBody();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    await expireAccountSession(fixture);
+    await expect.poll(() => page.evaluate(() => window.__accountExport.completed)).toBe(1);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await page.evaluate(() => window.__accountExport.clicks), 0,
+      "The account is already gone when the guest DOM is committed, before any later response continuation.");
+    assert.equal(controls.exportRequests, 1);
+    await checkHealthy(fixture, "account-export-session-transition-commit");
   });
 
   for (const [label, viewport, enlarged] of [

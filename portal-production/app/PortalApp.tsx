@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1789,6 +1790,7 @@ function PatientDashboard({
   csrf,
   config,
   setRecovery,
+  getAccountActionVersion,
   onSessionLost,
   onDraftStateChange,
   mapRecovery,
@@ -1800,6 +1802,7 @@ function PatientDashboard({
   csrf: string;
   config: Config;
   setRecovery: (code: string) => void;
+  getAccountActionVersion: () => number;
   onSessionLost: () => void;
   onDraftStateChange: (dirty: boolean) => void;
   mapRecovery: PatientMapDraftRecoverySnapshot | null;
@@ -3117,7 +3120,7 @@ function PatientDashboard({
           onCreateRecordFromTool={createRecordFromTool}
         />
       )}
-      {!editing ? <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={onSessionLost} /> : null}
+      {!editing ? <AccountPanel role="patient" csrf={csrf} config={config} setRecovery={setRecovery} getAccountActionVersion={getAccountActionVersion} onSessionsEnded={onSessionLost} /> : null}
     </main>
   );
 }
@@ -3178,12 +3181,14 @@ function AccountPanel({
   csrf,
   config,
   setRecovery,
+  getAccountActionVersion,
   onSessionsEnded,
 }: {
   role: Role;
   csrf: string;
   config: Config;
   setRecovery: (code: string) => void;
+  getAccountActionVersion: () => number;
   onSessionsEnded: () => void;
 }) {
   type AccountAction = "password" | "recovery" | "sessions" | "delete";
@@ -3236,11 +3241,25 @@ function AccountPanel({
     text: string;
   } | null>(null);
   const passwordRequestInFlight = useRef(false);
-  const recoveryRequestInFlight = useRef(false);
+  const recoveryRequestInFlight = useRef<{
+    controller: AbortController;
+    stopFocusWatch: () => void;
+  } | null>(null);
   const mfaRecoveryCodesRequestInFlight = useRef(false);
   const mfaTransferRequestInFlight = useRef(false);
   const endSessionsRequestInFlight = useRef(false);
   const deleteAccountRequestInFlight = useRef(false);
+  const exportRequestInFlight = useRef<AbortController | null>(null);
+
+  useLayoutEffect(() => () => {
+    // Invalidate during the unmount commit, before a response microtask can
+    // download a private file or reveal a recovery code outside this account.
+    exportRequestInFlight.current?.abort();
+    exportRequestInFlight.current = null;
+    recoveryRequestInFlight.current?.controller.abort();
+    recoveryRequestInFlight.current?.stopFocusWatch();
+    recoveryRequestInFlight.current = null;
+  }, []);
 
   const loadMfaRecoveryCodesStatus = useCallback(async () => {
     if (role !== "therapist") return;
@@ -3364,15 +3383,31 @@ function AccountPanel({
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const focus = watchAccountActionFocus(formElement);
-    recoveryRequestInFlight.current = true;
+    const request = { controller: new AbortController(), stopFocusWatch: focus.stop };
+    const accountActionVersion = getAccountActionVersion();
+    recoveryRequestInFlight.current = request;
+    const isCurrentRequest = () => recoveryRequestInFlight.current === request &&
+      !request.controller.signal.aborted && getAccountActionVersion() === accountActionVersion;
     setRecoveryBusy(true);
     setAccountMessage("recovery", "");
-    try { const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", { method: "POST", body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }) }, csrf); formElement.reset(); setRecovery(result.recovery_code); }
-    catch (error) { handleAccountError(error, "recovery", focus.canFocus()); }
+    try {
+      const result = await portalRequest<{ recovery_code: string }>("/account/recovery-code", {
+        method: "POST",
+        body: JSON.stringify({ current_password: form.get("current_password"), totp: form.get("totp") }),
+        signal: request.controller.signal,
+      }, csrf);
+      if (!isCurrentRequest()) return;
+      formElement.reset();
+      setRecovery(result.recovery_code);
+    } catch (error) {
+      if (isCurrentRequest()) handleAccountError(error, "recovery", focus.canFocus());
+    }
     finally {
       focus.stop();
-      recoveryRequestInFlight.current = false;
-      setRecoveryBusy(false);
+      if (recoveryRequestInFlight.current === request) {
+        recoveryRequestInFlight.current = null;
+        setRecoveryBusy(false);
+      }
     }
   }
   async function rotateMfaRecoveryCodes(event: FormEvent<HTMLFormElement>) {
@@ -3523,7 +3558,12 @@ function AccountPanel({
     }
   }
   async function downloadPatientData() {
-    if (exportBusy) return;
+    if (exportRequestInFlight.current) return;
+    const controller = new AbortController();
+    const accountActionVersion = getAccountActionVersion();
+    exportRequestInFlight.current = controller;
+    const isCurrentRequest = () => exportRequestInFlight.current === controller &&
+      !controller.signal.aborted && getAccountActionVersion() === accountActionVersion;
     setExportBusy(true);
     setExportMessage(null);
     try {
@@ -3532,6 +3572,7 @@ function AccountPanel({
         response = await fetch("/api/portal/export", {
           credentials: "same-origin",
           headers: { Accept: "application/json" },
+          signal: controller.signal,
         });
       } catch {
         throw new PortalRequestError(
@@ -3539,6 +3580,7 @@ function AccountPanel({
           "Não foi possível preparar a cópia. Verifique sua internet e tente novamente.",
         );
       }
+      if (!isCurrentRequest()) return;
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as Record<
           string,
@@ -3552,7 +3594,11 @@ function AccountPanel({
           payload,
         );
       }
-      const downloadUrl = URL.createObjectURL(await response.blob());
+      const data = await response.blob();
+      // A response/body can finish after logout or another account has opened.
+      // The old action must not create a private file outside its own lifetime.
+      if (!isCurrentRequest()) return;
+      const downloadUrl = URL.createObjectURL(data);
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = "meus-dados-area-do-paciente.json";
@@ -3565,6 +3611,7 @@ function AccountPanel({
         text: "Download iniciado. Procure o arquivo em Downloads.",
       });
     } catch (error) {
+      if (!isCurrentRequest()) return;
       if (isSessionExpiredError(error)) {
         onSessionsEnded();
         return;
@@ -3577,7 +3624,10 @@ function AccountPanel({
             : "Não foi possível preparar a cópia agora.",
       });
     } finally {
-      setExportBusy(false);
+      if (exportRequestInFlight.current === controller) {
+        exportRequestInFlight.current = null;
+        setExportBusy(false);
+      }
     }
   }
   return (
@@ -3915,6 +3965,8 @@ export function PortalApp() {
     useState<PatientRecordDraftRecoverySnapshot | null>(null);
   const protectedDraft = hasUnsavedDraft || Boolean(patientMapRecovery || patientRecordRecovery);
   const logoutInFlight = useRef(false);
+  const accountActionVersion = useRef(0);
+  const getAccountActionVersion = useCallback(() => accountActionVersion.current, []);
   const rememberPatientMapRecovery = useCallback(
     (snapshot: PatientMapDraftRecoverySnapshot | null) => {
       setPatientMapRecovery(snapshot);
@@ -3935,6 +3987,8 @@ export function PortalApp() {
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [protectedDraft, user]);
   const clear = useCallback((message = "", preservePatientRecovery = false) => {
+    // Invalidate old private actions immediately, before React commits logout.
+    accountActionVersion.current += 1;
     setUser(null);
     setCsrf("");
     setRecovery("");
@@ -3990,6 +4044,7 @@ export function PortalApp() {
     };
   }, []);
   const authenticated = useCallback((nextUser: User, token: string, nextRecovery?: string) => {
+    accountActionVersion.current += 1;
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -4064,7 +4119,7 @@ export function PortalApp() {
         />
       );
     }
-    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} recordRecovery={getPatientRecordRecovery(patientRecordRecovery, user)} onRecordRecoveryChange={rememberPatientRecordRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
+    return <><Header config={config} user={user} onLogout={() => void logout()} logoutBusy={logoutBusy} />{user.role === "patient" ? <PatientDashboard user={user} csrf={csrf} config={config} setRecovery={setRecovery} getAccountActionVersion={getAccountActionVersion} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} mapRecovery={patientMapRecovery?.patientId === user.id ? patientMapRecovery : null} onMapRecoveryChange={rememberPatientMapRecovery} recordRecovery={getPatientRecordRecovery(patientRecordRecovery, user)} onRecordRecoveryChange={rememberPatientRecordRecovery} /> : <ProfessionalDashboard user={{ ...user, role: "therapist" }} csrf={csrf} onSessionLost={sessionEnded} onDraftStateChange={setHasUnsavedDraft} accountPanel={<AccountPanel role="therapist" csrf={csrf} config={config} setRecovery={setRecovery} getAccountActionVersion={getAccountActionVersion} onSessionsEnded={sessionEnded} />} />}<EmergencyFooter config={config} /></>;
   })();
   return (
     <>
