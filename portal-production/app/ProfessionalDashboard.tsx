@@ -1822,6 +1822,7 @@ export function ProfessionalDashboard({
   const patientRequestSequence = useRef(0);
   const patientSelection = useRef({ patientId: null as string | null, sequence: 0 });
   const dashboardActive = useRef(true);
+  const navigationFocusCancel = useRef<(() => void) | null>(null);
   const viewingEntryLocks = useRef<Set<string>>(new Set());
   const viewingMapLocks = useRef<Set<string>>(new Set());
   const patientAccessRequestLock = useRef(false);
@@ -1842,8 +1843,44 @@ export function ProfessionalDashboard({
     dashboardActive.current = true;
     return () => {
       dashboardActive.current = false;
+      navigationFocusCancel.current?.();
     };
   }, []);
+
+  function focusPatientNavigation(targetId: string) {
+    navigationFocusCancel.current?.();
+    const selection = patientSelection.current;
+    const origin = document.activeElement;
+    let pending = true;
+    function cancel() {
+      if (!pending) return;
+      pending = false;
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("pointerdown", cancel, true);
+      window.removeEventListener("blur", cancel);
+      if (navigationFocusCancel.current === cancel) navigationFocusCancel.current = null;
+    }
+    function onFocusIn(event: FocusEvent) {
+      if (event.target !== origin) cancel();
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (!pending) return;
+      const focused = document.activeElement;
+      const target = document.getElementById(targetId);
+      const canFocus = dashboardActive.current && patientSelection.current === selection &&
+        target?.isConnected && (focused === origin || focused === document.body ||
+          focused === document.documentElement);
+      // Stop watching before our own focus event. A newer interaction wins even
+      // when it was a pointer on text that did not change activeElement.
+      cancel();
+      if (canFocus) target.focus();
+    });
+    navigationFocusCancel.current = cancel;
+    document.addEventListener("focusin", onFocusIn, true);
+    document.addEventListener("pointerdown", cancel, true);
+    window.addEventListener("blur", cancel);
+  }
 
   function confirmNoticeDraftDiscard() {
     return !noticeDraftDirty.current || window.confirm(
@@ -1864,6 +1901,7 @@ export function ProfessionalDashboard({
   }
 
   const expireSession = useCallback(() => {
+    navigationFocusCancel.current?.();
     patientRequest.current?.abort();
     patientsListRequestSequence.current += 1;
     patientSelection.current = { patientId: null, sequence: patientSelection.current.sequence + 1 };
@@ -2107,9 +2145,7 @@ export function ProfessionalDashboard({
     setSelectedPatient(patient);
     setNotice(null);
     void loadPatientEntries(patient);
-    window.requestAnimationFrame(() =>
-      document.getElementById("selected-patient-title")?.focus(),
-    );
+    focusPatientNavigation("selected-patient-title");
   }
 
   function backToPatients() {
@@ -2120,9 +2156,7 @@ export function ProfessionalDashboard({
     setEntries([]);
     setMapShares([]);
     setEntriesError("");
-    window.requestAnimationFrame(() =>
-      document.getElementById("professional-patient-list-title")?.focus(),
-    );
+    focusPatientNavigation("professional-patient-list-title");
   }
 
   async function refreshSelectedPatient() {
@@ -2456,6 +2490,7 @@ export function ProfessionalDashboard({
 
   function showPrivacyMode() {
     if (!confirmNoticeDraftDiscard()) return;
+    navigationFocusCancel.current?.();
     patientRequest.current?.abort();
     patientRequestSequence.current += 1;
     setEntriesLoading(false);
@@ -2565,6 +2600,7 @@ export function ProfessionalDashboard({
         activeInvitationCount={activeInvitationCount}
         onChange={(nextArea) => {
           if (nextArea !== area && !confirmNoticeDraftDiscard()) return;
+          navigationFocusCancel.current?.();
           if (nextArea !== "invitations") setLatestCode("");
           setArea(nextArea);
           setNotice(null);

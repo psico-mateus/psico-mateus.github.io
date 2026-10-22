@@ -185,6 +185,137 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     }, kind)).toBe(true);
   }
 
+  async function holdNavigationFrames(page) {
+    // Isolate the scheduled navigation focus from a newer user choice without
+    // sleeps, timing retries or changing the product's focus implementation.
+    // DOM click is intentional below: Playwright's pointer actionability itself
+    // needs animation frames, which this controlled queue temporarily holds.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.evaluate(() => {
+      const frames = new Map();
+      const focusedIds = [];
+      const recordFocus = event => { if (event.target.id) focusedIds.push(event.target.id); };
+      let serial = 1000000;
+      const request = window.requestAnimationFrame.bind(window);
+      const cancel = window.cancelAnimationFrame.bind(window);
+      document.addEventListener("focusin", recordFocus, true);
+      window.requestAnimationFrame = callback => {
+        const id = ++serial;
+        frames.set(id, callback);
+        return id;
+      };
+      window.cancelAnimationFrame = id => {
+        if (!frames.delete(id)) cancel(id);
+      };
+      window.__flushProfessionalNavigationFrames = () => {
+        const callbacks = [...frames.values()];
+        frames.clear();
+        window.requestAnimationFrame = request;
+        window.cancelAnimationFrame = cancel;
+        delete window.__flushProfessionalNavigationFrames;
+        for (const callback of callbacks) callback(performance.now());
+        document.removeEventListener("focusin", recordFocus, true);
+        return { frames: callbacks.length, focusedIds };
+      };
+    });
+  }
+
+  test("patient navigation normally focuses the selected heading and the list heading on return", async () => {
+    const fixture = await openProfessional({ selectPatient: false });
+    const { page } = fixture;
+    await page.locator(".patient-summary-card").getByRole("button").click();
+    await expect(page.locator("#selected-patient-title")).toBeFocused();
+    await page.getByRole("button", { name: /Voltar aos pacientes/u }).click();
+    await expect(page.locator("#professional-patient-list-title")).toBeFocused();
+    assert.equal(fixture.controls.mutations.length, 0);
+    await checkHealthy(fixture, "professional-navigation-normal-focus");
+  });
+
+  for (const direction of ["open", "back"]) {
+    for (const newerChoice of ["focus", "pointer"]) {
+      test(`patient navigation ${direction}: a queued heading focus respects a newer ${newerChoice} choice`, async () => {
+        const fixture = await openProfessional({ selectPatient: direction === "back" });
+        const { page, controls } = fixture;
+        if (direction === "back") await expect(page.locator("#selected-patient-title")).toBeFocused();
+        await holdNavigationFrames(page);
+        let newerTarget;
+        let movedHeading;
+        try {
+          if (direction === "open") {
+            await page.locator(".patient-summary-card").getByRole("button").evaluate(button => button.click());
+            movedHeading = page.locator("#selected-patient-title");
+            await expect(movedHeading).toBeVisible();
+            newerTarget = page.getByRole("button", { name: "Atualizar", exact: true });
+          } else {
+            await page.getByRole("button", { name: /Voltar aos pacientes/u }).evaluate(button => button.click());
+            movedHeading = page.locator("#professional-patient-list-title");
+            await expect(movedHeading).toBeVisible();
+            newerTarget = page.getByLabel("Buscar paciente", { exact: true });
+          }
+          if (newerChoice === "focus") {
+            await expect(newerTarget).toBeEnabled();
+            await newerTarget.focus();
+            await expect(newerTarget).toBeFocused();
+          } else {
+            // A pointer can express a newer intent even on non-focusable text.
+            // Dispatch only pointerdown so no browser default focus is added.
+            await movedHeading.locator("..").locator(".section-description").dispatchEvent("pointerdown");
+            await expect(movedHeading).not.toBeFocused();
+          }
+          await page.evaluate(() => window.__flushProfessionalNavigationFrames());
+          if (newerChoice === "focus") await expect(newerTarget).toBeFocused();
+          else await expect(movedHeading).not.toBeFocused();
+          assert.equal(controls.mutations.length, 0);
+          await checkHealthy(fixture, `professional-navigation-${direction}-newer-${newerChoice}`);
+        } finally {
+          await page.evaluate(() => window.__flushProfessionalNavigationFrames?.());
+        }
+      });
+    }
+  }
+
+  test("patient navigation cancels the obsolete open frame when returning before it runs", async () => {
+    const fixture = await openProfessional({ selectPatient: false });
+    const { page } = fixture;
+    await holdNavigationFrames(page);
+    try {
+      await page.locator(".patient-summary-card").getByRole("button").evaluate(button => button.click());
+      await expect(page.locator("#selected-patient-title")).toBeVisible();
+      await page.getByRole("button", { name: /Voltar aos pacientes/u }).evaluate(button => button.click());
+      await expect(page.locator("#professional-patient-list-title")).toBeVisible();
+      const result = await page.evaluate(() => window.__flushProfessionalNavigationFrames());
+      assert.equal(result.frames, 1, "Only the current return focus frame may remain scheduled.");
+      assert.deepEqual(result.focusedIds, ["professional-patient-list-title"]);
+      await expect(page.locator("#professional-patient-list-title")).toBeFocused();
+      assert.equal(fixture.controls.mutations.length, 0);
+      await checkHealthy(fixture, "professional-navigation-replaced-by-return");
+    } finally {
+      await page.evaluate(() => window.__flushProfessionalNavigationFrames?.());
+    }
+  });
+
+  test("patient navigation never focuses an obsolete patient heading after entering and leaving privacy mode", async () => {
+    const fixture = await openProfessional({ selectPatient: false });
+    const { page } = fixture;
+    await holdNavigationFrames(page);
+    try {
+      await page.locator(".patient-summary-card").getByRole("button").evaluate(button => button.click());
+      await expect(page.locator("#selected-patient-title")).toBeVisible();
+      await page.getByRole("button", { name: "Ocultar dados na tela", exact: true }).evaluate(button => button.click());
+      await expect(page.getByRole("heading", { name: "Dados ocultos na tela.", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Mostrar dados na tela", exact: true }).evaluate(button => button.click());
+      await expect(page.locator("#selected-patient-title")).toBeVisible();
+      const result = await page.evaluate(() => window.__flushProfessionalNavigationFrames());
+      assert.equal(result.focusedIds.includes("selected-patient-title"), false,
+        "An old patient-opening frame must not focus a heading recreated after privacy mode.");
+      await expect(page.getByRole("button", { name: "Ocultar dados na tela", exact: true })).toBeFocused();
+      assert.equal(fixture.controls.mutations.length, 0);
+      await checkHealthy(fixture, "professional-navigation-cancelled-by-privacy");
+    } finally {
+      await page.evaluate(() => window.__flushProfessionalNavigationFrames?.());
+    }
+  });
+
   async function assertReadingFilterState(page, selectedLabel) {
     // A committed aria-pressed/class change alone does not prove WebKit has
     // resolved the same visual state. Check the actual palette before axe;
