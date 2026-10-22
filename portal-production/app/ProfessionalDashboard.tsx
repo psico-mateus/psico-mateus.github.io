@@ -601,6 +601,34 @@ function MapShareDisclosure({
   );
 }
 
+/** Explicit refresh only: keep the control focused and announce confirmed results. */
+function useManualReadRefresh(onRefresh: () => Promise<boolean>, completedMessage: string) {
+  const [pending, setPending] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const request = useRef<symbol | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => () => { request.current = null; }, []);
+
+  async function run(fromRetry = false) {
+    if (request.current) return;
+    if (fromRetry) buttonRef.current?.focus();
+    const token = Symbol();
+    request.current = token;
+    setPending(true);
+    setAnnouncement("");
+    try {
+      const complete = await onRefresh();
+      if (request.current === token && complete) setAnnouncement(completedMessage);
+    } finally {
+      if (request.current === token) {
+        request.current = null;
+        setPending(false);
+      }
+    }
+  }
+  return { run, pending, announcement, buttonRef };
+}
+
 function PatientList({
   patients,
   activity,
@@ -623,12 +651,15 @@ function PatientList({
   sort: PatientSort;
   onQueryChange: (value: string) => void;
   onSortChange: (value: PatientSort) => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<boolean>;
   onOpen: (patient: PatientSummary) => void;
 }) {
   const [visiblePatientLimit, setVisiblePatientLimit] = useState(
     PATIENT_LIST_PAGE_SIZE,
   );
+  const { run: refreshManually, pending: manualPending, announcement: refreshAnnouncement, buttonRef: refreshButtonRef } =
+    useManualReadRefresh(onRefresh, "Lista de pacientes atualizada.");
+  const updating = refreshing || manualPending;
   const visiblePatients = useMemo(
     () => filterAndSortPatients(patients, query, sort),
     [patients, query, sort],
@@ -674,12 +705,14 @@ function PatientList({
           </p>
         </div>
         <button
+          ref={refreshButtonRef}
           className="secondary-button compact-button"
           type="button"
-          onClick={onRefresh}
-          disabled={loading || refreshing}
+          onClick={() => { if (!loading && !updating) void refreshManually(); }}
+          disabled={loading}
+          aria-disabled={loading || updating}
         >
-          {refreshing ? "Atualizando…" : "Atualizar"}
+          {updating ? "Atualizando…" : "Atualizar"}
         </button>
       </div>
 
@@ -727,15 +760,15 @@ function PatientList({
         </label>
       </div>
 
-      <div className="sr-status" aria-live="polite">
-        {refreshing ? "Atualizando a lista de pacientes." : ""}
+      <div className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+        {updating ? "Atualizando a lista de pacientes." : refreshAnnouncement}
       </div>
 
       {error && patients.length > 0 ? (
         <div className="panel error-state retained-data-warning">
           <Notice tone="error" message={error} />
           <p>A lista já carregada continua disponível abaixo.</p>
-          <button className="secondary-button" type="button" onClick={onRefresh}>
+          <button className="secondary-button" type="button" onClick={() => { if (!loading && !updating) void refreshManually(true); }} aria-disabled={loading || updating}>
             Tentar atualizar novamente
           </button>
         </div>
@@ -749,7 +782,7 @@ function PatientList({
       ) : error && patients.length === 0 ? (
         <div className="panel error-state">
           <Notice tone="error" message={error} />
-          <button className="secondary-button" type="button" onClick={onRefresh}>
+          <button className="secondary-button" type="button" onClick={() => { if (!loading && !updating) void refreshManually(true); }} aria-disabled={loading || updating}>
             Tentar novamente
           </button>
         </div>
@@ -887,7 +920,7 @@ function PatientRecordsView({
   viewingIds: Set<string>;
   viewingMapIds: Set<string>;
   onBack: () => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<boolean>;
   onViewed: (entryId: string) => void;
   onMapViewed: (mapId: string) => void;
 }) {
@@ -895,6 +928,9 @@ function PatientRecordsView({
   const [visibleEntryLimit, setVisibleEntryLimit] = useState(20);
   const [readingEntryIds, setReadingEntryIds] = useState<Set<string>>(new Set());
   const [readingMapIds, setReadingMapIds] = useState<Set<string>>(new Set());
+  const { run: refreshManually, pending: manualPending, announcement: refreshAnnouncement, buttonRef: refreshButtonRef } =
+    useManualReadRefresh(onRefresh, "Conteúdos compartilhados atualizados.");
+  const updating = refreshing || manualPending;
   const sectionRef = useRef<HTMLElement>(null);
   const unreadFilterRef = useRef<HTMLButtonElement>(null);
   const pendingViewedFocus = useRef<string | null>(null);
@@ -1015,24 +1051,26 @@ function PatientRecordsView({
           </p>
         </div>
         <button
+          ref={refreshButtonRef}
           className="secondary-button compact-button"
           type="button"
-          onClick={onRefresh}
-          disabled={loading || refreshing}
+          onClick={() => { if (!loading && !updating) void refreshManually(); }}
+          disabled={loading}
+          aria-disabled={loading || updating}
         >
-          {refreshing ? "Atualizando…" : "Atualizar"}
+          {updating ? "Atualizando…" : "Atualizar"}
         </button>
       </div>
 
-      <div className="sr-status" aria-live="polite">
-        {refreshing ? "Atualizando os conteúdos compartilhados." : ""}
+      <div className="sr-status" role="status" aria-live="polite" aria-atomic="true">
+        {updating ? "Atualizando os conteúdos compartilhados." : refreshAnnouncement}
       </div>
 
       {error && hasContent ? (
         <div className="panel error-state retained-data-warning">
           <Notice tone="error" message={error} />
           <p>Os conteúdos já carregados continuam disponíveis abaixo.</p>
-          <button className="secondary-button" type="button" onClick={onRefresh}>
+          <button className="secondary-button" type="button" onClick={() => { if (!loading && !updating) void refreshManually(true); }} aria-disabled={loading || updating}>
             Tentar atualizar novamente
           </button>
         </div>
@@ -1046,7 +1084,7 @@ function PatientRecordsView({
       ) : error && !hasContent ? (
         <div className="panel error-state">
           <Notice tone="error" message={error} />
-          <button className="secondary-button" type="button" onClick={onRefresh}>
+          <button className="secondary-button" type="button" onClick={() => { if (!loading && !updating) void refreshManually(true); }} aria-disabled={loading || updating}>
             Tentar novamente
           </button>
         </div>
@@ -1780,6 +1818,7 @@ export function ProfessionalDashboard({
   );
 
   const patientRequest = useRef<AbortController | null>(null);
+  const patientsListRequestSequence = useRef(0);
   const patientRequestSequence = useRef(0);
   const patientSelection = useRef({ patientId: null as string | null, sequence: 0 });
   const dashboardActive = useRef(true);
@@ -1826,6 +1865,7 @@ export function ProfessionalDashboard({
 
   const expireSession = useCallback(() => {
     patientRequest.current?.abort();
+    patientsListRequestSequence.current += 1;
     patientSelection.current = { patientId: null, sequence: patientSelection.current.sequence + 1 };
     setPatients([]);
     setActivity({ total_count: 0, shared_count: 0, private_count: 0 });
@@ -1855,6 +1895,7 @@ export function ProfessionalDashboard({
 
   const loadPatients = useCallback(
     async (refresh = false) => {
+      const sequence = ++patientsListRequestSequence.current;
       if (refresh) setPatientsRefreshing(true);
       else setPatientsLoading(true);
       setPatientsError("");
@@ -1863,6 +1904,7 @@ export function ProfessionalDashboard({
           patients: PatientSummary[];
           activity: ProfessionalActivity;
         }>("/professional/patients");
+        if (!dashboardActive.current || sequence !== patientsListRequestSequence.current) return false;
         setPatients(result.patients);
         setActivity(result.activity);
         setSelectedPatient((current) => {
@@ -1872,7 +1914,9 @@ export function ProfessionalDashboard({
             current
           );
         });
+        return true;
       } catch (error) {
+        if (!dashboardActive.current || sequence !== patientsListRequestSequence.current) return false;
         if (!isSessionError(error)) {
           setPatientsError(
             error instanceof Error
@@ -1880,9 +1924,12 @@ export function ProfessionalDashboard({
               : "Não foi possível atualizar os registros.",
           );
         }
+        return false;
       } finally {
-        setPatientsLoading(false);
-        setPatientsRefreshing(false);
+        if (dashboardActive.current && sequence === patientsListRequestSequence.current) {
+          setPatientsLoading(false);
+          setPatientsRefreshing(false);
+        }
       }
     },
     [isSessionError],
@@ -1914,7 +1961,7 @@ export function ProfessionalDashboard({
           ),
         ]);
         if (controller.signal.aborted || sequence !== patientRequestSequence.current) {
-          return;
+          return false;
         }
 
         const rejectedResults = [entryResult, mapResult].filter(
@@ -1923,7 +1970,7 @@ export function ProfessionalDashboard({
         const sessionFailure = rejectedResults.find((result) =>
           isSessionError(result.reason),
         );
-        if (sessionFailure) return;
+        if (sessionFailure) return false;
 
         if (entryResult.status === "fulfilled") {
           setEntries(entryResult.value.entries);
@@ -1948,9 +1995,10 @@ export function ProfessionalDashboard({
             `As partes do mapa não puderam ser ${refresh ? "atualizadas" : "carregadas"}. Os registros disponíveis continuam exibidos.`,
           );
         }
+        return entryResult.status === "fulfilled" && mapResult.status === "fulfilled";
       } catch (error) {
         if (controller.signal.aborted || sequence !== patientRequestSequence.current) {
-          return;
+          return false;
         }
         if (!isSessionError(error)) {
           setEntriesError(
@@ -1959,6 +2007,7 @@ export function ProfessionalDashboard({
               : "Não foi possível atualizar os registros.",
           );
         }
+        return false;
       } finally {
         if (sequence === patientRequestSequence.current) {
           setEntriesLoading(false);
@@ -2077,9 +2126,14 @@ export function ProfessionalDashboard({
   }
 
   async function refreshSelectedPatient() {
-    if (!selectedPatient) return;
-    await loadPatientEntries(selectedPatient, true);
+    if (!selectedPatient) return false;
+    const selection = patientSelection.current;
+    const contentsComplete = await loadPatientEntries(selectedPatient, true);
+    if (!dashboardActive.current || patientSelection.current !== selection) return false;
     await loadPatients(true);
+    // This pane confirms only its entries/maps; a separate summary failure
+    // remains attached to the patient list instead of hiding a valid result.
+    return contentsComplete;
   }
 
   async function markEntryViewed(entryId: string) {
@@ -2535,7 +2589,7 @@ export function ProfessionalDashboard({
               viewingMapKeys.has(`${selectedPatient.patient_id}:${share.map_id}`),
             ).map((share) => share.map_id))}
             onBack={backToPatients}
-            onRefresh={() => void refreshSelectedPatient()}
+            onRefresh={refreshSelectedPatient}
             onViewed={(entryId) => void markEntryViewed(entryId)}
             onMapViewed={(mapId) => void markMapViewed(mapId)}
           />
@@ -2550,7 +2604,7 @@ export function ProfessionalDashboard({
             sort={sort}
             onQueryChange={setQuery}
             onSortChange={setSort}
-            onRefresh={() => void loadPatients(true)}
+            onRefresh={() => loadPatients(true)}
             onOpen={openPatient}
           />
         )

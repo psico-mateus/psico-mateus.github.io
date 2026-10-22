@@ -70,7 +70,9 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
     const controls = { patients: structuredClone(patients),
       entriesByPatient: structuredClone(entriesByPatient ?? { [referencePatient.patient_id]: entries }),
       mapsByPatient: structuredClone(mapsByPatient ?? { [referencePatient.patient_id]: maps }),
-      markFailure, markGates: new Map(), mutations: [], requests: [], unexpected: [], foreignRequests: [], runtimeErrors: [] };
+      markFailure, markGates: new Map(), patientsGate: null, entriesGate: null, mapsGate: null,
+      patientsFailure: 0, entriesFailure: 0, mapsFailure: 0,
+      mutations: [], requests: [], unexpected: [], foreignRequests: [], runtimeErrors: [] };
     const fixture = { context, page, controls, releaseMark };
     fixtures.add(fixture);
     page.on("pageerror", (error) => controls.runtimeErrors.push(error.message));
@@ -105,12 +107,23 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
         user: { id: "synthetic-history-therapist", name: "Mateus", role: "therapist" }, csrf: "synthetic-history-csrf" });
       if (path === "/account/mfa-recovery-codes" && method === "GET") return respond({
         remaining: 8, total: 8, generated_at: timestamp });
-      if (path === "/professional/patients" && method === "GET") return respond({ patients: controls.patients,
-        activity: { total_count: 6, shared_count: 4, private_count: 2 } });
+      if (path === "/professional/patients" && method === "GET") {
+        if (controls.patientsGate) await controls.patientsGate;
+        return controls.patientsFailure ? respond({ error: "Falha sintética na lista de pacientes." }, controls.patientsFailure)
+          : respond({ patients: controls.patients, activity: { total_count: 6, shared_count: 4, private_count: 2 } });
+      }
       const records = path.match(/^\/professional\/patients\/([^/]+)\/entries$/u);
-      if (records && method === "GET") return respond({ entries: controls.entriesByPatient[decodeURIComponent(records[1])] ?? [] });
+      if (records && method === "GET") {
+        if (controls.entriesGate) await controls.entriesGate;
+        return controls.entriesFailure ? respond({ error: "Falha sintética nos registros." }, controls.entriesFailure)
+          : respond({ entries: controls.entriesByPatient[decodeURIComponent(records[1])] ?? [] });
+      }
       const mapShares = path.match(/^\/professional\/patients\/([^/]+)\/map-shares$/u);
-      if (mapShares && method === "GET") return respond({ shares: controls.mapsByPatient[decodeURIComponent(mapShares[1])] ?? [] });
+      if (mapShares && method === "GET") {
+        if (controls.mapsGate) await controls.mapsGate;
+        return controls.mapsFailure ? respond({ error: "Falha sintética no mapa." }, controls.mapsFailure)
+          : respond({ shares: controls.mapsByPatient[decodeURIComponent(mapShares[1])] ?? [] });
+      }
       const viewedRecord = path.match(/^\/professional\/entries\/([^/]+)\/viewed$/u);
       const viewedMap = path.match(/^\/professional\/patients\/([^/]+)\/map-shares\/([^/]+)\/viewed$/u);
       if ((viewedRecord || viewedMap) && method === "POST") {
@@ -306,6 +319,99 @@ describe("professional history — isolated mocked API only", { skip: !baseUrl }
       });
     }
   }
+
+  for (const selected of [false, true]) {
+    for (const width of [390, 1366]) {
+      test(`manual ${selected ? "contents" : "patients"} refresh ${width}px keeps focus, stays locked through summary loading and announces success`, async () => {
+        const fixture = await openProfessional({ selectPatient: selected, viewport: { width, height: 900 } });
+        const { page, controls } = fixture;
+        const refresh = page.getByRole("button", { name: "Atualizar", exact: true });
+        const count = () => controls.requests.filter(item => item.path === "/professional/patients").length;
+        const before = count();
+        let release;
+        controls.patientsGate = new Promise(resolve => { release = resolve; });
+        try {
+          await refresh.focus();
+          await page.keyboard.press("Enter");
+          await expect.poll(count).toBe(before + 1);
+          const pending = page.getByRole("button", { name: "Atualizando…", exact: true });
+          await expect(pending).toBeFocused();
+          await expect(pending).toHaveAttribute("aria-disabled", "true");
+          await page.keyboard.press("Enter");
+          await page.keyboard.press("Enter");
+          assert.equal(count(), before + 1);
+          release();
+          await expect(refresh).toBeFocused();
+          await expect(page.getByRole("status").filter({ hasText: selected
+            ? "Conteúdos compartilhados atualizados." : "Lista de pacientes atualizada." })).toBeAttached();
+          assert.equal(controls.mutations.length, 0);
+          await checkHealthy(fixture, `manual-refresh-${selected ? "contents" : "patients"}-${width}`);
+        } finally { release(); }
+      });
+    }
+  }
+
+  for (const failure of ["patients", "entries", "maps"]) {
+    test(`manual refresh does not announce success after ${failure} failure or lose retained content`, async () => {
+      const selected = failure !== "patients";
+      const fixture = await openProfessional({ selectPatient: selected });
+      const { page, controls } = fixture;
+      controls[`${failure}Failure`] = 503;
+      await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+      await expect(page.getByRole("alert")).toBeVisible();
+      await expect(page.getByRole("status").filter({ hasText: selected
+        ? "Conteúdos compartilhados atualizados." : "Lista de pacientes atualizada." })).toHaveCount(0);
+      if (selected) {
+        await expect(page.locator(".professional-record-disclosure")).toHaveCount(4);
+        await expect(page.locator(".professional-map-disclosure")).toHaveCount(4);
+      } else await expect(page.locator(".patient-summary-card")).toHaveCount(1);
+      controls[`${failure}Failure`] = 0;
+      const retry = page.getByRole("button", { name: "Tentar atualizar novamente", exact: true });
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("button", { name: "Atualizar", exact: true })).toBeFocused();
+      await expect(page.getByRole("status").filter({ hasText: selected
+        ? "Conteúdos compartilhados atualizados." : "Lista de pacientes atualizada." })).toBeAttached();
+      assert.equal(controls.mutations.length, 0);
+      await checkHealthy(fixture, `manual-refresh-failure-${failure}`);
+    });
+  }
+
+  test("selected patient confirms refreshed contents when only the separate patient-list summary fails", async () => {
+    const fixture = await openProfessional();
+    const { page, controls } = fixture;
+    controls.patientsFailure = 503;
+    await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Atualizar", exact: true })).toBeEnabled();
+    await expect(page.getByRole("status").filter({ hasText: "Conteúdos compartilhados atualizados." })).toBeAttached();
+    await expect(page.locator(".professional-record-disclosure")).toHaveCount(4);
+    await expect(page.locator(".professional-map-disclosure")).toHaveCount(4);
+    await page.getByRole("button", { name: /Voltar aos pacientes/u }).click();
+    await expect(page.getByRole("alert")).toContainText("Falha sintética na lista de pacientes.");
+    await expect(page.locator(".patient-summary-card")).toHaveCount(1);
+    assert.equal(controls.mutations.length, 0);
+    await checkHealthy(fixture, "manual-contents-success-summary-failure");
+  });
+
+  test("manual patient refresh preserves a search started during a slow response", async () => {
+    const fixture = await openProfessional({ selectPatient: false });
+    const { page, controls } = fixture;
+    let release;
+    controls.patientsGate = new Promise(resolve => { release = resolve; });
+    try {
+      await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Atualizando…", exact: true })).toBeVisible();
+      const query = page.getByLabel("Buscar paciente", { exact: true });
+      await query.fill("Paciente Sintético");
+      release();
+      await expect(page.getByRole("button", { name: "Atualizar", exact: true })).toBeVisible();
+      await expect(query).toBeFocused();
+      await expect(query).toHaveValue("Paciente Sintético");
+      await expect(page.locator(".patient-summary-card")).toHaveCount(1);
+      assert.equal(controls.mutations.length, 0);
+      await checkHealthy(fixture, "manual-refresh-preserves-search");
+    } finally { release(); }
+  });
 
   test("collapsing the patient activity list keeps a useful keyboard destination", async () => {
     const patients = Array.from({ length: 22 }, (_, index) => ({ ...referencePatient,
