@@ -36,13 +36,19 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   de segredo, acesso a pacientes ou migração remota.
 - Próximo computador: pull da branch compartilhada, leitura do relatório novo;
   corrigir versões em branch própria e validar Mac/WSL2 antes de pedir deploy.
-- **TRANSPORTE PENDENTE:** o `git push` do Windows aguardou autenticação do
+- **TRANSPORTE CONCLUÍDO:** o login do Git Credential Manager para `psico-mateus`
+  funcionou e o push enviou os quatro commits locais até `14e4a1a` à branch
+  compartilhada. Este registro é salvo no commit seguinte; conferir o tip final
+  com `git rev-parse HEAD` e `git ls-remote` antes da troca. Produção e main não
+  foram alteradas. O bloqueio descrito abaixo é histórico e está resolvido para
+  o Git do terminal; a restrição de escrita do conector não precisou ser alterada.
+- Histórico do bloqueio: o primeiro `git push` do Windows aguardou autenticação do
   Credential Manager e foi cancelado. A conexão GitHub do chat permitiu leitura,
   mas recusou criação da árvore Git com HTTP 403 (`Resource not accessible by
-  integration`). Nenhum arquivo desta etapa foi enviado. Os commits estão
-  preservados na branch compartilhada local; o remoto ainda estava em `c6b814e`
-  na última conferência. Autenticar Git Windows com acesso de escrita, executar
-  fetch/pull `--ff-only` e push; confirmar igualdade de SHAs antes da troca.
+  integration`). Naquela tentativa nenhum arquivo foi enviado; os commits foram
+  preservados na branch compartilhada local e o remoto estava em `c6b814e`.
+  Em futuras trocas, executar fetch/pull `--ff-only` e push e confirmar igualdade
+  de SHAs antes da troca.
   Se o remoto avançar, preservar ambos os lados e integrar com revisão.
   A identidade Git foi configurada só neste clone com nome/e-mail do commit
   anterior. Não recriar branch, não fazer reset e não usar force-push.
