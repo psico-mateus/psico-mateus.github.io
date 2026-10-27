@@ -29,6 +29,16 @@ outputs/
 *.db-wal
 *.dump
 *.backup
+*.pem
+*.key
+*.p12
+*.pfx
+*.har
+
+# Private machine-local material: never synchronize through GitHub
+/.local/
+/backups-locais/
+/exportacoes-locais/
 
 # Local exports and archives
 *.tar
@@ -37,3 +47,5 @@ outputs/
 
 # Operating-system files
 .DS_Store
+Thumbs.db
+Desktop.ini
