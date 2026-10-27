@@ -382,6 +382,21 @@ como se fosse Linux. Testes UI não aceitam URL de produção.
 - `pnpm test:smoke-public`: site/Guia/portais/health HTTP 200, HTTP→HTTPS 308,
   cabeçalhos conferidos, zero login/escrita real. Produção permaneceu intacta.
 - Lint e `git diff --check` aprovados; regra LF não renormalizou o projeto inteiro.
+- Envio de preservação concluído para as quatro branches indicadas. O primeiro
+  tip compartilhado enviado foi `2ee52e0` (com `7be86b9` e todo o trabalho da
+  base); SHA local/remoto coincidiu e `main` permaneceu em `c708a7e`. Atualizações
+  documentais posteriores podem avançar esse tip; conferir `git log -1` e remoto.
+- Auditoria **somente leitura** `pnpm audit --json`, em 27/10: **16 alertas**
+  (2 críticos, 4 altos, 7 moderados, 3 baixos), retorno 1; isso é pendência,
+  **não aprovação de segurança**. Dois críticos são de Next 16.3.8, advisories
+  `GHSA-2464-fhr4-w9xw` e `GHSA-673q-mjm6-r5xr`; o registro informa correção a
+  partir de 16.4.1. Outros atingem Vite, Zod, Undici e fast-uri. Triar aplicabilidade
+  no runtime Vinext/Worker e compatibilidade da stack, em branch própria, antes
+  de atualizar. Não houve `audit fix`, atualização de pacotes ou deploy aqui.
+- O GitHub informou separadamente **27 alertas em `main`** no push (4 críticos,
+  11 altos, 9 moderados, 3 baixos). Essa árvore tem manifestos históricos diferentes;
+  não confundir os 27 com os 16 do portal nesta branch, nem afirmar exploração
+  confirmada ou ausência de vulnerabilidades em produção.
 - Revisão independente dos novos arquivos, guardas, comandos e materiais de
   arquivo não identificou bloqueador de conteúdo para o envio ao GitHub.
 - Windows nativo/WSL2 físico e instalação em uma máquina Windows nova **não foram
@@ -390,21 +405,25 @@ como se fosse Linux. Testes UI não aceitam URL de produção.
 
 ### Pendências/limitações reais
 
-1. Publicar o lote `c1a1243`/`cbe3c43` somente após nova aprovação final. Esta
+1. **Prioritário antes do próximo deploy:** triar os 16 alertas atuais do portal,
+   começando pelos dois críticos de Next, confirmar escopo em fontes primárias
+   e testar correções compatíveis sem alterar contas, segredos ou banco.
+   Os resultados verdes funcionais não substituem essa revisão.
+2. Publicar o lote `c1a1243`/`cbe3c43` somente após nova aprovação final. Esta
    solicitação é de sincronização, não de deploy.
-2. Conferir setup/dev/lint/tipos/build na máquina Windows real; usar WSL2 para
+3. Conferir setup/dev/lint/tipos/build na máquina Windows real; usar WSL2 para
    suíte completa. Portabilidade completa de isolamento/processos é trabalho
    futuro, não motivo para relaxar segurança.
-3. Revisar e, se útil, integrar apenas o diff editorial `6cb6ac0` arquivado,
+4. Revisar e, se útil, integrar apenas o diff editorial `6cb6ac0` arquivado,
    após comparar a redação atual; não mesclar o checkout antigo inteiro.
-4. Validação humana/física com iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA
+5. Validação humana/física com iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA
    instalada continua sem cobertura universal. WebKit automatizado não é iPhone.
-5. Idempotência do POST de novo registro após perda de resposta requer projeto
+6. Idempotência do POST de novo registro após perda de resposta requer projeto
    próprio (servidor/esquema/concorrência); não implementar como ajuste visual.
-6. Dependências: último relatório registra alerta upstream de `braces 3.0.3` e
-   manifestos remotos de `main` antigos. Não foi feita nova auditoria nesta etapa;
+7. Relatórios antigos de dependências (incluindo o alerta de `braces` registrado
+   em 10/10) são históricos. O resultado atual desta etapa é o descrito acima;
    não declarar zero vulnerabilidades nem usar `audit fix --force`.
-7. GitHub não é cópia do estado do navegador, bancos de teste ou dossiês privados
+8. GitHub não é cópia do estado do navegador, bancos de teste ou dossiês privados
    externos. Capturas/logs sintéticos externos do Mac não aparecem no clone;
    resultados relevantes ficam aqui/commits e podem ser reproduzidos pelos testes.
 
@@ -485,5 +504,6 @@ na `main` para publicar ou transportar os scripts do portal.
 3. Confirmar Node/pnpm, dev, lint, tipos e build; registrar resultados Windows.
 4. Para validar o conjunto HTTP/D1/testes Unix, usar o checkout WSL2 separado.
 5. Não reimplementar os dois refinos prontos nem publicar por presumir aprovação
-   anterior. Pedir aprovação somente para o lote final de publicação.
+   anterior. Priorizar a triagem de segurança descrita na seção 8 antes do próximo
+   deploy. Pedir aprovação somente para o lote final de publicação.
 6. Atualizar continuidade, commit e push antes da próxima troca de computador.
