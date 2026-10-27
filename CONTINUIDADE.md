@@ -36,12 +36,16 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   de segredo, acesso a pacientes ou migração remota.
 - Próximo computador: pull da branch compartilhada, leitura do relatório novo;
   corrigir versões em branch própria e validar Mac/WSL2 antes de pedir deploy.
-- Transporte: o `git push` do Windows aguardou autenticação do Credential
-  Manager e foi cancelado. O envio desta etapa usa a conexão GitHub do chat,
-  com atualização normal da referência e verificação do SHA. Os commits locais
-  anteriores ficam preservados em branch de arquivo; a branch compartilhada
-  local deve ser recriada a partir do remoto para coincidir com ele. A identidade
-  Git foi configurada só neste clone com nome/e-mail do commit anterior.
+- **TRANSPORTE PENDENTE:** o `git push` do Windows aguardou autenticação do
+  Credential Manager e foi cancelado. A conexão GitHub do chat permitiu leitura,
+  mas recusou criação da árvore Git com HTTP 403 (`Resource not accessible by
+  integration`). Nenhum arquivo desta etapa foi enviado. Os commits estão
+  preservados na branch compartilhada local; o remoto ainda estava em `c6b814e`
+  na última conferência. Autenticar Git Windows com acesso de escrita, executar
+  fetch/pull `--ff-only` e push; confirmar igualdade de SHAs antes da troca.
+  Se o remoto avançar, preservar ambos os lados e integrar com revisão.
+  A identidade Git foi configurada só neste clone com nome/e-mail do commit
+  anterior. Não recriar branch, não fazer reset e não usar force-push.
 
 - Repositório: `https://github.com/psico-mateus/psico-mateus.github.io.git`.
 - **Branch compartilhada de trabalho: `trabalho/continuidade-mac-windows`.**
