@@ -36,6 +36,12 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   de segredo, acesso a pacientes ou migração remota.
 - Próximo computador: pull da branch compartilhada, leitura do relatório novo;
   corrigir versões em branch própria e validar Mac/WSL2 antes de pedir deploy.
+- Transporte: o `git push` do Windows aguardou autenticação do Credential
+  Manager e foi cancelado. O envio desta etapa usa a conexão GitHub do chat,
+  com atualização normal da referência e verificação do SHA. Os commits locais
+  anteriores ficam preservados em branch de arquivo; a branch compartilhada
+  local deve ser recriada a partir do remoto para coincidir com ele. A identidade
+  Git foi configurada só neste clone com nome/e-mail do commit anterior.
 
 - Repositório: `https://github.com/psico-mateus/psico-mateus.github.io.git`.
 - **Branch compartilhada de trabalho: `trabalho/continuidade-mac-windows`.**
