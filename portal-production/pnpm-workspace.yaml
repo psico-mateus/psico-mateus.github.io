@@ -1,5 +1,9 @@
 allowBuilds:
   esbuild: true
+  # Platform binaries come from the locked optional dependencies. Do not let
+  # their fallback installers download additional packages outside the lockfile.
+  unrs-resolver: false
+  workerd: false
 overrides:
   "@babel/core": 7.29.7
   "@esbuild-kit/core-utils>esbuild": 0.25.12

@@ -6,6 +6,37 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 
 ## 1. Comece aqui
 
+### Retomada física no Windows — 27/10/2026
+
+- Recebido `c6b814e` em clone novo; fetch/pull `--ff-only` confirmou igualdade.
+  `AGENTS.md` e este documento foram lidos integralmente.
+- Triagem dos **16 alertas** concluída como inventário e análise inicial de
+  aplicabilidade, não como correção: ver
+  [`portal-production/docs/triagem-seguranca-2026-10-27.md`](portal-production/docs/triagem-seguranca-2026-10-27.md).
+  Audit completo continua 2 críticos/4 altos/7 moderados/3 baixos; prod:
+  2 críticos/2 altos/5 moderados/3 baixos. Nenhuma dependência atualizada.
+- Os pré-requisitos dos críticos Next não foram identificados no aplicativo;
+  sharp corrigido já está fixado e Worker usa o otimizador Vinext/IMAGES.
+  Isso não comprova ausência de vulnerabilidades no artefato publicado. Corrigir
+  o par Next/ESLint e Vite é o próximo lote; não encerrar os alertas por inferência.
+- Node/pnpm nas versões conhecidas. Instalações locais com lockfiles realizadas,
+  setup sintético novo e ignorado, Chromium/WebKit instalados. Instaladores de
+  fallback unrs-resolver/workerd explicitamente bloqueados em `allowBuilds`;
+  os binários opcionais travados atenderam lint, tipos, build e servidor local.
+  O relatório registra as falhas iniciais e a recuperação, sem mascará-las.
+- Windows nativo: lint, tipos, build público sanitizado e GET local HTTP 200
+  aprovados; testes selecionados: **19 pass / 0 fail / 1 skip** (fixture symlink
+  exige permissão Windows). Suíte completa e integração/restauração não rodadas.
+- WSL2 padrão configurado, mas não há distribuição instalada. Usar Mac ou
+  preparar clone Linux separado quando WSL estiver disponível; não retirar
+  guardas para forçar a integração nativa.
+- Trabalho isolado em `tarefa/windows-triagem-seguranca-20261027`, para integração
+  normal na branch compartilhada. Consultar `git log` para SHA final e conferir
+  igualdade remoto/local antes da troca. Sem publicação, merge em main, mudança
+  de segredo, acesso a pacientes ou migração remota.
+- Próximo computador: pull da branch compartilhada, leitura do relatório novo;
+  corrigir versões em branch própria e validar Mac/WSL2 antes de pedir deploy.
+
 - Repositório: `https://github.com/psico-mateus/psico-mateus.github.io.git`.
 - **Branch compartilhada de trabalho: `trabalho/continuidade-mac-windows`.**
 - `main` é a publicação do site/Guia; não usá-la para transportar o portal.
