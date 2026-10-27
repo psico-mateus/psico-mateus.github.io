@@ -1,5 +1,9 @@
 # Área do paciente
 
+Configuração Mac/Windows, sincronização e estado atual estão em
+[`../CONTINUIDADE.md`](../CONTINUIDADE.md), de leitura obrigatória antes de
+trabalhar. Para instruções dos agentes, veja [`../AGENTS.md`](../AGENTS.md).
+
 Portal privado de apoio à psicoterapia de Mateus Ribeiro Marcos, Psicólogo Clínico (CRP 08/38930). Pacientes convidados podem guardar registros, mantê-los privados e escolher individualmente quais compartilhar. O acesso profissional é somente leitura.
 
 O portal não é prontuário, chat, canal de emergência, monitoramento em tempo real nem ferramenta de diagnóstico ou análise automática.
