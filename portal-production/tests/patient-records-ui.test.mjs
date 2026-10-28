@@ -1372,6 +1372,38 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     });
   }
 
+  test("sharing restores useful history focus when native confirmation blurs the original action", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    const card = page.locator("#record-synthetic-record-private");
+    await card.locator(":scope > summary").click();
+    await card.getByRole("button", { name: "Compartilhar com Mateus", exact: true }).focus();
+    await page.evaluate(() => {
+      window.__previousRecordsConfirm = window.confirm;
+      window.confirm = () => {
+        // Native confirmation may return focus to body in Safari. Reproduce
+        // that order deterministically without waiting on a platform dialog.
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        return true;
+      };
+    });
+    try {
+      await page.keyboard.press("Enter");
+      await expect(card.locator(".status.shared")).toBeVisible();
+      await assertUsefulHistoryFocus(page);
+      assert.equal(controls.mutations.length, 1);
+      assert.deepEqual(controls.mutations[0].payload, { shared: true });
+      assert.equal(controls.mutations[0].csrf, "synthetic-records-csrf");
+      await checkHealthy(fixture, "records-sharing-confirmation-focus");
+    } finally {
+      await page.evaluate(() => {
+        window.confirm = window.__previousRecordsConfirm;
+        delete window.__previousRecordsConfirm;
+      });
+    }
+  });
+
   test("sharing without a filter keeps a useful focus when the card remains", async () => {
     const fixture = await openRecords();
     const { page, controls } = fixture;

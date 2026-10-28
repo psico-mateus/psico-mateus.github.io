@@ -2225,9 +2225,9 @@ function PatientDashboard({
     const question = shared
       ? "Mateus deixará de ver este registro. Retirar o compartilhamento?"
       : "Compartilhar este registro com Mateus? Ele poderá lê-lo no painel profissional, mas não editá-lo.";
-    if (!window.confirm(question)) return;
     const card = document.getElementById(`record-${entry.id}`);
     const restoreFocus = Boolean(card?.contains(document.activeElement));
+    if (!window.confirm(question)) return;
     entryActionLocks.current.add(entry.id);
     setEntryActions((current) => ({ ...current, [entry.id]: "sharing" }));
     try {
