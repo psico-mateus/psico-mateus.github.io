@@ -3,8 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 // Offline regression guards for reviewed security floors, not a replacement for
-// a fresh audit. In particular, braces has no published fix and is not hidden or
-// required to disappear here. Override selectors may legitimately name an old
+// a fresh audit. Override selectors may legitimately name an old
 // version; inspect resolved packages rather than searching the entire YAML.
 const [manifestText, workspace, lockfile] = await Promise.all([
   readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -110,8 +109,8 @@ test("Next and its ESLint config remain paired and runtime frameworks are produc
 
 test("every resolved copy satisfies the reviewed patched dependency floors", () => {
   const floors = {
-    next: "16.3.8",
-    "eslint-config-next": "16.3.8",
+    next: "16.4.1",
+    "eslint-config-next": "16.4.1",
     react: "19.2.8",
     "react-dom": "19.2.8",
     "react-server-dom-webpack": "19.2.8",
@@ -120,9 +119,10 @@ test("every resolved copy satisfies the reviewed patched dependency floors", () 
     "baseline-browser-mapping": "2.11.0",
     sharp: "0.35.5",
     "source-map-js": "1.2.2",
-    "fast-uri": "3.1.8",
+    "fast-uri": "3.1.9",
     "js-yaml": "4.3.2",
-    undici: "7.29.1",
+    undici: "7.30.1",
+    zod: "4.6.6",
     fflate: "0.7.5",
   };
   for (const [name, floor] of Object.entries(floors)) assertFloor(name, floor);
@@ -131,10 +131,17 @@ test("every resolved copy satisfies the reviewed patched dependency floors", () 
   assertFloor("image-size", "2.0.3", { required: false });
 
   for (const [name] of packages) {
-    if (name.startsWith("@next/swc-") || name === "@next/env") assertFloor(name, "16.3.8");
+    if (name.startsWith("@next/swc-") || name === "@next/env") assertFloor(name, "16.4.1");
     if (name.startsWith("@img/sharp-libvips-")) assertFloor(name, "1.3.4");
     else if (name.startsWith("@img/sharp-")) assertFloor(name, "0.35.5");
   }
+});
+
+test("Vite stays on the specifically reviewed patched release", () => {
+  // A generic >=8.1.6 floor also admits vulnerable 8.2.0–8.2.3 and
+  // 8.3.0–8.3.2. Review advisories and compatibility before changing this pin.
+  assert.equal(manifest.devDependencies.vite, "8.1.6");
+  assert.deepEqual(packages.get("vite"), new Set(["8.1.6"]));
 });
 
 test("OG must itself carry corrected bundled Satori, not only a transitive override", () => {
