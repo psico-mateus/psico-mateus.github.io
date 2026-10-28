@@ -2061,17 +2061,42 @@ function PatientDashboard({
               : resourceView === "readings"
                 ? "education-title"
                 : "patient-resources-title";
-    const frame = window.requestAnimationFrame(() => {
+    const focusOrigin = document.activeElement;
+    let frame: number | null = null;
+    let cancelled = false;
+    const stopWatching = () => {
+      document.removeEventListener("focusin", cancelNavigationFocus, true);
+      document.removeEventListener("pointerdown", cancelNavigationFocus, true);
+      document.removeEventListener("keydown", cancelNavigationFocus, true);
+      window.removeEventListener("blur", cancelNavigationFocus);
+    };
+    function cancelNavigationFocus() {
+      cancelled = true;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      stopWatching();
+    }
+    document.addEventListener("focusin", cancelNavigationFocus, true);
+    document.addEventListener("pointerdown", cancelNavigationFocus, true);
+    document.addEventListener("keydown", cancelNavigationFocus, true);
+    window.addEventListener("blur", cancelNavigationFocus);
+    frame = window.requestAnimationFrame(() => {
+      stopWatching();
+      if (cancelled) return;
       // Saving can already have returned focus to the resulting history card.
       // A late navigation effect must not replace that useful focus with the title.
       const focused = document.activeElement;
       if (area === "records" && focused instanceof HTMLElement &&
         focused.matches(".patient-record-card > summary, .notice-error")) return;
+      // Navigation owns this frame only until the person's next interaction.
+      // A removed previous heading may leave focus on body during a normal
+      // route change; a still-connected origin that lost focus must not reclaim it.
+      if (focused !== focusOrigin && !(focused === document.body &&
+        focusOrigin instanceof HTMLElement && !focusOrigin.isConnected)) return;
       const target = document.getElementById(targetId);
       target?.scrollIntoView({ block: "start", behavior: "auto" });
       target?.focus({ preventScroll: true });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return cancelNavigationFocus;
   }, [area, editing, editorVisible, resourceView, selectedEducationSlug, selectedToolId]);
 
   useEffect(() => {

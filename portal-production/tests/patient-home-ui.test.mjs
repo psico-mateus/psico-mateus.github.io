@@ -435,6 +435,66 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     await checkHealthy(fixture, "home-text-200-percent");
   });
 
+  async function holdNavigationFrames(page) {
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.evaluate(() => {
+      const frames = new Map();
+      let serial = 1000000;
+      const request = window.requestAnimationFrame.bind(window);
+      const cancel = window.cancelAnimationFrame.bind(window);
+      window.requestAnimationFrame = callback => {
+        const id = ++serial;
+        frames.set(id, callback);
+        return id;
+      };
+      window.cancelAnimationFrame = id => {
+        if (!frames.delete(id)) cancel(id);
+      };
+      window.__pendingPatientNavigationFrames = () => [...frames.values()].filter(callback => {
+        const source = Function.prototype.toString.call(callback);
+        return source.includes("scrollIntoView") && source.includes("focus");
+      }).length;
+      window.__flushPatientNavigationFrames = () => {
+        const callbacks = [...frames.values()];
+        frames.clear();
+        window.requestAnimationFrame = request;
+        window.cancelAnimationFrame = cancel;
+        delete window.__pendingPatientNavigationFrames;
+        delete window.__flushPatientNavigationFrames;
+        for (const callback of callbacks) callback(performance.now());
+      };
+    });
+  }
+
+  for (const newerChoice of ["focus", "pointer", "keyboard", "window-blur"]) {
+    test(`home navigation: a queued heading focus respects newer ${newerChoice} intent`, async () => {
+      const fixture = await openHome();
+      const { page } = fixture;
+      const navigation = page.getByRole("navigation", { name: "Navegação da Área do paciente" });
+      await navigation.getByRole("button", { name: "Meus registros", exact: true }).click();
+      await expect(page.locator("#records-title")).toBeFocused();
+      await holdNavigationFrames(page);
+      try {
+        // Native DOM click avoids Playwright pointer actionability's own RAF
+        // polling while the application's navigation frame is held deliberately.
+        await navigation.getByRole("button", { name: "Início", exact: true }).evaluate(button => button.click());
+        await expect(page.locator("#patient-home-title")).toBeVisible();
+        await expect.poll(() => page.evaluate(() => window.__pendingPatientNavigationFrames())).toBeGreaterThan(0);
+        const refresh = page.locator(".patient-overview-refresh");
+        if (newerChoice === "focus") await refresh.focus();
+        else if (newerChoice === "pointer") await page.locator(".patient-hero-copy > p").dispatchEvent("pointerdown");
+        else if (newerChoice === "keyboard") await page.locator("body").dispatchEvent("keydown", { key: "ArrowDown" });
+        else await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+        await page.evaluate(() => window.__flushPatientNavigationFrames());
+        if (newerChoice === "focus") await expect(refresh).toBeFocused();
+        else await expect(page.locator("#patient-home-title")).not.toBeFocused();
+        await checkHealthy(fixture, `home-navigation-newer-${newerChoice}`);
+      } finally {
+        await page.evaluate(() => window.__flushPatientNavigationFrames?.());
+      }
+    });
+  }
+
   test("keyboard navigation announces the destination and returns useful focus", async () => {
     const fixture = await openHome();
     const { page } = fixture;
