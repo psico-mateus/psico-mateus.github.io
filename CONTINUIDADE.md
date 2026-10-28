@@ -1,10 +1,47 @@
 # Continuidade — Psico Mateus
 
-Atualizado em **27/10/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
+Atualizado em **28/10/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
 no Mac ou Windows e atualizar ao concluir cada etapa, conforme `AGENTS.md`.
 O código é a fonte principal; documentos antigos não substituem esta conferência.
 
 ## 1. Comece aqui
+
+### Retomada no Mac — correção das dependências, 28/10/2026
+
+- Base `35c2642` recebida do Windows, árvore limpa e fetch sem divergência.
+  Trabalho isolado em `tarefa/mac-correcao-dependencias-20261028`; não usar main.
+- A consulta atual encontrou **21 advisories**, não mais 16: cinco novos de
+  Undici, com o mesmo piso corrigido. Lote mínimo implementado: Next/ESLint
+  16.4.1, Vite 8.1.6, fast-uri 3.1.9, Undici 7.30.1 e Zod 4.6.6.
+- Audit completo/prod do portal e audit da raiz agora retornam **zero**, sem
+  supressão. Isso vale para esta árvore local, não encerra alertas de `main` ou
+  comprova correção de produção. Ver
+  [`portal-production/docs/correcao-dependencias-2026-10-28.md`](portal-production/docs/correcao-dependencias-2026-10-28.md).
+- Lint, tipos/build sanitizado, **327 testes gerais**, integração isolada
+  (**309 verificações**, restart/relogin preservados), restauração sintética
+  (15 tabelas), build público e dry-runs dos dois Workers aprovados.
+- QA encerrada e resultados/falhas preservados no relatório. Primeira rodada
+  dev: 240/242 por motor, quatro falhas de abertura de documento Miniflare antes
+  das ações; conta isolada: 26/26 por motor. No artefato público, Chromium passou
+  247/247 antes do último ajuste limitado ao compartilhamento. A última rodada
+  global WebKit passou 247/248; o restante era falso positivo da fixture,
+  comprovado por foco em botão habilitado. Após corrigir a classificação sem
+  aceitar elementos ocultos/desabilitados: histórico **70/70 em cada motor**.
+  Não apresentar esses resultados compostos como uma única rodada 496/496.
+- A QA identificou duas disputas reais de foco agendado, reproduzidas com RAF
+  controlado e corrigidas: navegação do paciente respeita interação mais recente;
+  resumo do mapa não toma foco dos grupos de respostas já em uso. Também foi
+  corrigida a captura de foco antes da confirmação nativa de compartilhar.
+  Seis cenários determinísticos falhavam antes e passam nos dois motores.
+  Sem redesenho ou mudança de conteúdo. Commits **`5ee7a34`** (dependências),
+  **`4ce3241`** (navegação), **`eb717eb`** (resumo do mapa), **`1f77547`**
+  (confirmação), **`733bb4a`** (classificação/diagnóstico da fixture).
+- Fingerprint final preparado **`7f798b607acbe748`**, não publicado. O aplicativo
+  corresponde a `1f77547`; o commit de fixture/documentação não altera o build.
+- Sem alteração de CSS, API/schema/migração, segredos ou política de sessão;
+  nenhuma leitura/gravação de dados reais. Novas dependências ainda não foram
+  instaladas/testadas fisicamente no Windows. Ler o relatório antes de repetir QA.
+  Produção permanece como na seção 2; publicação continua exigindo aprovação.
 
 ### Retomada física no Windows — 27/10/2026
 
@@ -83,6 +120,9 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 
 ### Preparado, mas NÃO publicado
 
+- Lote de 28/10: dependências corrigidas, guardas offline e duas proteções de
+  foco, conforme a seção 1. Não repetir essa implementação no Windows; atualizar
+  a branch/instalação e verificar o resultado final da QA.
 - `c1a1243`: nova tentativa de carregar registros mantém foco estável, filtros e
   rascunhos; editor ativo preserva respostas e uma nova escolha de foco.
 - `cbe3c43`: foco agendado de abrir/voltar entre pacientes respeita interação
@@ -281,7 +321,9 @@ sem desativar a política global de segurança.
 
 - Os atalhos `dev`, `start`, `build`, `build:worker` usam Node sem sintaxe
   `VAR=valor comando`, compatíveis em desenho com o shell nativo do Windows.
-- Não houve execução física em Windows nesta etapa. Não afirmar validação nativa.
+- Na preparação original do Mac não houve execução física no Windows. A
+  validação parcial nativa de 27/10 está na seção 1; não ampliá-la para suíte
+  completa, WSL2 ou dependências atualizadas em 28/10 ainda sem teste físico lá.
 - A suíte completa inclui testes/runner de integração isolada ainda dependentes
   de caminhos, symlinks e gerenciamento de processos Unix. **Para a validação
   completa, usar WSL2**, em vez de remover guardas ou mascarar falhas nativas.
@@ -446,21 +488,25 @@ como se fosse Linux. Testes UI não aceitam URL de produção.
   confirmada ou ausência de vulnerabilidades em produção.
 - Revisão independente dos novos arquivos, guardas, comandos e materiais de
   arquivo não identificou bloqueador de conteúdo para o envio ao GitHub.
-- Windows nativo/WSL2 físico e instalação em uma máquina Windows nova **não foram
-  executados**. Os 222 testes de interface de 22/10 não foram repetidos aqui:
-  nenhum componente React, CSS ou fluxo clínico mudou nesta etapa de ferramentas.
+- Na preparação original do Mac não houve Windows/WSL2 físico. A validação
+  nativa parcial posterior de 27/10 está na seção 1; WSL2 continua sem uma distro.
+  Os 222 testes UI de 22/10 não foram repetidos naquela etapa de ferramentas.
+  A nova execução UI de 28/10 e seus resultados estão na seção 1/novo relatório.
 
 ### Pendências/limitações reais
 
-1. **Prioritário antes do próximo deploy:** triar os 16 alertas atuais do portal,
-   começando pelos dois críticos de Next, confirmar escopo em fontes primárias
-   e testar correções compatíveis sem alterar contas, segredos ou banco.
-   Os resultados verdes funcionais não substituem essa revisão.
-2. Publicar o lote `c1a1243`/`cbe3c43` somente após nova aprovação final. Esta
-   solicitação é de sincronização, não de deploy.
-3. Conferir setup/dev/lint/tipos/build na máquina Windows real; usar WSL2 para
-   suíte completa. Portabilidade completa de isolamento/processos é trabalho
-   futuro, não motivo para relaxar segurança.
+1. **Prioritário antes do próximo deploy:** revisar o lote validado de
+   dependências/foco de 28/10 na seção 1 e no novo relatório, verificar o ambiente
+   Windows atualizado e obter aprovação final. A triagem de
+   16 alertas de 27/10 é histórica; a consulta de 28/10 encontrou 21 e, depois
+   das correções locais, zero. Não declarar a produção corrigida sem publicar
+   com aprovação, nem tratar audit como pentest.
+2. O lote de 28/10 e `c1a1243`/`cbe3c43` continuam sem publicação. Esta retomada
+   autoriza trabalho/sincronização, não deploy; pedir uma aprovação para o lote final.
+3. Setup/dev/lint/tipos/build foram parcialmente validados no Windows em 27/10;
+   repetir após receber as dependências de 28/10. Usar Mac/WSL2 para suíte completa.
+   Portabilidade de isolamento/processos é trabalho futuro, não motivo para
+   relaxar segurança.
 4. Revisar e, se útil, integrar apenas o diff editorial `6cb6ac0` arquivado,
    após comparar a redação atual; não mesclar o checkout antigo inteiro.
 5. Validação humana/física com iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA
@@ -551,6 +597,6 @@ na `main` para publicar ou transportar os scripts do portal.
 3. Confirmar Node/pnpm, dev, lint, tipos e build; registrar resultados Windows.
 4. Para validar o conjunto HTTP/D1/testes Unix, usar o checkout WSL2 separado.
 5. Não reimplementar os dois refinos prontos nem publicar por presumir aprovação
-   anterior. Priorizar a triagem de segurança descrita na seção 8 antes do próximo
-   deploy. Pedir aprovação somente para o lote final de publicação.
+   anterior. Conferir o resultado da correção de dependências de 28/10 na seção
+   1 antes do próximo deploy. Pedir aprovação só para o lote final de publicação.
 6. Atualizar continuidade, commit e push antes da próxima troca de computador.
