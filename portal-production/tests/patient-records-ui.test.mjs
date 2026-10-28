@@ -226,10 +226,20 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
   async function assertUsefulHistoryFocus(page) {
     await expect.poll(() => page.evaluate(() => {
       const element = document.activeElement;
-      return element instanceof HTMLElement && element.isConnected && element.matches(
-        "#records-title, .patient-record-card > summary, .patient-entry-toolbar button, .patient-record-search input",
+      const connected = element instanceof HTMLElement && element.isConnected;
+      const visible = connected && element.getClientRects().length > 0 &&
+        getComputedStyle(element).visibility === "visible" &&
+        !element.closest("[hidden], [inert], [aria-hidden='true']");
+      const disabled = connected && (element.matches(":disabled") || element.getAttribute("aria-disabled") === "true");
+      // Safari can retain the now-enabled action after confirmation. That is useful focus,
+      // not a reason for the product to force it onto another control.
+      const useful = visible && !disabled && element.matches(
+        "#records-title, .patient-record-card > summary, .patient-record-card .record-actions button, .patient-entry-toolbar button, .patient-record-search input",
       );
-    })).toBe(true);
+      return JSON.stringify({ useful, tag: element?.tagName ?? null, id: element?.id ?? null,
+        classes: element instanceof HTMLElement ? element.className : null,
+        visible, disabled });
+    })).toMatch(/"useful":true/u);
   }
 
   async function settleLayout(page) {
