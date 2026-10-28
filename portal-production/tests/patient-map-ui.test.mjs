@@ -310,6 +310,51 @@ describe("Meu mapa — isolated mocked API only", { skip: !baseUrl }, () => {
     await healthy(fixture, "map-note-limit-keyboard");
   });
 
+  test("queued summary navigation preserves a newer focus inside the saved-answer groups", async () => {
+    const fixture = await openMap({ fields: seedFields });
+    const { page } = fixture;
+    await question(fixture, "Estar com alguém para recuperar energia");
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.evaluate(() => {
+      const request = window.requestAnimationFrame.bind(window);
+      const cancel = window.cancelAnimationFrame.bind(window);
+      const frames = new Map();
+      let serial = 1000000;
+      window.requestAnimationFrame = callback => {
+        const id = ++serial;
+        frames.set(id, callback);
+        return id;
+      };
+      window.cancelAnimationFrame = id => { if (!frames.delete(id)) cancel(id); };
+      window.__pendingMapNavigationFrames = () => [...frames.values()].filter(callback => {
+        const source = Function.prototype.toString.call(callback);
+        return source.includes("scrollIntoView") && source.includes("focus");
+      }).length;
+      window.__flushMapNavigationFrames = () => {
+        const callbacks = [...frames.values()];
+        frames.clear();
+        window.requestAnimationFrame = request;
+        window.cancelAnimationFrame = cancel;
+        delete window.__pendingMapNavigationFrames;
+        delete window.__flushMapNavigationFrames;
+        for (const callback of callbacks) callback(performance.now());
+      };
+    });
+    try {
+      await page.getByRole("button", { name: "Ver respostas deste tema", exact: true }).evaluate(button => button.click());
+      await expect(page.locator("#patient-map-summary-title")).toBeVisible();
+      await expect.poll(() => page.evaluate(() => window.__pendingMapNavigationFrames())).toBeGreaterThan(0);
+      const group = page.locator(".patient-map-section-summary details").filter({ hasText: /Energia e descanso/u }).first();
+      const control = group.locator(":scope > summary");
+      await control.focus();
+      await page.evaluate(() => window.__flushMapNavigationFrames());
+      await expect(control).toBeFocused();
+      await healthy(fixture, "map-summary-newer-group-focus");
+    } finally {
+      await page.evaluate(() => window.__flushMapNavigationFrames?.());
+    }
+  });
+
   test("summary shows saved response and note, including note-only items, with an exact editing path", async () => {
     const fixture = await openMap({ fields: seedFields });
     await question(fixture, "Estar com alguém para recuperar energia");

@@ -403,8 +403,14 @@ export function PatientMapShell({
               : view === "synthesis"
                 ? "patient-map-synthesis-title"
                 : "patient-map-question-title";
+    const focusOrigin = document.activeElement;
     let nestedFrame = 0;
     const frame = window.requestAnimationFrame(() => {
+      // The saved-answer groups can already be in use before this navigation
+      // frame runs. Do not replace that newer focus with the summary heading.
+      const focused = document.activeElement;
+      if (view === "summary" && focused !== focusOrigin &&
+        !(focused === document.body && focusOrigin instanceof HTMLElement && !focusOrigin.isConnected)) return;
       if (view === "overview" && restoreOverviewTriggerRef.current) {
         restoreOverviewTriggerRef.current = false;
         const triggerId = mapTriggerElementIdRef.current;
