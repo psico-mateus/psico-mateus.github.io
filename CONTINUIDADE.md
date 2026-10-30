@@ -6,6 +6,48 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 
 ## 1. Comece aqui
 
+### Preparação da suíte completa no WSL — bloqueio físico, 30/10/2026
+
+- Pedido do usuário: deixar o ambiente completo pronto neste computador, sem
+  publicar. Base `351bada`, árvore limpa e sincronizada; trabalho documental em
+  `tarefa/windows-wsl-20261030`.
+- WSL **2.6.3.0**, kernel **6.6.87.2-1**, versão padrão 2. `wsl --install -d
+  Ubuntu-24.04 --no-launch --web-download` baixou o Ubuntu, mas a instalação/
+  criação da VM falhou com **HCS_E_HYPERV_NOT_INSTALLED**. Nenhuma distribuição
+  consta em `wsl --list --all`; não declarar o Ubuntu instalado.
+- O comando recomendado pelo erro, `wsl --install --no-distribution`, retornou
+  sucesso, mas isso não resolveu o pré-requisito de firmware. Conferência CIM:
+  `VirtualMachinePlatform` com `InstallState=1` (habilitado),
+  `HypervisorPresent=false`, `VirtualizationFirmwareEnabled=false`, SLAT e
+  extensões de monitor de VM disponíveis. O Windows informa virtualização
+  desativada no firmware; não é falha do portal ou de suas dependências.
+- Equipamento identificado sem consultar números de série: ASUS
+  **PRIME B450M-GAMING/BR**, AMD Ryzen 5 3600. O procedimento oficial ASUS para
+  AMD é reiniciar, entrar no BIOS com **Del**, abrir **Advanced → CPU
+  Configuration → SVM Mode**, selecionar **Enabled** e salvar com **F10**.
+  Se abrir no modo simples, **F7** entra no modo avançado. O usuário precisa
+  realizar essa etapa física; não houve reinício ou alteração de BIOS/boot.
+  [Guia oficial ASUS](https://www.asus.com/pt/support/faq/1045141/),
+  [diagnóstico oficial Microsoft](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting).
+- **Próxima retomada:** conferir de novo os indicadores CIM após reiniciar e
+  ativar SVM; repetir a instalação Ubuntu 24.04 se ainda não houver distro.
+  Se SVM estiver ativo e WSL continuar recusando, conferir o boot do hipervisor
+  com diagnóstico elevado antes de qualquer alteração adicional.
+- Só depois de o Linux iniciar: criar usuário de desenvolvimento e clone no
+  filesystem Linux, instalar Node 24.22.1/pnpm 11.25.0 e dependências Linux,
+  incluindo bibliotecas workerd/Playwright. Usar GitHub, nunca copiar ambientes,
+  bancos ou node_modules do Windows/Mac. Gerar setup sintético próprio.
+- Sequência da validação: instalação congelada raiz/portal, navegadores Linux,
+  lint, `pnpm test` do portal, integração `:isolated`, restauração sintética,
+  build público, testes da raiz e audits raiz/portal/prod. Testes gerais sem
+  `*_BASE_URL` não equivalem à QA de interface; rodá-la separadamente com APIs
+  simuladas e loopback, um motor por vez, conforme relatórios existentes.
+- A suíte completa **não foi executada** nesta etapa. Não substituir por WSL1,
+  desativar guardas Unix, usar banco remoto ou afirmar que o ambiente Linux está
+  pronto. O desenvolvimento nativo permanece validado na seção abaixo.
+- Nenhum deploy, migração, alteração de segredo ou acesso a pacientes. A única
+  alteração versionada desta etapa é este registro de diagnóstico/retomada.
+
 ### Retomada no Windows — atualização e verificação local, 30/10/2026
 
 - Árvore inicialmente limpa em `35c2642`, seis commits atrás do remoto, sem
