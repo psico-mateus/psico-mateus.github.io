@@ -1,10 +1,47 @@
 # Continuidade — Psico Mateus
 
-Atualizado em **28/10/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
+Atualizado em **30/10/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
 no Mac ou Windows e atualizar ao concluir cada etapa, conforme `AGENTS.md`.
 O código é a fonte principal; documentos antigos não substituem esta conferência.
 
 ## 1. Comece aqui
+
+### Retomada no Windows — atualização e verificação local, 30/10/2026
+
+- Árvore inicialmente limpa em `35c2642`, seis commits atrás do remoto, sem
+  divergência. `git pull --ff-only` recebeu `e42ed9c`, incluindo as correções de
+  dependências/foco já concluídas no Mac. Não houve reimplementação desses ajustes.
+  `AGENTS.md`, esta continuidade e o relatório de 28/10 foram lidos por inteiro.
+- Node **24.22.1**, pnpm **11.25.0**. Instalações congeladas da raiz e do portal
+  aprovadas; nenhuma nova versão foi escolhida, lockfile ou permissão de build
+  alterada. A instalação do portal terminou em cerca de 1m28s.
+- `node scripts/setup-local.mjs`: configuração sintética já existente preservada,
+  sem leitura/exibição de seus valores. `.env.local` continua ignorado pelo Git.
+  Nenhuma credencial, banco, node_modules ou estado de navegador veio do Mac.
+- Consulta de **30/10**: `pnpm audit --json` da raiz, completo do portal e
+  `--prod` do portal retornaram **0, sem advisories**, sem supressão. Esse resultado
+  é da branch de trabalho; não comprova atualização de main ou produção.
+- Windows nativo: **lint e typecheck aprovados**, incluindo os tipos Wrangler;
+  `pnpm build:worker` aprovado e sanitizado (`dist/server/.dev.vars` ausente).
+  Fingerprint deste build Windows: **`c31584eacd61c0cb`**, somente local. Os avisos
+  existentes de imports/classificação Vinext e opções Wrangler foram preservados.
+- `pnpm dev --host 127.0.0.1 --port 4440` iniciou com Vite 8.1.6; GET `/` devolveu
+  HTTP 200 e o título da Área do paciente. Servidor de conferência encerrado.
+  Isso é smoke HTTP, não QA visual nem validação de autenticação/persistência.
+- Testes selecionados (`run-vinext`, `setup-local`, `dependency-security`):
+  **20 aprovados / zero falhas / 1 skip**. Symlink sintético exige permissão no
+  Windows; a guarda não foi removida. Uma execução anterior, com instalação
+  ainda incompleta, teve 1 falha de resolução do pacote Vinext; após concluir a
+  instalação, a mesma seleção passou. Nenhum teste foi alterado para isso.
+- WSL continua **sem distribuição Linux instalada**. Suíte completa, integração
+  HTTP/D1/restauração e testes de interface não foram repetidos nesta etapa;
+  os resultados do Mac na seção seguinte mantêm suas datas e limitações.
+- Não falta arquivo do Mac nem login para desenvolver aqui. Para executar a
+  suíte completa neste PC, preparar WSL2 e clone Linux separado; alternativamente,
+  executá-la no Mac. Publicação permanece separada e requer aprovação final.
+- Trabalho documental isolado em `tarefa/windows-validacao-20261030` para
+  integração na branch compartilhada. Conferir SHA final com `git log -1` e
+  `git ls-remote`; sem deploy, merge em main, migração ou uso de pacientes reais.
 
 ### Retomada no Mac — correção das dependências, 28/10/2026
 
