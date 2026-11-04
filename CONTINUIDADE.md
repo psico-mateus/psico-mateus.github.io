@@ -1,10 +1,71 @@
 # Continuidade — Psico Mateus
 
-Atualizado em **30/10/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
+Atualizado em **04/11/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
 no Mac ou Windows e atualizar ao concluir cada etapa, conforme `AGENTS.md`.
 O código é a fonte principal; documentos antigos não substituem esta conferência.
 
 ## 1. Comece aqui
+
+### Retomada no Mac — uso por teclado e cópia do Guia, 04/11/2026
+
+- Árvore recebida limpa em `e42ed9c`; fetch e pull `--ff-only` receberam os dois
+  registros do Windows até `709fbd1`, sem divergência ou reimplementação.
+  `AGENTS.md` e esta continuidade foram lidos por inteiro. Trabalho isolado em
+  `tarefa/mac-refinos-acessibilidade-20261104`, sem usar main ou publicar.
+- **`1341224` — portal:** erro demorado da exportação não toma o foco de outro
+  campo que o paciente já escolheu. Reutiliza o observador existente, com limpeza
+  ao terminar/desmontar; mantém AbortController, single-flight, versão da conta
+  e conferência após ler o arquivo. Erro ainda recebe foco se a pessoa permaneceu
+  na ação. A exclusão de registro captura a origem antes da confirmação nativa,
+  como o compartilhamento, para não perder o foco quando Safari o devolve ao body.
+  Cancelamento e proteção de uma escolha posterior de foco continuam iguais.
+- **`8ef4d19` — site principal:** ao compartilhar o Guia, recusa do Clipboard
+  moderno tenta a cópia alternativa existente. O textarea temporário é removido
+  mesmo se a cópia lançar erro; o foco anterior é devolvido sem interromper uma
+  escolha mais recente. Se não conseguir copiar, mantém o endereço manual.
+  Sem alterações de conteúdo clínico, HTML/CSS, PDF ou armazenamento do Guia.
+- Regressões reproduzidas **antes**: exportação 0/2 e confirmação de exclusão
+  0/2 em WebKit; cancelamento já passava. Cópia pública: 21 falhas/6 aprovações
+  nos 27 cenários, além da reprodução isolada de textarea residual após exceção.
+  Não foram removidas asserções, elevados timeouts ou ocultadas essas falhas.
+- **Depois:** lint, tipos/build sanitizado e 327 testes gerais aprovados.
+  Integração isolada: 309 verificações, nove migrações só locais, restart com
+  contas/registros/sessões preservados e relogin aprovado, zero produção.
+  Conta + histórico completos: **101/101 Chromium e 101/101 WebKit**, zero
+  falhas/skips. Cobrem novo foco, cancelamento, erro/repetição explícita,
+  sessão expirada, privacidade, conteúdo/rascunhos, console, axe, overflow,
+  teclado, texto 200% e viewports 320/390/1366 conforme cada cenário.
+  Suíte pública completa: **163 aprovados/59 skips condicionais de projeto**,
+  sem falhas, incluindo os **27/27** novos cenários de cópia. Os skips existentes
+  escolhem o projeto apropriado para cada cenário, não escondem regressões.
+  A seleção pública adjacente anterior passou 24/24, com 9 desses skips; não
+  somar retestes ao total de casos distintos.
+- QA usou Playwright já instalado porque Browser plugin/skill não está
+  disponível. Site em loopback 4173; portal em 4441 a partir de snapshot
+  sanitizado sem env, com D1 descartável, todas as APIs clínicas simuladas e
+  origens externas bloqueadas. Identidade/título, conteúdo não vazio, ausência
+  de overlay/erros, interação e capturas mobile/desktop conferidos.
+  Capturas/logs só em TMP; não são pacientes reais nem material a enviar ao Git.
+- Build público preparado **`c445d7f9cb3cca50`**, fonte do portal `1341224`,
+  **não publicado**. Nada foi alterado em banco/schema, API, senha, MFA, cookies,
+  domínios/bindings, segredos ou dados reais. Nenhum custo/serviço novo.
+  Testes físicos de iPhone/Safari e da interface no Windows continuam pendentes;
+  WebKit não é iPhone. Não prometer ausência total de bugs.
+- **Audit novo:** raiz e portal `--prod`: zero advisories. Portal completo:
+  **1 moderado de desenvolvimento**, minimatch 10.2.5 na cadeia de ESLint /
+  typescript-estree. Os zeros de outubro continuam históricos, não resultado
+  atual universal. O [advisory atualizado em 04/11](https://github.com/advisories/GHSA-g3hv-75wg-m249)
+  exige glob controlado por atacante e `optimizationLevel >= 2`. O consumidor
+  instalado usa `{ dot: true }`, com nível padrão 1; não se identificou caminho
+  de entrada de paciente até ele no runtime. Isso é triagem, não elimina o aviso.
+  A correção oficial 11.0.1 fica fora de `^10.2.2` do consumidor e muda APIs /
+  regras Windows. Não foi aplicado override major nem `audit fix --force`.
+  Próximo lote: atualizar a cadeia de lint com suporte oficial e validar caminhos
+  Windows, lint, tipos e build, sem misturar isso à correção pontual de interface.
+- Os lotes de 28/10 e `c1a1243`/`cbe3c43` permanecem incluídos e não publicados.
+  Aprovação de publicação continua separada. Antes da troca, conferir SHA remoto
+  da branch compartilhada; no Windows fazer pull e ler este documento. Não
+  precisa reconfigurar conta nem copiar ambiente ou banco entre computadores.
 
 ### Preparação da suíte completa no WSL — bloqueio físico, 30/10/2026
 
@@ -199,6 +260,8 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 
 ### Preparado, mas NÃO publicado
 
+- Lote de 04/11: foco na exportação/exclusão e cópia acessível do link do Guia,
+  com regressões reproduzidas e testes descritos na seção 1. Não repetir no Windows.
 - Lote de 28/10: dependências corrigidas, guardas offline e duas proteções de
   foco, conforme a seção 1. Não repetir essa implementação no Windows; atualizar
   a branch/instalação e verificar o resultado final da QA.
@@ -574,18 +637,18 @@ como se fosse Linux. Testes UI não aceitam URL de produção.
 
 ### Pendências/limitações reais
 
-1. **Prioritário antes do próximo deploy:** revisar o lote validado de
-   dependências/foco de 28/10 na seção 1 e no novo relatório, verificar o ambiente
-   Windows atualizado e obter aprovação final. A triagem de
-   16 alertas de 27/10 é histórica; a consulta de 28/10 encontrou 21 e, depois
-   das correções locais, zero. Não declarar a produção corrigida sem publicar
-   com aprovação, nem tratar audit como pentest.
+1. **Prioritário antes do próximo deploy:** revisar os lotes validados de
+   28/10 e 04/11 na seção 1, a validação Windows nativa de 30/10 e obter aprovação
+   final. Audit de 04/11: portal prod/raiz zero, completo com 1 moderado de
+   desenvolvimento triado acima, para correção separada da cadeia de lint.
+   Os resultados de 16/21/zero de outubro são históricos. Não declarar a produção
+   corrigida sem publicar com aprovação, nem tratar audit como pentest.
 2. O lote de 28/10 e `c1a1243`/`cbe3c43` continuam sem publicação. Esta retomada
    autoriza trabalho/sincronização, não deploy; pedir uma aprovação para o lote final.
-3. Setup/dev/lint/tipos/build foram parcialmente validados no Windows em 27/10;
-   repetir após receber as dependências de 28/10. Usar Mac/WSL2 para suíte completa.
-   Portabilidade de isolamento/processos é trabalho futuro, não motivo para
-   relaxar segurança.
+3. Setup/dev/lint/tipos/build com as dependências de 28/10 foram validados
+   parcialmente no Windows em 30/10. Suíte completa e UI seguem sem execução
+   física lá; WSL2 está bloqueado pela virtualização de firmware, conforme seção 1.
+   Usar Mac enquanto isso. Não relaxar guardas de isolamento/processos.
 4. Revisar e, se útil, integrar apenas o diff editorial `6cb6ac0` arquivado,
    após comparar a redação atual; não mesclar o checkout antigo inteiro.
 5. Validação humana/física com iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA
