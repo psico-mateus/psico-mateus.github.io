@@ -221,6 +221,7 @@
   };
 
   const copyWithFallback = (text) => {
+    const previousFocus = document.activeElement;
     const textarea = document.createElement("textarea");
     textarea.value = text;
     textarea.setAttribute("readonly", "");
@@ -228,16 +229,27 @@
     textarea.style.top = "-9999px";
     textarea.style.opacity = "0";
     document.body.appendChild(textarea);
-    textarea.select();
-    const copied = document.execCommand("copy");
-    textarea.remove();
-    return copied;
+    try {
+      textarea.focus({ preventScroll: true });
+      textarea.select();
+      return document.execCommand("copy");
+    } finally {
+      const restoreFocus = document.activeElement === textarea;
+      textarea.remove();
+      if (restoreFocus && previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+      }
+    }
   };
 
   const copyGuideLink = async () => {
     if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(config.canonicalGuide);
-      return true;
+      try {
+        await navigator.clipboard.writeText(config.canonicalGuide);
+        return true;
+      } catch {
+        // Alguns navegadores recusam a API moderna, mas permitem a cópia local.
+      }
     }
     return copyWithFallback(config.canonicalGuide);
   };
