@@ -2267,9 +2267,9 @@ function PatientDashboard({
   }
   async function remove(entry: Entry) {
     if (entryActionLocks.current.has(entry.id)) return;
-    if (!window.confirm("Excluir este registro de forma permanente?")) return;
     const card = document.getElementById(`record-${entry.id}`);
     const restoreFocus = Boolean(card?.contains(document.activeElement));
+    if (!window.confirm("Excluir este registro de forma permanente?")) return;
     const adjacentSummary =
       card?.nextElementSibling?.querySelector<HTMLElement>("summary") ??
       card?.previousElementSibling?.querySelector<HTMLElement>("summary") ??
@@ -3271,6 +3271,7 @@ function AccountPanel({
   const [exportMessage, setExportMessage] = useState<{
     tone: "error" | "success";
     text: string;
+    focus: boolean;
   } | null>(null);
   const passwordRequestInFlight = useRef(false);
   const recoveryRequestInFlight = useRef<{
@@ -3282,12 +3283,15 @@ function AccountPanel({
   const endSessionsRequestInFlight = useRef(false);
   const deleteAccountRequestInFlight = useRef(false);
   const exportRequestInFlight = useRef<AbortController | null>(null);
+  const stopExportFocusWatch = useRef<(() => void) | null>(null);
 
   useLayoutEffect(() => () => {
     // Invalidate during the unmount commit, before a response microtask can
     // download a private file or reveal a recovery code outside this account.
     exportRequestInFlight.current?.abort();
     exportRequestInFlight.current = null;
+    stopExportFocusWatch.current?.();
+    stopExportFocusWatch.current = null;
     recoveryRequestInFlight.current?.controller.abort();
     recoveryRequestInFlight.current?.stopFocusWatch();
     recoveryRequestInFlight.current = null;
@@ -3354,13 +3358,13 @@ function AccountPanel({
   function setAccountMessage(action: AccountAction, text: string, tone: "error" | "success" = "error", focus = tone === "error") {
     setMessages((current) => ({ ...current, [action]: text ? { tone, text, focus } : undefined }));
   }
-  function watchAccountActionFocus(formElement: HTMLFormElement) {
+  function watchAccountActionFocus(actionElement: HTMLElement) {
     let movedElsewhere = false;
     const track = (event: Event) => {
       const target = event.target;
       // Safari may leave focus on body after a pointer submission. Only a real
       // interaction elsewhere should cancel this request's focus destination.
-      if (target instanceof Node && !formElement.contains(target) &&
+      if (target instanceof Node && !actionElement.contains(target) &&
         !(event.type === "focusin" && (target === document.body || target === document.documentElement))) {
         movedElsewhere = true;
       }
@@ -3368,7 +3372,7 @@ function AccountPanel({
     document.addEventListener("focusin", track, true);
     document.addEventListener("pointerdown", track, true);
     return {
-      canFocus: () => !movedElsewhere && formElement.isConnected && !formElement.closest("details:not([open])"),
+      canFocus: () => !movedElsewhere && actionElement.isConnected && !actionElement.closest("details:not([open])"),
       stop: () => {
         document.removeEventListener("focusin", track, true);
         document.removeEventListener("pointerdown", track, true);
@@ -3589,11 +3593,13 @@ function AccountPanel({
       setEndingSessions(false);
     }
   }
-  async function downloadPatientData() {
+  async function downloadPatientData(trigger: HTMLButtonElement) {
     if (exportRequestInFlight.current) return;
     const controller = new AbortController();
+    const focus = watchAccountActionFocus(trigger.closest<HTMLElement>(".account-data-copy") ?? trigger);
     const accountActionVersion = getAccountActionVersion();
     exportRequestInFlight.current = controller;
+    stopExportFocusWatch.current = focus.stop;
     const isCurrentRequest = () => exportRequestInFlight.current === controller &&
       !controller.signal.aborted && getAccountActionVersion() === accountActionVersion;
     setExportBusy(true);
@@ -3641,6 +3647,7 @@ function AccountPanel({
       setExportMessage({
         tone: "success",
         text: "Download iniciado. Procure o arquivo em Downloads.",
+        focus: false,
       });
     } catch (error) {
       if (!isCurrentRequest()) return;
@@ -3650,14 +3657,17 @@ function AccountPanel({
       }
       setExportMessage({
         tone: "error",
+        focus: focus.canFocus(),
         text:
           error instanceof Error
             ? error.message
             : "Não foi possível preparar a cópia agora.",
       });
     } finally {
+      focus.stop();
       if (exportRequestInFlight.current === controller) {
         exportRequestInFlight.current = null;
+        stopExportFocusWatch.current = null;
         setExportBusy(false);
       }
     }
@@ -3878,7 +3888,7 @@ function AccountPanel({
               className="secondary-button account-export-link"
               type="button"
               disabled={exportBusy}
-              onClick={() => void downloadPatientData()}
+              onClick={(event) => void downloadPatientData(event.currentTarget)}
             >
               {exportBusy ? "Preparando cópia…" : "Baixar cópia dos meus dados"}
             </button>
@@ -3887,7 +3897,7 @@ function AccountPanel({
                 <Notice
                   tone={exportMessage.tone}
                   message={exportMessage.text}
-                  focusOnMount={exportMessage.tone === "error"}
+                  focusOnMount={exportMessage.focus}
                 />
               </div>
             ) : null}

@@ -368,6 +368,36 @@ describe("patient account — isolated mocked API only", { skip: !baseUrl }, () 
     await checkHealthy(fixture, "account-export-error-retry");
   });
 
+  for (const width of [390, 1366]) {
+    test(`a delayed failed export at ${width}px preserves a newer choice of focus`, async () => {
+      const fixture = await openAccount({ width, height: 900 });
+      const { page, controls } = fixture;
+      controls.exportStatus = 503;
+      await observeExportCompletion(page);
+      let releaseExport;
+      controls.exportWait = new Promise((resolve) => { releaseExport = resolve; });
+      try {
+        const passwordAction = await openAction(page, "Alterar senha");
+        const action = await openAction(page, "Baixar uma cópia");
+        const trigger = action.getByRole("button", { name: "Baixar cópia dos meus dados", exact: true });
+        await trigger.click();
+        await expect.poll(() => controls.exportRequests).toBe(1);
+        const newerFocus = passwordAction.getByLabel("Senha atual", { exact: true });
+        await newerFocus.fill(syntheticPassword);
+        await expect(newerFocus).toBeFocused();
+        releaseExport();
+        await expect(action.getByRole("alert")).toHaveText("Falha sintética ao preparar a cópia.");
+        await expect(trigger).toBeEnabled();
+        await expect(newerFocus).toBeFocused();
+        await expect(newerFocus).toHaveValue(syntheticPassword);
+        assert.equal(await page.evaluate(() => window.__accountExport.clicks), 0);
+        assert.equal(controls.exportRequests, 1, "A failure never starts an automatic retry.");
+        assert.deepEqual(controls.mutations, [], "Changing focus never submits the other account form.");
+        await checkHealthy(fixture, `account-export-newer-focus-${width}`);
+      } finally { releaseExport(); }
+    });
+  }
+
   async function expireAccountSession(fixture) {
     const { page, controls } = fixture;
     controls.entriesStatus = 401;

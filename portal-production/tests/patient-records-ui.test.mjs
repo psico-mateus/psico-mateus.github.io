@@ -1484,6 +1484,57 @@ describe("patient records — isolated mocked API only", { skip: !baseUrl }, () 
     await checkHealthy(fixture, "records-sharing-cancel-error");
   });
 
+  for (const onlyEntry of [false, true]) {
+    test(`deleting ${onlyEntry ? "the last" : "one"} record restores focus when confirmation blurs the action`, async () => {
+      const fixture = await openRecords({ entries: onlyEntry ? [syntheticEntries[0]] : syntheticEntries });
+      const { page, controls } = fixture;
+      await loaded(fixture);
+      const card = page.locator("#record-synthetic-record-private");
+      await card.locator(":scope > summary").click();
+      await card.getByRole("button", { name: "Excluir", exact: true }).focus();
+      await page.evaluate(() => {
+        window.__previousRecordsConfirm = window.confirm;
+        window.confirm = () => {
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+          return true;
+        };
+      });
+      try {
+        await page.keyboard.press("Enter");
+        await expect(card).toHaveCount(0);
+        await loaded(fixture);
+        const destination = onlyEntry ? page.locator("#records-title")
+          : page.locator("#record-synthetic-record-shared > summary");
+        await expect(destination).toBeFocused();
+        await assertUsefulHistoryFocus(page);
+        assert.deepEqual(controls.mutations, [{
+          path: "/entries/synthetic-record-private", method: "DELETE",
+          payload: null, csrf: "synthetic-records-csrf",
+        }]);
+        await checkHealthy(fixture, `records-delete-confirmation-${onlyEntry ? "last" : "adjacent"}`);
+      } finally {
+        await page.evaluate(() => {
+          window.confirm = window.__previousRecordsConfirm;
+          delete window.__previousRecordsConfirm;
+        });
+      }
+    });
+  }
+
+  test("cancelled deletion keeps the record and never sends a mutation", async () => {
+    const fixture = await openRecords();
+    const { page, controls } = fixture;
+    await loaded(fixture);
+    const card = page.locator("#record-synthetic-record-private");
+    await card.locator(":scope > summary").click();
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await card.getByRole("button", { name: "Excluir", exact: true }).click();
+    await expect(card).toBeVisible();
+    await expect(page.locator(".patient-record-card")).toHaveCount(3);
+    assert.deepEqual(controls.mutations, []);
+    await checkHealthy(fixture, "records-delete-cancelled");
+  });
+
   test("deleting restores visible keyboard focus without taking focus moved to search", async () => {
     for (const moveFocus of [false, true]) {
       const fixture = await openRecords({ pendingDeleting: true });
