@@ -62,6 +62,11 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   regras Windows. Não foi aplicado override major nem `audit fix --force`.
   Próximo lote: atualizar a cadeia de lint com suporte oficial e validar caminhos
   Windows, lint, tipos e build, sem misturar isso à correção pontual de interface.
+- O push informou separadamente **43 alertas na branch padrão main** (8 críticos,
+  17 altos, 13 moderados, 5 baixos). É outra árvore, ainda em `c708a7e`, com
+  manifestos históricos; não confundir essa contagem com o audit da branch de
+  trabalho, nem afirmar exploração confirmada ou produção corrigida. Triar main
+  em lote próprio, sem mesclar a história inteira do portal para transportá-lo.
 - Os lotes de 28/10 e `c1a1243`/`cbe3c43` permanecem incluídos e não publicados.
   Aprovação de publicação continua separada. Antes da troca, conferir SHA remoto
   da branch compartilhada; no Windows fazer pull e ler este documento. Não
