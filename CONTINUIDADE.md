@@ -12,13 +12,14 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   nuvem, sem credencial do Cloudflare. Trabalho isolado em
   `tarefa/claude-code-configuracao-20261113`. `AGENTS.md` e esta continuidade
   foram lidos por inteiro. **Nada foi publicado, migrado ou enviado a `main`.**
-- **ENVIO PENDENTE:** o `git push` desta sessão foi recusado com HTTP 403, porque
-  o aplicativo do Claude no GitHub ainda não tem acesso a este repositório. Os
-  commits abaixo existem só na sessão da nuvem e em um arquivo de bundle Git
-  entregue ao Mateus no chat, que preserva os mesmos SHAs. Enquanto a branch não
-  aparecer em `git ls-remote`, o Mac e o Windows **não** têm este trabalho.
-  Depois de liberar o acesso, enviar a branch da tarefa e integrá-la aqui com
-  merge normal. O bundle não deve ser commitado.
+- **ENVIADO:** a primeira tentativa de `git push` foi recusada com HTTP 403,
+  porque o aplicativo do Claude no GitHub ainda não tinha acesso ao repositório.
+  Depois que o Mateus liberou o acesso e autorizou o envio, a branch da tarefa
+  foi enviada e integrada aqui por fast-forward. Conferir o tip com `git log -1`
+  e `git ls-remote`. O bundle Git entregue antes no chat ficou sem uso e não
+  deve ser commitado. O push avisou **45 alertas na branch padrão `main`**
+  (10 críticos, 17 altos, 13 moderados, 5 baixos): é a árvore antiga da `main`,
+  como já descrito abaixo, não o audit desta branch.
 - **`5d88ad4` — segurança:** `react`, `react-dom` e `react-server-dom-webpack`
   de 19.2.8 para **19.2.9**, pelo aviso crítico
   [GHSA-xqc2-xf4c-x3h3](https://github.com/advisories/GHSA-xqc2-xf4c-x3h3)
@@ -69,8 +70,9 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
      vale para o painel profissional. Os registros ficam em texto no D1 e a conta
      administradora do Cloudflare tem acesso técnico ao banco. Avaliar se o texto
      deve mencionar esse acesso administrativo. Nenhuma redação foi alterada.
-- Próxima retomada em qualquer computador: `/retomar`, conferir se a branch da
-  tarefa já está no remoto e integrá-la antes de começar outra coisa.
+- Próxima retomada em qualquer computador: abrir o repositório no Claude Code e
+  rodar `/retomar`. No Mac, rodar também `/validar`, para cobrir WebKit e as
+  telas do portal que esta sessão não executou.
 
 ### Retomada no Mac — uso por teclado e cópia do Guia, 04/11/2026
 
