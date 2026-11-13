@@ -40,6 +40,11 @@ outputs/
 /backups-locais/
 /exportacoes-locais/
 
+# Claude Code: per-machine preferences and worktrees stay local
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+
 # Local exports and archives
 *.tar
 *.tar.gz

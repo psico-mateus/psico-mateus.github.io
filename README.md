@@ -3,6 +3,8 @@
 Antes de trabalhar no Mac ou Windows, leia [CONTINUIDADE.md](CONTINUIDADE.md)
 e [AGENTS.md](AGENTS.md). A continuidade usa a branch
 `trabalho/continuidade-mac-windows`; enviar código para ela não publica o site.
+No Claude Code, [CLAUDE.md](CLAUDE.md) carrega o `AGENTS.md` sozinho e os
+comandos `/retomar`, `/validar` e `/encerrar` seguem essas mesmas rotinas.
 
 Site estático profissional de Mateus Ribeiro Marcos, Psicólogo Clínico (CRP 08/38930), preparado para publicação direta no GitHub Pages. A raiz apresenta a prática profissional, a formação em Terapia Cognitivo-Comportamental, as modalidades de atendimento e os canais de contato.
 
