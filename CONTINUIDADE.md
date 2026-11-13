@@ -1,10 +1,76 @@
 # Continuidade — Psico Mateus
 
-Atualizado em **04/11/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
+Atualizado em **13/11/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
 no Mac ou Windows e atualizar ao concluir cada etapa, conforme `AGENTS.md`.
 O código é a fonte principal; documentos antigos não substituem esta conferência.
 
 ## 1. Comece aqui
+
+### Sessão do Claude Code na nuvem — configuração e correção do React, 13/11/2026
+
+- Primeira sessão com o Claude Code. Base `7626f24`, clone novo em Linux na
+  nuvem, sem credencial do Cloudflare. Trabalho isolado em
+  `tarefa/claude-code-configuracao-20261113`. `AGENTS.md` e esta continuidade
+  foram lidos por inteiro. **Nada foi publicado, migrado ou enviado a `main`.**
+- **ENVIO PENDENTE:** o `git push` desta sessão foi recusado com HTTP 403, porque
+  o aplicativo do Claude no GitHub ainda não tem acesso a este repositório. Os
+  commits abaixo existem só na sessão da nuvem e em um arquivo de bundle Git
+  entregue ao Mateus no chat, que preserva os mesmos SHAs. Enquanto a branch não
+  aparecer em `git ls-remote`, o Mac e o Windows **não** têm este trabalho.
+  Depois de liberar o acesso, enviar a branch da tarefa e integrá-la aqui com
+  merge normal. O bundle não deve ser commitado.
+- **`5d88ad4` — segurança:** `react`, `react-dom` e `react-server-dom-webpack`
+  de 19.2.8 para **19.2.9**, pelo aviso crítico
+  [GHSA-xqc2-xf4c-x3h3](https://github.com/advisories/GHSA-xqc2-xf4c-x3h3)
+  (execução remota em React Server Components; o audit passou a apontá-lo depois
+  de 04/11). O lockfile muda apenas nessas três entradas. O teste de pisos exige
+  19.2.9: com manifesto e lockfile anteriores falhava (1 falha, 7 aprovados) e
+  agora passa 8/8.
+- **Produção continua com 19.2.8**, do envio de 22/10. A correção só chega aos
+  pacientes com um deploy aprovado. O aviso descreve um caso raro (resposta com
+  vários typed arrays e um valor controlado por atacante) e não foi encontrado
+  `"use server"` no código do portal. Isso é triagem, não prova de que a
+  produção esteja fora de risco.
+- **`6b07505` — Claude Code:** `CLAUDE.md` importa `AGENTS.md`; regras por
+  caminho em `.claude/rules/` (portal; site e Guia); comandos `/retomar`,
+  `/validar` e `/encerrar` em `.claude/skills/`; travas em
+  `.claude/settings.json`. Deploy, rollback, D1, segredos, push para `main`,
+  `reset --hard` e `clean` pedem confirmação. `pnpm deploy:worker`, force-push,
+  `audit fix --force` e leitura de `.env*`, `.dev.vars*`, pastas locais privadas,
+  dumps e chaves ficam bloqueados. `.gitignore` ganhou `CLAUDE.local.md`,
+  `.claude/settings.local.json` e `.claude/worktrees/`. Sem custo ou serviço novo.
+- Ambiente: Node 24.22.1 e pnpm 11.25.0, instalações congeladas na raiz e no
+  portal, `setup:local` sintético novo e ignorado pelo Git.
+- **Antes da correção:** lint aprovado; `pnpm test` com tipos, build sanitizado e
+  **327/327**; integração isolada com **309 verificações**, nove migrações só
+  locais, restart e relogin preservados, zero produção; restauração sintética
+  com 15 tabelas.
+- **Depois da correção:** lint aprovado; **327/327**; integração isolada **309**;
+  `build:worker` aprovado, sem `dist/server/.dev.vars`. Build local Linux
+  **`fb1ed7aee1c69438`**, não publicado. A restauração sintética não foi repetida.
+- Suíte pública: **117 aprovados / 31 skips condicionais / zero falhas**, somente
+  nos dois projetos Chromium, antes e depois da configuração. Este ambiente
+  bloqueia o download dos navegadores do Playwright; foi usado o Chrome for
+  Testing 153 já instalado, por uma configuração temporária fora do repositório.
+  **WebKit não foi executado.** Não equivale à suíte completa de três projetos.
+- **Não executado:** famílias `PORTAL_*_UI_*`, revisões visuais, WebKit, iPhone,
+  Android, leitores de tela, Windows e WSL. Os resultados de 28/10 e 04/11
+  continuam sendo os mais recentes para a interface.
+- **Audit de 13/11:** raiz zero. Portal `--prod`: 1 crítico antes, **zero depois**.
+  Portal completo: fica o mesmo moderado de desenvolvimento (minimatch 10.2.5,
+  cadeia do ESLint), para o lote próprio já descrito abaixo. Sem supressão, sem
+  override major. Audit não é pentest.
+- **Para decidir com o Mateus:**
+  1. publicar o lote acumulado (28/10, 04/11 e esta correção), com a aprovação
+     e o procedimento da seção 9, a partir de um computador com login no
+     Cloudflare; ao publicar o lote de 04/11, atualizar o `?v=` de
+     `assets/js/main.js` nas páginas que o carregam;
+  2. o aviso de privacidade diz que Mateus só vê o que foi compartilhado. Isso
+     vale para o painel profissional. Os registros ficam em texto no D1 e a conta
+     administradora do Cloudflare tem acesso técnico ao banco. Avaliar se o texto
+     deve mencionar esse acesso administrativo. Nenhuma redação foi alterada.
+- Próxima retomada em qualquer computador: `/retomar`, conferir se a branch da
+  tarefa já está no remoto e integrá-la antes de começar outra coisa.
 
 ### Retomada no Mac — uso por teclado e cópia do Guia, 04/11/2026
 
