@@ -111,9 +111,10 @@ test("every resolved copy satisfies the reviewed patched dependency floors", () 
   const floors = {
     next: "16.4.1",
     "eslint-config-next": "16.4.1",
-    react: "19.2.8",
-    "react-dom": "19.2.8",
-    "react-server-dom-webpack": "19.2.8",
+    // GHSA-xqc2-xf4c-x3h3 (RSC, publicado em 10/11/2026) corrige em 19.2.9.
+    react: "19.2.9",
+    "react-dom": "19.2.9",
+    "react-server-dom-webpack": "19.2.9",
     vinext: "1.0.1",
     browserslist: "4.28.7",
     "baseline-browser-mapping": "2.11.0",
