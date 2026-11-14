@@ -1,382 +1,141 @@
 # Continuidade — Psico Mateus
 
 Atualizado em **13/11/2026** (America/Sao_Paulo). Ler inteiro antes de trabalhar
-no Mac ou Windows e atualizar ao concluir cada etapa, conforme `AGENTS.md`.
-O código é a fonte principal; documentos antigos não substituem esta conferência.
+em qualquer computador ou com qualquer assistente, e atualizar ao concluir cada
+etapa, conforme `AGENTS.md`. O código é a fonte principal.
+
+Este arquivo foi reorganizado em 13/11/2026 para mostrar primeiro o estado
+atual. **Nada foi apagado:** o texto anterior, com todas as sessões de 27/10 a
+13/11, está inteiro em
+[`docs/historico-continuidade-ate-2026-11-13.md`](docs/historico-continuidade-ate-2026-11-13.md).
+Relatórios detalhados de cada etapa ficam em `portal-production/docs/`.
 
 ## 1. Comece aqui
 
-### Avaliação geral e imagem de prévia — 13/11/2026, Claude Code no Mac
+### O projeto em poucas linhas
 
-- O Matt pediu uma nota e uma opinião independente. Avaliação: geral **8,5**;
-  site 8, Guia 9, Área do paciente 8,5. Decisões dele: **sem valor da sessão no
-  site**, **nenhum gasto** (descarta domínio próprio) e **manter o histórico**
-  deste arquivo, que pode ser reescrito com mais clareza, mas sem perder
-  conteúdo, para permitir troca de IA no futuro.
-- **Retratado:** o botão flutuante do WhatsApp parecia cobrir o texto no topo
-  do celular. Era defeito do painel de navegador do app. Playwright Chromium e
-  WebKit, local e no ar, mostram o botão escondido no topo e visível ao rolar,
-  como projetado. Sem mudança.
-- **Branch `tarefa/mac-ajustes-whatsapp-previa-20261113`:**
-  `assets/images/social-preview-registros.png` de 2,1 MB (1672×941) para
-  **323 KB** (1200×675, PNG com paleta, mesmo nome e mesma proporção), para a
-  prévia do link da Área do paciente aparecer no WhatsApp. `layout.tsx` passa
-  a declarar 1200×675; isso só vai ao ar no próximo deploy do portal (a
-  diferença até lá é inofensiva, porque a proporção é a mesma). Testes: raiz
-  163/59 skips/0 falhas; portal lint ok e 327/327.
-- Sugestões registradas, sem decisão: enxugar a repetição Guia/Área na página
-  inicial; dividir `PortalApp.tsx` (4.180 linhas), `ProfessionalDashboard.tsx`
-  (2.716) e `app/api/portal/[...segments]/route.ts` (2.436) quando houver motivo
-  para mexer; tirar da `main` os manifestos antigos que geram os 45 alertas;
-  decidir o aviso de privacidade ou criptografia dos registros no D1.
-- Segurança: o PC Windows usado neste projeto teve suspeita de roubo de senhas
-  em 10–11/11 e foi formatado. Recomendado revisar sessões, tokens e 2FA do
-  GitHub e do Cloudflare. Não confirmado como invasão.
+Três sites do psicólogo Mateus Ribeiro Marcos (Matt), CRP 08/38930:
 
-### Publicação do lote acumulado pelo Mac — 13/11/2026
-
-- Primeira sessão do Claude Code no Mac (o Mateus migrou do ChatGPT Work).
-  Node 24.22.1 instalado sem sudo a partir do tarball oficial (checksum
-  conferido) em `~/.local/opt/node-v24.22.1-darwin-arm64`, com pnpm 11.25.0.
-  **Não está no PATH do Terminal:** a trava recusou editar `~/.zprofile`; usar
-  `export PATH="$HOME/.local/opt/node-v24.22.1-darwin-arm64/bin:$PATH"`.
-- **Validação local em `ff1cede`:** raiz 163 aprovados/59 skips/0 falhas
-  (Chromium e WebKit); portal lint ok, **327/327**, integração isolada **309**,
-  restauração 15 tabelas, build sanitizado. **Telas do portal: 253/253 Chromium e
-  253/253 WebKit** (conta 28, início 21, mapa 38, avisos 38, registros 73,
-  recursos 13, histórico profissional 38, visualizações 4) + recuperação MFA 4/4.
-  Audit: raiz 0; portal `--prod` 0; completo 1 moderado de desenvolvimento
-  (minimatch 10.2.5, cadeia do ESLint), o mesmo já triado.
-- **PUBLICADO com aprovação do Mateus no chat ("sim"):** lote de 28/10, 04/11,
-  `c1a1243`/`cbe3c43` e React 19.2.9. Sem migração, segredo ou mudança de
-  banco/bindings (`git diff 7f7f7c2` sem migração/schema/wrangler). Snapshot só
-  com `dist/` e as duas configurações, sem `.env`, bancos ou symlinks; dry-runs ok.
-  Build **`fcc3bdd6d83ef315`**, fonte `ff1cede`.
-
-  | Worker | Antes (rollback) | Agora |
-  | --- | --- | --- |
-  | `registros` (legado, primeiro) | `4f4b37f6-0108-4a72-8fe9-e97426511417` | `96f8e168-a34a-48be-bde0-3fb60bb5c4b1` |
-  | `area-do-paciente` (oficial) | `149496d9-421d-42cd-878a-1b758cae545b` | `816bc297-e98f-4d24-8342-451314e2b19a` |
-
-  Depois: `/`, `/api/portal/session` (anônimo `{"user":null}`) e `/sw.js` HTTP
-  200 nos dois links, SW com o build novo; `test:smoke-public` ok, zero escrita.
-  Não houve teste autenticado em produção nem em celular físico.
-- **Site em `main`:** `c708a7e..d62ebb0`, somente `assets/js/main.js` (cópia do
-  link do Guia) e `?v=20261113-guide-copy` em `index.html`, `cuidados/` e
-  `privacidade/`. Testes da árvore da `main`: 136 aprovados/59 skips/0 falhas.
-  Guia sem mudança pública pendente. A branch de trabalho recebeu o mesmo `?v=`.
-- O Mateus abriu o portal no próprio celular após a publicação e relatou que
-  "a princípio" está funcionando. Conferência informal, sem roteiro de teste.
-- Pendente: texto do aviso de
-  privacidade sobre acesso administrativo ao D1 (item 2 abaixo); lote da cadeia
-  de lint (minimatch); alertas antigos da `main` no GitHub.
-
-### Sessão do Claude Code na nuvem — configuração e correção do React, 13/11/2026
-
-- Primeira sessão com o Claude Code. Base `7626f24`, clone novo em Linux na
-  nuvem, sem credencial do Cloudflare. Trabalho isolado em
-  `tarefa/claude-code-configuracao-20261113`. `AGENTS.md` e esta continuidade
-  foram lidos por inteiro. **Nada foi publicado, migrado ou enviado a `main`.**
-- **ENVIADO:** a primeira tentativa de `git push` foi recusada com HTTP 403,
-  porque o aplicativo do Claude no GitHub ainda não tinha acesso ao repositório.
-  Depois que o Mateus liberou o acesso e autorizou o envio, a branch da tarefa
-  foi enviada e integrada aqui por fast-forward. Conferir o tip com `git log -1`
-  e `git ls-remote`. O bundle Git entregue antes no chat ficou sem uso e não
-  deve ser commitado. O push avisou **45 alertas na branch padrão `main`**
-  (10 críticos, 17 altos, 13 moderados, 5 baixos): é a árvore antiga da `main`,
-  como já descrito abaixo, não o audit desta branch.
-- **`5d88ad4` — segurança:** `react`, `react-dom` e `react-server-dom-webpack`
-  de 19.2.8 para **19.2.9**, pelo aviso crítico
-  [GHSA-xqc2-xf4c-x3h3](https://github.com/advisories/GHSA-xqc2-xf4c-x3h3)
-  (execução remota em React Server Components; o audit passou a apontá-lo depois
-  de 04/11). O lockfile muda apenas nessas três entradas. O teste de pisos exige
-  19.2.9: com manifesto e lockfile anteriores falhava (1 falha, 7 aprovados) e
-  agora passa 8/8.
-- **Produção continua com 19.2.8**, do envio de 22/10. A correção só chega aos
-  pacientes com um deploy aprovado. O aviso descreve um caso raro (resposta com
-  vários typed arrays e um valor controlado por atacante) e não foi encontrado
-  `"use server"` no código do portal. Isso é triagem, não prova de que a
-  produção esteja fora de risco.
-- **`6b07505` — Claude Code:** `CLAUDE.md` importa `AGENTS.md`; regras por
-  caminho em `.claude/rules/` (portal; site e Guia); comandos `/retomar`,
-  `/validar` e `/encerrar` em `.claude/skills/`; travas em
-  `.claude/settings.json`. Deploy, rollback, D1, segredos, push para `main`,
-  `reset --hard` e `clean` pedem confirmação. `pnpm deploy:worker`, force-push,
-  `audit fix --force` e leitura de `.env*`, `.dev.vars*`, pastas locais privadas,
-  dumps e chaves ficam bloqueados. `.gitignore` ganhou `CLAUDE.local.md`,
-  `.claude/settings.local.json` e `.claude/worktrees/`. Sem custo ou serviço novo.
-- Ambiente: Node 24.22.1 e pnpm 11.25.0, instalações congeladas na raiz e no
-  portal, `setup:local` sintético novo e ignorado pelo Git.
-- **Antes da correção:** lint aprovado; `pnpm test` com tipos, build sanitizado e
-  **327/327**; integração isolada com **309 verificações**, nove migrações só
-  locais, restart e relogin preservados, zero produção; restauração sintética
-  com 15 tabelas.
-- **Depois da correção:** lint aprovado; **327/327**; integração isolada **309**;
-  `build:worker` aprovado, sem `dist/server/.dev.vars`. Build local Linux
-  **`fb1ed7aee1c69438`**, não publicado. A restauração sintética não foi repetida.
-- Suíte pública: **117 aprovados / 31 skips condicionais / zero falhas**, somente
-  nos dois projetos Chromium, antes e depois da configuração. Este ambiente
-  bloqueia o download dos navegadores do Playwright; foi usado o Chrome for
-  Testing 153 já instalado, por uma configuração temporária fora do repositório.
-  **WebKit não foi executado.** Não equivale à suíte completa de três projetos.
-- **Não executado:** famílias `PORTAL_*_UI_*`, revisões visuais, WebKit, iPhone,
-  Android, leitores de tela, Windows e WSL. Os resultados de 28/10 e 04/11
-  continuam sendo os mais recentes para a interface.
-- **Audit de 13/11:** raiz zero. Portal `--prod`: 1 crítico antes, **zero depois**.
-  Portal completo: fica o mesmo moderado de desenvolvimento (minimatch 10.2.5,
-  cadeia do ESLint), para o lote próprio já descrito abaixo. Sem supressão, sem
-  override major. Audit não é pentest.
-- **Para decidir com o Mateus:**
-  1. publicar o lote acumulado (28/10, 04/11 e esta correção), com a aprovação
-     e o procedimento da seção 9, a partir de um computador com login no
-     Cloudflare; ao publicar o lote de 04/11, atualizar o `?v=` de
-     `assets/js/main.js` nas páginas que o carregam;
-  2. o aviso de privacidade diz que Mateus só vê o que foi compartilhado. Isso
-     vale para o painel profissional. Os registros ficam em texto no D1 e a conta
-     administradora do Cloudflare tem acesso técnico ao banco. Avaliar se o texto
-     deve mencionar esse acesso administrativo. Nenhuma redação foi alterada.
-- Próxima retomada em qualquer computador: abrir o repositório no Claude Code e
-  rodar `/retomar`. No Mac, rodar também `/validar`, para cobrir WebKit e as
-  telas do portal que esta sessão não executou.
-
-### Retomada no Mac — uso por teclado e cópia do Guia, 04/11/2026
-
-- Árvore recebida limpa em `e42ed9c`; fetch e pull `--ff-only` receberam os dois
-  registros do Windows até `709fbd1`, sem divergência ou reimplementação.
-  `AGENTS.md` e esta continuidade foram lidos por inteiro. Trabalho isolado em
-  `tarefa/mac-refinos-acessibilidade-20261104`, sem usar main ou publicar.
-- **`1341224` — portal:** erro demorado da exportação não toma o foco de outro
-  campo que o paciente já escolheu. Reutiliza o observador existente, com limpeza
-  ao terminar/desmontar; mantém AbortController, single-flight, versão da conta
-  e conferência após ler o arquivo. Erro ainda recebe foco se a pessoa permaneceu
-  na ação. A exclusão de registro captura a origem antes da confirmação nativa,
-  como o compartilhamento, para não perder o foco quando Safari o devolve ao body.
-  Cancelamento e proteção de uma escolha posterior de foco continuam iguais.
-- **`8ef4d19` — site principal:** ao compartilhar o Guia, recusa do Clipboard
-  moderno tenta a cópia alternativa existente. O textarea temporário é removido
-  mesmo se a cópia lançar erro; o foco anterior é devolvido sem interromper uma
-  escolha mais recente. Se não conseguir copiar, mantém o endereço manual.
-  Sem alterações de conteúdo clínico, HTML/CSS, PDF ou armazenamento do Guia.
-- Regressões reproduzidas **antes**: exportação 0/2 e confirmação de exclusão
-  0/2 em WebKit; cancelamento já passava. Cópia pública: 21 falhas/6 aprovações
-  nos 27 cenários, além da reprodução isolada de textarea residual após exceção.
-  Não foram removidas asserções, elevados timeouts ou ocultadas essas falhas.
-- **Depois:** lint, tipos/build sanitizado e 327 testes gerais aprovados.
-  Integração isolada: 309 verificações, nove migrações só locais, restart com
-  contas/registros/sessões preservados e relogin aprovado, zero produção.
-  Conta + histórico completos: **101/101 Chromium e 101/101 WebKit**, zero
-  falhas/skips. Cobrem novo foco, cancelamento, erro/repetição explícita,
-  sessão expirada, privacidade, conteúdo/rascunhos, console, axe, overflow,
-  teclado, texto 200% e viewports 320/390/1366 conforme cada cenário.
-  Suíte pública completa: **163 aprovados/59 skips condicionais de projeto**,
-  sem falhas, incluindo os **27/27** novos cenários de cópia. Os skips existentes
-  escolhem o projeto apropriado para cada cenário, não escondem regressões.
-  A seleção pública adjacente anterior passou 24/24, com 9 desses skips; não
-  somar retestes ao total de casos distintos.
-- QA usou Playwright já instalado porque Browser plugin/skill não está
-  disponível. Site em loopback 4173; portal em 4441 a partir de snapshot
-  sanitizado sem env, com D1 descartável, todas as APIs clínicas simuladas e
-  origens externas bloqueadas. Identidade/título, conteúdo não vazio, ausência
-  de overlay/erros, interação e capturas mobile/desktop conferidos.
-  Capturas/logs só em TMP; não são pacientes reais nem material a enviar ao Git.
-- Build público preparado **`c445d7f9cb3cca50`**, fonte do portal `1341224`,
-  **não publicado**. Nada foi alterado em banco/schema, API, senha, MFA, cookies,
-  domínios/bindings, segredos ou dados reais. Nenhum custo/serviço novo.
-  Testes físicos de iPhone/Safari e da interface no Windows continuam pendentes;
-  WebKit não é iPhone. Não prometer ausência total de bugs.
-- **Audit novo:** raiz e portal `--prod`: zero advisories. Portal completo:
-  **1 moderado de desenvolvimento**, minimatch 10.2.5 na cadeia de ESLint /
-  typescript-estree. Os zeros de outubro continuam históricos, não resultado
-  atual universal. O [advisory atualizado em 04/11](https://github.com/advisories/GHSA-g3hv-75wg-m249)
-  exige glob controlado por atacante e `optimizationLevel >= 2`. O consumidor
-  instalado usa `{ dot: true }`, com nível padrão 1; não se identificou caminho
-  de entrada de paciente até ele no runtime. Isso é triagem, não elimina o aviso.
-  A correção oficial 11.0.1 fica fora de `^10.2.2` do consumidor e muda APIs /
-  regras Windows. Não foi aplicado override major nem `audit fix --force`.
-  Próximo lote: atualizar a cadeia de lint com suporte oficial e validar caminhos
-  Windows, lint, tipos e build, sem misturar isso à correção pontual de interface.
-- O push informou separadamente **43 alertas na branch padrão main** (8 críticos,
-  17 altos, 13 moderados, 5 baixos). É outra árvore, ainda em `c708a7e`, com
-  manifestos históricos; não confundir essa contagem com o audit da branch de
-  trabalho, nem afirmar exploração confirmada ou produção corrigida. Triar main
-  em lote próprio, sem mesclar a história inteira do portal para transportá-lo.
-- Os lotes de 28/10 e `c1a1243`/`cbe3c43` permanecem incluídos e não publicados.
-  Aprovação de publicação continua separada. Antes da troca, conferir SHA remoto
-  da branch compartilhada; no Windows fazer pull e ler este documento. Não
-  precisa reconfigurar conta nem copiar ambiente ou banco entre computadores.
-
-### Preparação da suíte completa no WSL — bloqueio físico, 30/10/2026
-
-- Pedido do usuário: deixar o ambiente completo pronto neste computador, sem
-  publicar. Base `351bada`, árvore limpa e sincronizada; trabalho documental em
-  `tarefa/windows-wsl-20261030`.
-- WSL **2.6.3.0**, kernel **6.6.87.2-1**, versão padrão 2. `wsl --install -d
-  Ubuntu-24.04 --no-launch --web-download` baixou o Ubuntu, mas a instalação/
-  criação da VM falhou com **HCS_E_HYPERV_NOT_INSTALLED**. Nenhuma distribuição
-  consta em `wsl --list --all`; não declarar o Ubuntu instalado.
-- O comando recomendado pelo erro, `wsl --install --no-distribution`, retornou
-  sucesso, mas isso não resolveu o pré-requisito de firmware. Conferência CIM:
-  `VirtualMachinePlatform` com `InstallState=1` (habilitado),
-  `HypervisorPresent=false`, `VirtualizationFirmwareEnabled=false`, SLAT e
-  extensões de monitor de VM disponíveis. O Windows informa virtualização
-  desativada no firmware; não é falha do portal ou de suas dependências.
-- Equipamento identificado sem consultar números de série: ASUS
-  **PRIME B450M-GAMING/BR**, AMD Ryzen 5 3600. O procedimento oficial ASUS para
-  AMD é reiniciar, entrar no BIOS com **Del**, abrir **Advanced → CPU
-  Configuration → SVM Mode**, selecionar **Enabled** e salvar com **F10**.
-  Se abrir no modo simples, **F7** entra no modo avançado. O usuário precisa
-  realizar essa etapa física; não houve reinício ou alteração de BIOS/boot.
-  [Guia oficial ASUS](https://www.asus.com/pt/support/faq/1045141/),
-  [diagnóstico oficial Microsoft](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting).
-- **Próxima retomada:** conferir de novo os indicadores CIM após reiniciar e
-  ativar SVM; repetir a instalação Ubuntu 24.04 se ainda não houver distro.
-  Se SVM estiver ativo e WSL continuar recusando, conferir o boot do hipervisor
-  com diagnóstico elevado antes de qualquer alteração adicional.
-- Só depois de o Linux iniciar: criar usuário de desenvolvimento e clone no
-  filesystem Linux, instalar Node 24.22.1/pnpm 11.25.0 e dependências Linux,
-  incluindo bibliotecas workerd/Playwright. Usar GitHub, nunca copiar ambientes,
-  bancos ou node_modules do Windows/Mac. Gerar setup sintético próprio.
-- Sequência da validação: instalação congelada raiz/portal, navegadores Linux,
-  lint, `pnpm test` do portal, integração `:isolated`, restauração sintética,
-  build público, testes da raiz e audits raiz/portal/prod. Testes gerais sem
-  `*_BASE_URL` não equivalem à QA de interface; rodá-la separadamente com APIs
-  simuladas e loopback, um motor por vez, conforme relatórios existentes.
-- A suíte completa **não foi executada** nesta etapa. Não substituir por WSL1,
-  desativar guardas Unix, usar banco remoto ou afirmar que o ambiente Linux está
-  pronto. O desenvolvimento nativo permanece validado na seção abaixo.
-- Nenhum deploy, migração, alteração de segredo ou acesso a pacientes. A única
-  alteração versionada desta etapa é este registro de diagnóstico/retomada.
-
-### Retomada no Windows — atualização e verificação local, 30/10/2026
-
-- Árvore inicialmente limpa em `35c2642`, seis commits atrás do remoto, sem
-  divergência. `git pull --ff-only` recebeu `e42ed9c`, incluindo as correções de
-  dependências/foco já concluídas no Mac. Não houve reimplementação desses ajustes.
-  `AGENTS.md`, esta continuidade e o relatório de 28/10 foram lidos por inteiro.
-- Node **24.22.1**, pnpm **11.25.0**. Instalações congeladas da raiz e do portal
-  aprovadas; nenhuma nova versão foi escolhida, lockfile ou permissão de build
-  alterada. A instalação do portal terminou em cerca de 1m28s.
-- `node scripts/setup-local.mjs`: configuração sintética já existente preservada,
-  sem leitura/exibição de seus valores. `.env.local` continua ignorado pelo Git.
-  Nenhuma credencial, banco, node_modules ou estado de navegador veio do Mac.
-- Consulta de **30/10**: `pnpm audit --json` da raiz, completo do portal e
-  `--prod` do portal retornaram **0, sem advisories**, sem supressão. Esse resultado
-  é da branch de trabalho; não comprova atualização de main ou produção.
-- Windows nativo: **lint e typecheck aprovados**, incluindo os tipos Wrangler;
-  `pnpm build:worker` aprovado e sanitizado (`dist/server/.dev.vars` ausente).
-  Fingerprint deste build Windows: **`c31584eacd61c0cb`**, somente local. Os avisos
-  existentes de imports/classificação Vinext e opções Wrangler foram preservados.
-- `pnpm dev --host 127.0.0.1 --port 4440` iniciou com Vite 8.1.6; GET `/` devolveu
-  HTTP 200 e o título da Área do paciente. Servidor de conferência encerrado.
-  Isso é smoke HTTP, não QA visual nem validação de autenticação/persistência.
-- Testes selecionados (`run-vinext`, `setup-local`, `dependency-security`):
-  **20 aprovados / zero falhas / 1 skip**. Symlink sintético exige permissão no
-  Windows; a guarda não foi removida. Uma execução anterior, com instalação
-  ainda incompleta, teve 1 falha de resolução do pacote Vinext; após concluir a
-  instalação, a mesma seleção passou. Nenhum teste foi alterado para isso.
-- WSL continua **sem distribuição Linux instalada**. Suíte completa, integração
-  HTTP/D1/restauração e testes de interface não foram repetidos nesta etapa;
-  os resultados do Mac na seção seguinte mantêm suas datas e limitações.
-- Não falta arquivo do Mac nem login para desenvolver aqui. Para executar a
-  suíte completa neste PC, preparar WSL2 e clone Linux separado; alternativamente,
-  executá-la no Mac. Publicação permanece separada e requer aprovação final.
-- Trabalho documental isolado em `tarefa/windows-validacao-20261030` para
-  integração na branch compartilhada. Conferir SHA final com `git log -1` e
-  `git ls-remote`; sem deploy, merge em main, migração ou uso de pacientes reais.
-
-### Retomada no Mac — correção das dependências, 28/10/2026
-
-- Base `35c2642` recebida do Windows, árvore limpa e fetch sem divergência.
-  Trabalho isolado em `tarefa/mac-correcao-dependencias-20261028`; não usar main.
-- A consulta atual encontrou **21 advisories**, não mais 16: cinco novos de
-  Undici, com o mesmo piso corrigido. Lote mínimo implementado: Next/ESLint
-  16.4.1, Vite 8.1.6, fast-uri 3.1.9, Undici 7.30.1 e Zod 4.6.6.
-- Audit completo/prod do portal e audit da raiz agora retornam **zero**, sem
-  supressão. Isso vale para esta árvore local, não encerra alertas de `main` ou
-  comprova correção de produção. Ver
-  [`portal-production/docs/correcao-dependencias-2026-10-28.md`](portal-production/docs/correcao-dependencias-2026-10-28.md).
-- Lint, tipos/build sanitizado, **327 testes gerais**, integração isolada
-  (**309 verificações**, restart/relogin preservados), restauração sintética
-  (15 tabelas), build público e dry-runs dos dois Workers aprovados.
-- QA encerrada e resultados/falhas preservados no relatório. Primeira rodada
-  dev: 240/242 por motor, quatro falhas de abertura de documento Miniflare antes
-  das ações; conta isolada: 26/26 por motor. No artefato público, Chromium passou
-  247/247 antes do último ajuste limitado ao compartilhamento. A última rodada
-  global WebKit passou 247/248; o restante era falso positivo da fixture,
-  comprovado por foco em botão habilitado. Após corrigir a classificação sem
-  aceitar elementos ocultos/desabilitados: histórico **70/70 em cada motor**.
-  Não apresentar esses resultados compostos como uma única rodada 496/496.
-- A QA identificou duas disputas reais de foco agendado, reproduzidas com RAF
-  controlado e corrigidas: navegação do paciente respeita interação mais recente;
-  resumo do mapa não toma foco dos grupos de respostas já em uso. Também foi
-  corrigida a captura de foco antes da confirmação nativa de compartilhar.
-  Seis cenários determinísticos falhavam antes e passam nos dois motores.
-  Sem redesenho ou mudança de conteúdo. Commits **`5ee7a34`** (dependências),
-  **`4ce3241`** (navegação), **`eb717eb`** (resumo do mapa), **`1f77547`**
-  (confirmação), **`733bb4a`** (classificação/diagnóstico da fixture).
-- Fingerprint final preparado **`7f798b607acbe748`**, não publicado. O aplicativo
-  corresponde a `1f77547`; o commit de fixture/documentação não altera o build.
-- Sem alteração de CSS, API/schema/migração, segredos ou política de sessão;
-  nenhuma leitura/gravação de dados reais. Novas dependências ainda não foram
-  instaladas/testadas fisicamente no Windows. Ler o relatório antes de repetir QA.
-  Produção permanece como na seção 2; publicação continua exigindo aprovação.
-
-### Retomada física no Windows — 27/10/2026
-
-- Recebido `c6b814e` em clone novo; fetch/pull `--ff-only` confirmou igualdade.
-  `AGENTS.md` e este documento foram lidos integralmente.
-- Triagem dos **16 alertas** concluída como inventário e análise inicial de
-  aplicabilidade, não como correção: ver
-  [`portal-production/docs/triagem-seguranca-2026-10-27.md`](portal-production/docs/triagem-seguranca-2026-10-27.md).
-  Audit completo continua 2 críticos/4 altos/7 moderados/3 baixos; prod:
-  2 críticos/2 altos/5 moderados/3 baixos. Nenhuma dependência atualizada.
-- Os pré-requisitos dos críticos Next não foram identificados no aplicativo;
-  sharp corrigido já está fixado e Worker usa o otimizador Vinext/IMAGES.
-  Isso não comprova ausência de vulnerabilidades no artefato publicado. Corrigir
-  o par Next/ESLint e Vite é o próximo lote; não encerrar os alertas por inferência.
-- Node/pnpm nas versões conhecidas. Instalações locais com lockfiles realizadas,
-  setup sintético novo e ignorado, Chromium/WebKit instalados. Instaladores de
-  fallback unrs-resolver/workerd explicitamente bloqueados em `allowBuilds`;
-  os binários opcionais travados atenderam lint, tipos, build e servidor local.
-  O relatório registra as falhas iniciais e a recuperação, sem mascará-las.
-- Windows nativo: lint, tipos, build público sanitizado e GET local HTTP 200
-  aprovados; testes selecionados: **19 pass / 0 fail / 1 skip** (fixture symlink
-  exige permissão Windows). Suíte completa e integração/restauração não rodadas.
-- WSL2 padrão configurado, mas não há distribuição instalada. Usar Mac ou
-  preparar clone Linux separado quando WSL estiver disponível; não retirar
-  guardas para forçar a integração nativa.
-- Trabalho isolado em `tarefa/windows-triagem-seguranca-20261027`, para integração
-  normal na branch compartilhada. Consultar `git log` para SHA final e conferir
-  igualdade remoto/local antes da troca. Sem publicação, merge em main, mudança
-  de segredo, acesso a pacientes ou migração remota.
-- Próximo computador: pull da branch compartilhada, leitura do relatório novo;
-  corrigir versões em branch própria e validar Mac/WSL2 antes de pedir deploy.
-- **TRANSPORTE CONCLUÍDO:** o login do Git Credential Manager para `psico-mateus`
-  funcionou e o push enviou os quatro commits locais até `14e4a1a` à branch
-  compartilhada. Este registro é salvo no commit seguinte; conferir o tip final
-  com `git rev-parse HEAD` e `git ls-remote` antes da troca. Produção e main não
-  foram alteradas. O bloqueio descrito abaixo é histórico e está resolvido para
-  o Git do terminal; a restrição de escrita do conector não precisou ser alterada.
-- Histórico do bloqueio: o primeiro `git push` do Windows aguardou autenticação do
-  Credential Manager e foi cancelado. A conexão GitHub do chat permitiu leitura,
-  mas recusou criação da árvore Git com HTTP 403 (`Resource not accessible by
-  integration`). Naquela tentativa nenhum arquivo foi enviado; os commits foram
-  preservados na branch compartilhada local e o remoto estava em `c6b814e`.
-  Em futuras trocas, executar fetch/pull `--ff-only` e push e confirmar igualdade
-  de SHAs antes da troca.
-  Se o remoto avançar, preservar ambos os lados e integrar com revisão.
-  A identidade Git foi configurada só neste clone com nome/e-mail do commit
-  anterior. Não recriar branch, não fazer reset e não usar force-push.
+| Site | Onde está no repositório | Como vai ao ar |
+| --- | --- | --- |
+| Site profissional | raiz: `index.html`, `assets/`, `cuidados/`, `privacidade/` | GitHub Pages, branch `main` |
+| Guia de Emoções | `guia-emocoes/` e `assets/` | GitHub Pages, branch `main` |
+| Área do paciente | `portal-production/` | dois Cloudflare Workers e um banco D1 |
 
 - Repositório: `https://github.com/psico-mateus/psico-mateus.github.io.git`.
 - **Branch compartilhada de trabalho: `trabalho/continuidade-mac-windows`.**
-- `main` é a publicação do site/Guia; não usá-la para transportar o portal.
-- Esta etapa autoriza commit/push para continuidade, **não publicação**.
-- Não há necessidade de deixar o Mac ligado depois de confirmar o push.
-- Arquivos Git vão entre computadores; contas/registro de produção continuam no
-  Cloudflare. `node_modules`, sessões do navegador, bancos locais, configurações
-  secretas, capturas e serviços locais **não** são sincronizados por Git.
-- Não limpar cookies/localStorage nem recriar contas para trocar de computador.
+  `main` é só a publicação do site e do Guia; não usá-la para transportar o portal.
+- Cada tarefa usa branch própria, `tarefa/<mac|windows|nuvem>-<descricao>-<AAAAMMDD>`,
+  integrada por fast-forward na branch compartilhada.
+- Commit e push na branch de trabalho servem à continuidade. **Publicar é outra
+  ação** e exige aprovação explícita do Matt (seção 9).
+
+### Estado em 13/11/2026: tudo o que estava pronto foi publicado
+
+- **Área do paciente:** no ar com o lote acumulado (dependências de 28/10,
+  refinos de foco de 04/11, `c1a1243`/`cbe3c43` e React 19.2.9). Build
+  `fcc3bdd6d83ef315`, fonte `ff1cede`. Versões e rollback na seção 2.
+- **Site profissional:** `main` em `0d17335`, com a cópia acessível do link do
+  Guia (`main.js?v=20261113-guide-copy`) e a imagem de prévia da Área do paciente
+  reduzida para 323 KB.
+- **Guia de Emoções:** sem mudança pendente; o que está no ar é a versão atual.
+- **Só no código, aguardando o próximo deploy do portal:** `layout.tsx` declara a
+  imagem de prévia como 1200×675 (hoje o ar declara 1672×941, mesma proporção,
+  sem efeito prático).
+- O Matt abriu o portal no próprio celular após a publicação e relatou que "a
+  princípio" funciona. Não houve teste autenticado em produção por assistente.
+
+### Decisões do Matt que valem daqui em diante
+
+- **Nenhum gasto:** sem domínio próprio, serviço pago ou plano pago.
+- **Sem valor da sessão no site.**
+- **Manter o histórico** do projeto, para poder trocar de assistente. Pode ser
+  reescrito com mais clareza; conteúdo relevante não se apaga, vai para `docs/`.
+- As confirmações de publicação em `.claude/settings.json` ficam como estão.
+- O incidente de senhas de 10–11/11 no PC Windows (depois formatado) foi
+  resolvido: em 13/11 o Matt informou que revisou todas as contas, sem problemas.
+- Tratar por "Matt". Linguagem simples e direta: ele é psicólogo, não programador.
+  Fazer o que as permissões permitem em vez de devolver tarefas; perguntar só o
+  indispensável. Dizer sempre o que foi alterado, testado, enviado e publicado.
+
+### Pendências
+
+Dependem do Matt:
+
+1. **Aviso de privacidade:** ele diz que o Matt só vê o que foi compartilhado.
+   Isso vale para o painel profissional. Os registros ficam em texto no D1 e a
+   conta administradora do Cloudflare tem acesso técnico ao banco. Decidir se o
+   texto menciona isso ou se vale um projeto de criptografia dos registros.
+2. Teste humano em iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA instalada.
+   WebKit automatizado não é iPhone.
+
+Técnicas, sem urgência:
+
+3. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
+   ESLint/typescript-estree). A correção 11.0.1 é major; fazer em lote próprio,
+   sem `audit fix --force` nem override major.
+4. A `main` mostra 45 alertas no GitHub (10 críticos, 17 altos, 13 moderados,
+   5 baixos). Vêm de manifestos antigos guardados nessa branch, não do site no ar
+   nem do portal publicado. Limpar em lote próprio, sem mesclar a história do portal.
+5. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
+   completa lá depende de WSL2, bloqueado pela virtualização desligada no
+   firmware (seção 10).
+6. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
+   revisar e integrar só se útil, comparando com a redação atual.
+7. Idempotência do POST de novo registro após perda de resposta: projeto próprio
+   (servidor, esquema e concorrência), não ajuste visual.
+8. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
+   na página inicial; dividir `PortalApp.tsx` (4.180 linhas),
+   `ProfessionalDashboard.tsx` (2.716) e `app/api/portal/[...segments]/route.ts`
+   (2.436) quando houver motivo para mexer neles.
+
+### Registro das sessões
+
+Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
+decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
+a 13/11 estão no arquivo de histórico.
+
+#### 13/11/2026 — Mac, Claude Code: reorganização deste arquivo
+
+- O arquivo anterior (886 linhas) foi copiado inteiro para
+  `docs/historico-continuidade-ate-2026-11-13.md`. As seções 1, 2, 3, 8 e 10
+  foram reescritas com o estado atual; as seções 4 a 7 e 9 (rotinas, instalação,
+  configuração, testes e publicação) foram mantidas. A numeração das seções não
+  mudou. `/encerrar` passou a apontar para este registro.
+- Só documentação: nenhum código, teste ou publicação.
+
+#### 13/11/2026 — Mac, Claude Code: validação, publicação e avaliação
+
+- Primeira sessão do Claude Code no Mac; o Matt migrou do ChatGPT (modo Work).
+  Node 24.22.1 instalado sem sudo, do tarball oficial com checksum conferido, em
+  `~/.local/opt/node-v24.22.1-darwin-arm64`, com pnpm 11.25.0. O Matt adicionou
+  esse caminho ao `~/.zprofile`. O Mac tem push ao GitHub e login no Cloudflare.
+- **Validação em `ff1cede`:** números na seção 8. Zero falhas, incluindo WebKit
+  e todas as telas do portal, que a sessão na nuvem não tinha executado.
+- **Publicação aprovada pelo Matt no chat:** portal pelo procedimento da seção 9
+  (versões anteriores anotadas, snapshot limpo, dry-runs, legado primeiro, depois
+  o oficial, conferência dos dois). Sem migração, segredo ou mudança de banco.
+  Site: `c708a7e..d62ebb0` com `assets/js/main.js` e o `?v=` em `index.html`,
+  `cuidados/` e `privacidade/` (136 aprovados/59 skips/0 falhas na árvore da
+  `main`). `404.html` não carrega `main.js`.
+- **Avaliação pedida pelo Matt:** geral 8,5; site 8, Guia 9, Área do paciente 8,5.
+- **Retratado:** o botão flutuante do WhatsApp parecia cobrir texto no topo do
+  celular. Era defeito do painel de navegador do app; Chromium e WebKit, local e
+  no ar, mostram o botão escondido no topo e visível ao rolar. Sem mudança.
+- **Imagem de prévia:** `assets/images/social-preview-registros.png` de 2,1 MB
+  (1672×941) para 323 KB (1200×675, PNG com paleta, mesmo nome), em `2cd6e22`;
+  enviada à `main` em `0d17335` e conferida no ar. Testes depois: raiz
+  163/59 skips/0 falhas; portal lint ok e 327/327.
+
+#### 13/11/2026 — nuvem, Claude Code: configuração e correção do React
+
+- `6b07505`: `CLAUDE.md`, regras em `.claude/rules/`, comandos `/retomar`,
+  `/validar` e `/encerrar`, travas em `.claude/settings.json`.
+- `5d88ad4`: React, React DOM e `react-server-dom-webpack` de 19.2.8 para 19.2.9,
+  pelo aviso crítico
+  [GHSA-xqc2-xf4c-x3h3](https://github.com/advisories/GHSA-xqc2-xf4c-x3h3).
+  Publicado no mesmo dia pelo Mac.
+- Sem WebKit e sem Cloudflare naquele ambiente; detalhes no histórico.
 
 ## 2. Estado consolidado
 
@@ -393,34 +152,18 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   avisos individuais sem chat, recursos e Leitura complementar sem rastrear leitura.
 - Revogação de vínculo, encerramento de sessões, modo privacidade profissional,
   recuperação/transferência do autenticador e códigos emergenciais existentes.
-- Ajustes publicados de foco/avisos/atualização e descarte de respostas antigas
-  de exportação/recuperação após sair/trocar conta (`7f7f7c2`).
+- Foco estável por teclado e leitor de tela em exportação, exclusão,
+  compartilhamento, recarga de registros, resumo do mapa e navegação entre
+  pacientes; descarte de respostas antigas após sair ou trocar de conta.
+- Ferramentas Mac/Windows: scripts sem atribuição POSIX de ambiente, setup
+  sintético local, versões fixas de Node/pnpm, normalização LF e proteção de
+  arquivos privados (`7be86b9`).
 
 ### Preparado, mas NÃO publicado
 
-> **Atualização de 13/11/2026:** todos os itens desta lista foram **publicados**
-> (Workers `96f8e168`/`816bc297`, `main` em `d62ebb0`), conforme a seção 1.
-> A lista abaixo fica como histórico do conteúdo do lote.
+Nada relevante. Só a declaração de tamanho da imagem em `layout.tsx` (seção 1).
 
-- Lote de 04/11: foco na exportação/exclusão e cópia acessível do link do Guia,
-  com regressões reproduzidas e testes descritos na seção 1. Não repetir no Windows.
-- Lote de 28/10: dependências corrigidas, guardas offline e duas proteções de
-  foco, conforme a seção 1. Não repetir essa implementação no Windows; atualizar
-  a branch/instalação e verificar o resultado final da QA.
-- `c1a1243`: nova tentativa de carregar registros mantém foco estável, filtros e
-  rascunhos; editor ativo preserva respostas e uma nova escolha de foco.
-- `cbe3c43`: foco agendado de abrir/voltar entre pacientes respeita interação
-  mais recente, retorno rápido e modo privacidade; cancelamento/limpeza de RAF.
-- Preparação Mac/Windows desta etapa: documentação/instruções, scripts básicos
-  sem atribuição POSIX de ambiente, setup sintético local, versão conhecida de
-  Node/pnpm, normalização LF e proteção adicional de arquivos privados.
-  A parte de ferramentas foi salva em **`7be86b9`**; o commit seguinte registra
-  estas instruções. Usar `git log`/`git status` para obter o tip recebido no destino.
-- Estas mudanças são código compartilhado para continuar, não uma atualização
-  silenciosa em produção. O build local de 22/10 tinha ID `283cfd1d7c906474`;
-  um build local posterior não prova o estado público.
-
-### Produção conferida em 27/10/2026, sem alteração nesta etapa
+### Produção conferida em 13/11/2026
 
 | Ambiente | Estado / versão |
 | --- | --- |
@@ -428,16 +171,19 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 | Guia | `https://psico-mateus.github.io/guia-emocoes/` |
 | Área oficial | `https://area-do-paciente.psico-mateus.workers.dev/` |
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
-| GitHub Pages | fonte remota confirmada: `main`, `/`, build `legacy` |
-| `origin/main` | `c708a7ef8ab4b28e51b5a61a0359b7d8768be6e6` |
-| Worker oficial | `149496d9-421d-42cd-878a-1b758cae545b`, 100% |
-| Worker legado/API | `4f4b37f6-0108-4a72-8fe9-e97426511417`, 100% |
-| SW dos dois portais | HTTP 200, ID `3293a66cfef38d7a` |
+| GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
+| `origin/main` | `0d17335` |
+| Worker oficial `area-do-paciente` | `816bc297-e98f-4d24-8342-451314e2b19a`, 100% |
+| Worker legado/API `registros` | `96f8e168-a34a-48be-bde0-3fb60bb5c4b1`, 100% |
+| SW dos dois portais | HTTP 200, ID `fcc3bdd6d83ef315` |
 
-As versões Worker são do envio de 22/10; consultar novamente antes de qualquer
-publicação/retorno. O workflow remoto dinâmico `pages-build-deployment` pertence
-ao Pages e executa em `main`; não há workflow de deploy versionado nesta branch.
-Não configurar CI que publique todas as branches.
+Versões anteriores, para rollback de código/assets: oficial
+`149496d9-421d-42cd-878a-1b758cae545b`, legado
+`4f4b37f6-0108-4a72-8fe9-e97426511417` (envio de 22/10, fonte `7f7f7c2`).
+Consultar de novo as versões ativas antes de qualquer publicação ou retorno.
+O workflow remoto `pages-build-deployment` pertence ao Pages e executa em
+`main`; não há workflow de deploy versionado. Não configurar CI que publique
+todas as branches.
 
 ### Arquitetura que NÃO deve mudar como efeito da troca de computador
 
@@ -452,49 +198,21 @@ Não configurar CI que publique todas as branches.
 - `portal-prototipo/` é histórico, não o aplicativo de produção nem a primeira
   opção para desenvolver; não confundir seu servidor com `portal-production/`.
 
-## 3. Auditoria de branches, commits e outros checkouts
+## 3. Branches e materiais preservados
 
-Base desta retomada: `cbe3c43`, branch local antiga
-`agent/refinos-inclusivos-20261014`, árvore limpa. Após `git fetch --prune origin`,
-essa base tinha 67 commits próprios e 5 commits de publicação ausentes de seu
-ancestral, em relação a `origin/main`. Os cinco já estão no GitHub; não fazer
-merge cego de `main` nem enviar a branch do portal para `main`.
-
-Inventário inicial: 27 branches locais; oito com commits ausentes de todos os
-refs `origin/*`, total **72 commits distintos**. A contagem por branch se sobrepõe:
-
-| Branch local anterior | Tip | Inéditos no remoto à auditoria inicial | Preservação |
-| --- | --- | ---: | --- |
-| `agent/refinos-inclusivos-20261014` | `cbe3c43` | 67 | base da branch compartilhada |
-| `agent/correcoes-refino-20261014` | `59b129f` | 48 | ancestral da base, incluído |
-| `agent/correcao-seguranca-dependencias-20261010` | `681b944` | 38 | ancestral da base, incluído |
-| `agent/refino-area-inteira-20261009` | `774fa85` | 36 | ancestral da base, incluído |
-| `agent/refino-paciente-inclusivo-20261008` | `c9e5210` | 25 | ancestral da base, incluído |
-| `agent/prepara-troca-celular-20260824` | `6b9e199` | 9 | ancestral da base, incluído |
-| `auditoria-final-portal` | `bf8583d` | 4 | `arquivo/auditoria-final-portal` |
-| `sites-portal-release` | `34b3b84` | 1 | `arquivo/sites-portal-release` |
-
-**Não mesclar as branches `arquivo/*` automaticamente.** `sites-portal-release`
-tem uma raiz independente, sem ancestral comum. São preservação histórica, não
-código recomendado nem builds para publicar.
-
-O checkout Mac `work/psico-mateus.github.io`, antes em `refino-final-site`
-(`f9375c5`), tinha três alterações não commitadas: `index.html`,
-`cuidados/index.html`, `privacidade/index.html` (18 inserções/19 exclusões).
-Foram preservadas no commit **`6cb6ac0`**, branch
-**`arquivo/site-local-mac-20261027`**, sem merge/publicação: mudanças de redação
-institucional/contato/disponibilidade. Revisar somente o diff desse commit antes
-de integrar na versão atual; copiar os HTML antigos inteiros perderia refinos.
-
-O checkout de publicação `work/psico-mateus-publicacao-20261014` estava limpo em
-`c708a7e`. Um registro antigo em `/private/tmp/.../checkout` aponta para diretório
-ausente; foi deixado intacto. Não executar limpeza/prune como parte da troca.
-Não havia arquivos novos não ignorados nesses checkouts; ambientes, caches e
-artefatos ignorados não entram no envio.
-
-O código foi verificado por caminhos e padrões de credenciais antes do envio,
-incluindo os históricos arquivados. Nenhum segredo/dado de paciente foi
-identificado nos materiais enviados. Isso não é garantia absoluta nem pentest.
+- A branch compartilhada nasceu de `cbe3c43` (antiga
+  `agent/refinos-inclusivos-20261014`) e contém todo o trabalho do portal.
+  Não fazer merge cego de `main` nela, nem enviá-la a `main`.
+- Branches `arquivo/*` no GitHub são preservação histórica, **não mesclar
+  automaticamente**: `arquivo/auditoria-final-portal` (`bf8583d`),
+  `arquivo/sites-portal-release` (`34b3b84`, raiz independente) e
+  `arquivo/site-local-mac-20261027` (`6cb6ac0`, três alterações editoriais em
+  `index.html`, `cuidados/` e `privacidade/`; ver pendência 6).
+- O inventário completo de 27/10 (27 branches locais, 72 commits inéditos,
+  checkouts antigos do Mac) está na seção 3 do arquivo de histórico.
+- O código e os históricos arquivados foram verificados por caminhos e padrões
+  de credenciais antes do envio; nada foi identificado. Não é garantia absoluta
+  nem pentest.
 
 ## 4. Alternar entre Mac e Windows — rotina obrigatória
 
@@ -606,7 +324,7 @@ sem desativar a política global de segurança.
 - Os atalhos `dev`, `start`, `build`, `build:worker` usam Node sem sintaxe
   `VAR=valor comando`, compatíveis em desenho com o shell nativo do Windows.
 - Na preparação original do Mac não houve execução física no Windows. A
-  validação parcial nativa de 27/10 está na seção 1; não ampliá-la para suíte
+  validação parcial nativa de 27/10 e 30/10 está no arquivo de histórico; não ampliá-la para suíte
   completa, WSL2 ou dependências atualizadas em 28/10 ainda sem teste físico lá.
 - A suíte completa inclui testes/runner de integração isolada ainda dependentes
   de caminhos, symlinks e gerenciamento de processos Unix. **Para a validação
@@ -723,90 +441,54 @@ motor profissional, mas saída `PORTAL_ENTRY_VIEW_UI_OUTPUT`. Definir saídas no
 TMP do sistema; não copiar caminhos `/Users/mateus/...` nem usar `/tmp` nativo
 como se fosse Linux. Testes UI não aceitam URL de produção.
 
-## 8. Testes já realizados e problemas conhecidos
+## 8. Últimos testes e limitações conhecidas
 
-### Validação de 22/10, antes do transporte
+### Validação mais recente — 13/11/2026, Mac, commit `ff1cede`
 
-- Lint, tipos, build público e 313 testes gerais aprovados.
-- Histórico paciente: 69 Chromium + 69 WebKit.
-- Histórico profissional: 38 Chromium + 38 WebKit.
-- Visualizações versionadas: 4 Chromium + 4 WebKit.
-- Total: **222 casos de interface aprovados**, dados sintéticos e APIs simuladas;
-  foco, console, axe, ausência de overflow e capturas conferidos.
-- O mecanismo de foco antigo foi reproduzido com fila de RAF controlada e
-  corrigido. Isso não prova a causa exata da intermitência histórica sem trace.
+Só dados sintéticos, APIs simuladas nas telas e zero acesso à produção.
 
-### Validação desta preparação de 27/10
+| Etapa | Resultado |
+| --- | --- |
+| Site e Guia, `pnpm test` (Chromium desktop e mobile, WebKit mobile) | 163 aprovados, 59 skips condicionais, 0 falhas |
+| Portal, `pnpm lint` | aprovado |
+| Portal, `pnpm test` (tipos, build sanitizado, testes gerais) | 327/327 |
+| Portal, `pnpm test:integration:isolated` | 309 verificações, 9 migrações só locais, restart e relogin preservados |
+| Portal, `pnpm test:restore-local` | 15 tabelas |
+| Portal, `pnpm build:worker` | aprovado, sem `dist/server/.dev.vars` |
+| Telas do portal, Chromium | 253/253 |
+| Telas do portal, WebKit | 253/253 |
+| Recuperação do autenticador (`mfa-recovery-ui`) | 4/4 |
+| `pnpm test:smoke-public`, depois da publicação | site, Guia, portais e health HTTP 200; HTTP→HTTPS 308; zero login ou escrita |
 
-- Mac, Node 24.22.1 / pnpm 11.25.0: `pnpm test` aprovou tipos, build sanitizado
-  pelo novo wrapper e 320 testes; após concluir o setup, `node --test
-  tests/*.test.mjs` aprovou o conjunto final de **326 testes**, sem falhas/skips.
-- Os 13 testes novos cobrem o wrapper portátil e setup local somente em TMP:
-  argumentos literais/caminhos Windows simulados, ausência de shell, ordem do
-  sanitizer, falhas/sinais, criação exclusiva e preservação de ambiente existente.
-  Não foi executado setup sobre o `.env.local` real do Mac.
-- `pnpm build:worker` pelo wrapper novo: aprovado, sem deploy. Avisos existentes
-  do Vinext sobre classificação estática/imports não foram ocultados.
-- `pnpm test:integration:isolated`: **309 verificações**, nove migrações somente
-  locais, reinício com contas/registros/sessões preservados e novo login aprovado;
-  zero requisições a produção. Nenhuma migração remota/credencial foi usada.
-- `pnpm test:restore-local`: ensaio sintético aprovado, 15 tabelas verificadas;
-  não é restauração de produção nem ensaio de Time Travel remoto.
-- `pnpm test:smoke-public`: site/Guia/portais/health HTTP 200, HTTP→HTTPS 308,
-  cabeçalhos conferidos, zero login/escrita real. Produção permaneceu intacta.
-- Lint e `git diff --check` aprovados; regra LF não renormalizou o projeto inteiro.
-- Envio de preservação concluído para as quatro branches indicadas. O primeiro
-  tip compartilhado enviado foi `2ee52e0` (com `7be86b9` e todo o trabalho da
-  base); SHA local/remoto coincidiu e `main` permaneceu em `c708a7e`. Atualizações
-  documentais posteriores podem avançar esse tip; conferir `git log -1` e remoto.
-- Auditoria **somente leitura** `pnpm audit --json`, em 27/10: **16 alertas**
-  (2 críticos, 4 altos, 7 moderados, 3 baixos), retorno 1; isso é pendência,
-  **não aprovação de segurança**. Dois críticos são de Next 16.3.8, advisories
-  `GHSA-2464-fhr4-w9xw` e `GHSA-673q-mjm6-r5xr`; o registro informa correção a
-  partir de 16.4.1. Outros atingem Vite, Zod, Undici e fast-uri. Triar aplicabilidade
-  no runtime Vinext/Worker e compatibilidade da stack, em branch própria, antes
-  de atualizar. Não houve `audit fix`, atualização de pacotes ou deploy aqui.
-- O GitHub informou separadamente **27 alertas em `main`** no push (4 críticos,
-  11 altos, 9 moderados, 3 baixos). Essa árvore tem manifestos históricos diferentes;
-  não confundir os 27 com os 16 do portal nesta branch, nem afirmar exploração
-  confirmada ou ausência de vulnerabilidades em produção.
-- Revisão independente dos novos arquivos, guardas, comandos e materiais de
-  arquivo não identificou bloqueador de conteúdo para o envio ao GitHub.
-- Na preparação original do Mac não houve Windows/WSL2 físico. A validação
-  nativa parcial posterior de 27/10 está na seção 1; WSL2 continua sem uma distro.
-  Os 222 testes UI de 22/10 não foram repetidos naquela etapa de ferramentas.
-  A nova execução UI de 28/10 e seus resultados estão na seção 1/novo relatório.
+Telas por família, em cada motor: conta 28, início 21, mapa 38, avisos 38,
+registros 73, recursos 13, histórico profissional 38, visualizações versionadas 4.
 
-### Pendências/limitações reais
+Audit de 13/11: raiz 0; portal `--prod` 0; portal completo 1 moderado de
+desenvolvimento (pendência 3 da seção 1). Audit não é pentest: não declarar o
+portal "sem vulnerabilidades".
 
-1. **Prioritário antes do próximo deploy:** revisar os lotes validados de
-   28/10 e 04/11 na seção 1, a validação Windows nativa de 30/10 e obter aprovação
-   final. Audit de 04/11: portal prod/raiz zero, completo com 1 moderado de
-   desenvolvimento triado acima, para correção separada da cadeia de lint.
-   Os resultados de 16/21/zero de outubro são históricos. Não declarar a produção
-   corrigida sem publicar com aprovação, nem tratar audit como pentest.
-2. O lote de 28/10 e `c1a1243`/`cbe3c43` continuam sem publicação. Esta retomada
-   autoriza trabalho/sincronização, não deploy; pedir uma aprovação para o lote final.
-3. Setup/dev/lint/tipos/build com as dependências de 28/10 foram validados
-   parcialmente no Windows em 30/10. Suíte completa e UI seguem sem execução
-   física lá; WSL2 está bloqueado pela virtualização de firmware, conforme seção 1.
-   Usar Mac enquanto isso. Não relaxar guardas de isolamento/processos.
-4. Revisar e, se útil, integrar apenas o diff editorial `6cb6ac0` arquivado,
-   após comparar a redação atual; não mesclar o checkout antigo inteiro.
-5. Validação humana/física com iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA
-   instalada continua sem cobertura universal. WebKit automatizado não é iPhone.
-6. Idempotência do POST de novo registro após perda de resposta requer projeto
-   próprio (servidor/esquema/concorrência); não implementar como ajuste visual.
-7. Relatórios antigos de dependências (incluindo o alerta de `braces` registrado
-   em 10/10) são históricos. O resultado atual desta etapa é o descrito acima;
-   não declarar zero vulnerabilidades nem usar `audit fix --force`.
-8. GitHub não é cópia do estado do navegador, bancos de teste ou dossiês privados
-   externos. Capturas/logs sintéticos externos do Mac não aparecem no clone;
-   resultados relevantes ficam aqui/commits e podem ser reproduzidos pelos testes.
+Resultados anteriores (22/10, 27/10, 28/10, 30/10, 04/11 e a sessão na nuvem de
+13/11), com as falhas reproduzidas antes de cada correção, estão no arquivo de
+histórico e em `portal-production/docs/`.
 
-Referências históricas versionadas: `portal-production/docs/` (publicação de
-outubro, segurança das dependências e recuperação profissional). Datas/IDs antigos
-devem ser lidos como histórico; não executar seus rollbacks automaticamente.
+### Limitações reais
+
+1. Nenhum teste automatizado substitui iPhone/Safari, Android, VoiceOver/NVDA,
+   zoom e PWA instalada em aparelho físico.
+2. Windows nativo (30/10, antes de o PC ser formatado): lint, tipos, build e
+   smoke HTTP aprovados; testes selecionados 20 aprovados/1 skip (symlink exige
+   permissão). Suíte completa, integração e telas nunca rodaram lá.
+3. Sessões na nuvem não têm WebKit nem login do Cloudflare; o download de
+   navegadores do Playwright é bloqueado nesse ambiente.
+4. O painel de navegador do app do Claude não dispara de forma confiável o
+   `IntersectionObserver` em viewport emulado. Para comportamento visual, confiar
+   no Playwright, não em captura desse painel.
+5. Skips condicionais da suíte pública escolhem o projeto certo para cada
+   cenário; não são falhas escondidas. Não somar retestes ao total de casos.
+6. GitHub não é cópia do estado do navegador, de bancos de teste ou de dossiês
+   privados. Capturas e logs sintéticos ficam só em TMP.
+7. Relatórios antigos de dependências são históricos; o resultado atual é o
+   descrito acima.
 
 ## 9. Publicação futura — requer aprovação, não executar para sincronizar
 
@@ -874,13 +556,28 @@ Site/Guia têm fluxo separado: rever diff/testes públicos e enviar somente os
 arquivos públicos aprovados para `main`. Não fazer merge integral desta branch
 na `main` para publicar ou transportar os scripts do portal.
 
-## 10. Próximo início no Windows
 
-1. Clonar/atualizar `trabalho/continuidade-mac-windows`, ler este arquivo e `AGENTS.md`.
-2. Instalar raiz e portal com os lockfiles; criar ambiente **local sintético**.
-3. Confirmar Node/pnpm, dev, lint, tipos e build; registrar resultados Windows.
-4. Para validar o conjunto HTTP/D1/testes Unix, usar o checkout WSL2 separado.
-5. Não reimplementar os dois refinos prontos nem publicar por presumir aprovação
-   anterior. Conferir o resultado da correção de dependências de 28/10 na seção
-   1 antes do próximo deploy. Pedir aprovação só para o lote final de publicação.
-6. Atualizar continuidade, commit e push antes da próxima troca de computador.
+## 10. Próximo início em cada ambiente
+
+Em qualquer um: abrir o repositório, ler este arquivo e `AGENTS.md`, e seguir a
+seção 4 (no Claude Code, `/retomar`). Não reimplementar o que já está publicado.
+
+- **Mac:** pronto. Node em `~/.local/opt/node-v24.22.1-darwin-arm64` (já no
+  `~/.zprofile`), dependências, navegadores do Playwright, ambiente sintético e
+  login do Cloudflare. É o computador indicado para validar tudo e publicar.
+- **Windows:** o PC foi formatado em novembro; começar pela seção 5 como máquina
+  nova. Equipamento: ASUS PRIME B450M-GAMING/BR, Ryzen 5 3600. O WSL2 recusou
+  instalar o Ubuntu com `HCS_E_HYPERV_NOT_INSTALLED` porque a virtualização
+  estava desligada no firmware. Passo físico do Matt, se quiser a suíte completa
+  lá: reiniciar, entrar no BIOS com **Del** (F7 para o modo avançado),
+  **Advanced → CPU Configuration → SVM Mode → Enabled**, salvar com **F10**
+  ([guia ASUS](https://www.asus.com/pt/support/faq/1045141/),
+  [diagnóstico Microsoft](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting)).
+  Depois, `wsl --install -d Ubuntu-24.04` e clone dentro do Linux. Não usar
+  WSL1 nem desativar guardas. Enquanto isso, usar o Mac.
+- **Nuvem (Claude Code):** serve para editar e rodar lint, testes gerais e
+  integração isolada. Sem WebKit e sem Cloudflare: não valida telas no Safari e
+  não publica.
+
+Ao terminar em qualquer ambiente: registrar a sessão na seção 1, commit e push
+na branch de trabalho, e confirmar que o SHA local é igual ao remoto.

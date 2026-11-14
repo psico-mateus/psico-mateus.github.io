@@ -7,9 +7,12 @@ disable-model-invocation: true
 O Mateus chamou este comando: isso autoriza commit e envio à branch de trabalho.
 Não autoriza deploy, migração remota, mudança de segredo nem envio a `main`.
 
-1. Atualize `CONTINUIDADE.md`, no topo da seção 1, com uma entrada datada:
-   o que foi feito, o que ficou pendente, branch e commits, testes realmente
-   executados com números, limitações do ambiente e próximos passos.
+1. Atualize `CONTINUIDADE.md`: no topo de "Registro das sessões" (seção 1),
+   acrescente uma entrada datada com o que foi feito, o que ficou pendente,
+   branch e commits, testes realmente executados com números, limitações do
+   ambiente e próximos passos. Se mudaram, atualize também "Estado",
+   "Pendências", a tabela de produção (seção 2) e os últimos testes (seção 8).
+   Não apague histórico: o que sair daqui vai para `docs/`.
 
 2. Revise antes de adicionar qualquer coisa:
 
