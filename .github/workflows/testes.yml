@@ -1,0 +1,64 @@
+# Testa a branch de trabalho e as branches de tarefa a cada envio.
+# Só testa, com dados sintéticos. Não publica, não migra banco, não usa segredos
+# e não tem acesso ao Cloudflare. Publicação continua manual (CONTINUIDADE.md, seção 9).
+name: Testes
+
+on:
+  push:
+    branches:
+      - "trabalho/**"
+      - "tarefa/**"
+  pull_request:
+    branches:
+      - "trabalho/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Site e Guia
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test
+
+  portal:
+    name: Área do paciente
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+        working-directory: portal-production
+      - run: pnpm setup:local
+        working-directory: portal-production
+      - run: pnpm lint
+        working-directory: portal-production
+      - run: pnpm test
+        working-directory: portal-production
+      - run: pnpm test:integration:isolated
+        working-directory: portal-production
+      - run: pnpm test:restore-local
+        working-directory: portal-production
+      - run: pnpm build:worker
+        working-directory: portal-production
+      - name: Confere que o build não leva segredo local
+        run: test ! -e portal-production/dist/server/.dev.vars
