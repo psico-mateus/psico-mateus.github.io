@@ -66,25 +66,29 @@ Dependem do Matt:
    Isso vale para o painel profissional. Os registros ficam em texto no D1 e a
    conta administradora do Cloudflare tem acesso técnico ao banco. Decidir se o
    texto menciona isso ou se vale um projeto de criptografia dos registros.
-2. Teste humano em iPhone/Safari, Android, VoiceOver/NVDA, zoom e PWA instalada.
-   WebKit automatizado não é iPhone.
+2. Teste humano no iPhone/Safari (o Matt faz; roteiro curto a preparar). Ele não
+   tem Android: essa plataforma fica sem teste físico. WebKit automatizado não
+   é iPhone.
+3. **Plano de revisão do mês:** [`docs/plano-revisao-2026-11.md`](docs/plano-revisao-2026-11.md).
+   O Matt reservou cerca de um mês para melhorar o projeto. Cada item do plano
+   espera o "sim" dele; nada foi implementado.
 
 Técnicas, sem urgência:
 
-3. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
+4. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
    ESLint/typescript-estree). A correção 11.0.1 é major; fazer em lote próprio,
    sem `audit fix --force` nem override major.
-4. A `main` mostra 45 alertas no GitHub (10 críticos, 17 altos, 13 moderados,
+5. A `main` mostra 45 alertas no GitHub (10 críticos, 17 altos, 13 moderados,
    5 baixos). Vêm de manifestos antigos guardados nessa branch, não do site no ar
    nem do portal publicado. Limpar em lote próprio, sem mesclar a história do portal.
-5. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
+6. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
    completa lá depende de WSL2, bloqueado pela virtualização desligada no
    firmware (seção 10).
-6. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
+7. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
    revisar e integrar só se útil, comparando com a redação atual.
-7. Idempotência do POST de novo registro após perda de resposta: projeto próprio
+8. Idempotência do POST de novo registro após perda de resposta: projeto próprio
    (servidor, esquema e concorrência), não ajuste visual.
-8. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
+9. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
    na página inicial; dividir `PortalApp.tsx` (4.180 linhas),
    `ProfessionalDashboard.tsx` (2.716) e `app/api/portal/[...segments]/route.ts`
    (2.436) quando houver motivo para mexer neles.
@@ -94,6 +98,13 @@ Técnicas, sem urgência:
 Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
+
+#### 13/11/2026 — Mac, Claude Code: revisão do núcleo do portal e plano do mês
+
+- A pedido do Matt, leitura do núcleo de segurança do portal e do aviso de
+  privacidade. Conclusão: a base de autenticação e autorização é sólida e não
+  precisa mudar. Lacunas e proposta por prioridade em
+  `docs/plano-revisao-2026-11.md`. Só leitura e documentação; nada publicado.
 
 #### 13/11/2026 — Mac, Claude Code: reorganização deste arquivo
 
@@ -207,7 +218,7 @@ todas as branches.
   automaticamente**: `arquivo/auditoria-final-portal` (`bf8583d`),
   `arquivo/sites-portal-release` (`34b3b84`, raiz independente) e
   `arquivo/site-local-mac-20261027` (`6cb6ac0`, três alterações editoriais em
-  `index.html`, `cuidados/` e `privacidade/`; ver pendência 6).
+  `index.html`, `cuidados/` e `privacidade/`; ver pendência 7).
 - O inventário completo de 27/10 (27 branches locais, 72 commits inéditos,
   checkouts antigos do Mac) está na seção 3 do arquivo de histórico.
 - O código e os históricos arquivados foram verificados por caminhos e padrões
@@ -464,7 +475,7 @@ Telas por família, em cada motor: conta 28, início 21, mapa 38, avisos 38,
 registros 73, recursos 13, histórico profissional 38, visualizações versionadas 4.
 
 Audit de 13/11: raiz 0; portal `--prod` 0; portal completo 1 moderado de
-desenvolvimento (pendência 3 da seção 1). Audit não é pentest: não declarar o
+desenvolvimento (pendência 4 da seção 1). Audit não é pentest: não declarar o
 portal "sem vulnerabilidades".
 
 Resultados anteriores (22/10, 27/10, 28/10, 30/10, 04/11 e a sessão na nuvem de
