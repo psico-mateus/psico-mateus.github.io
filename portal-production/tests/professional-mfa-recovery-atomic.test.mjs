@@ -7,6 +7,7 @@ import ts from "typescript";
 import * as cryptoFunctions from "../lib/crypto.ts";
 import * as recoveryFunctions from "../lib/professional-mfa-recovery.ts";
 import * as sessionFunctions from "../lib/session-cookie.ts";
+import * as privacyNoticeFunctions from "../lib/privacy-notice.ts";
 
 // Executa as funções e SQL reais da rota, sem Worker nem banco persistente.
 // O adaptador preserva a atomicidade de D1.batch com BEGIN/COMMIT/ROLLBACK.
@@ -77,8 +78,9 @@ async function fixture(t) {
     constructor(status, message) { super(message); this.status = status; }
   }
   const dependencies = {
-    ...cryptoFunctions, ...recoveryFunctions, ...sessionFunctions,
+    ...cryptoFunctions, ...recoveryFunctions, ...sessionFunctions, ...privacyNoticeFunctions,
     PortalError,
+    PRIVACY_VERSION: /PRIVACY_VERSION = "([^"]+)"/u.exec(portalSource)[1],
     getPortalEnv: () => ({ DB: db, APP_SECRET: SECRET }),
     DUMMY_PASSWORD_SALT: "AAAAAAAAAAAAAAAAAAAAAAAA",
     DUMMY_PASSWORD_HASH: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -359,7 +361,10 @@ test("login de paciente continua sem exigir nem alterar MFA", async (t) => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("set-cookie"), /^portal_session=/u);
   const payload = await response.json();
-  assert.deepEqual(payload.user, { id: USER, name: "Synthetic", role: "patient" });
+  // O usuário sintético aceitou a versão "test": o login avisa da versão nova.
+  assert.deepEqual(payload.user, {
+    id: USER, name: "Synthetic", role: "patient", privacy_notice_pending: true,
+  });
   assert.ok(payload.csrf);
   const after = f.state();
   assert.equal(after.sessions.length, before.sessions.length + 1);

@@ -51,6 +51,7 @@ import {
   validatePassword,
   type UserRow,
 } from "@/lib/portal";
+import { privacyNoticePending } from "@/lib/privacy-notice";
 import {
   patchPatientMapDraft,
   readPatientMapDraft,
@@ -997,7 +998,15 @@ async function login(request: Request, input: Input): Promise<Response> {
   await DB.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(now(), user.id).run();
   await audit(user.id, "login", "session");
   return json(
-    { user: session.user, csrf: session.csrf },
+    {
+      user: {
+        ...session.user,
+        privacy_notice_pending: privacyNoticePending(
+          user.role, user.privacy_version, PRIVACY_VERSION,
+        ),
+      },
+      csrf: session.csrf,
+    },
     200,
     { "Set-Cookie": session.cookie },
   );
@@ -1159,7 +1168,11 @@ async function register(request: Request, input: Input): Promise<Response> {
     throw new PortalOperationError("register.atomic_commit", error);
   }
   return json(
-    { user: session.user, csrf: session.csrf, recovery_code: recoveryCode },
+    {
+      user: { ...session.user, privacy_notice_pending: false },
+      csrf: session.csrf,
+      recovery_code: recoveryCode,
+    },
     201,
     { "Set-Cookie": session.cookie },
   );
@@ -1537,7 +1550,17 @@ async function handleGet(request: Request, path: string): Promise<Response> {
     const session = await currentSession(request);
     return json(
       session
-        ? { user: { id: session.userId, name: session.name, role: session.role }, csrf: session.csrfToken }
+        ? {
+            user: {
+              id: session.userId,
+              name: session.name,
+              role: session.role,
+              privacy_notice_pending: privacyNoticePending(
+                session.role, session.privacyVersion, PRIVACY_VERSION,
+              ),
+            },
+            csrf: session.csrfToken,
+          }
         : { user: null },
     );
   }
@@ -1962,6 +1985,16 @@ async function handlePost(request: Request, path: string): Promise<Response> {
       .run();
     await audit(session.userId, "create", "invitation", invitationId);
     return json({ id: invitationId, code, expires_at: expiresAt }, 201);
+  }
+  if (path === "/account/privacy-notice") {
+    const session = await requireSession(request, "patient");
+    requireCsrf(request, session);
+    await DB.batch([
+      DB.prepare("UPDATE users SET privacy_version = ? WHERE id = ?")
+        .bind(PRIVACY_VERSION, session.userId),
+      prepareAudit(session.userId, "acknowledge_privacy_notice", "account"),
+    ]);
+    return json({ ok: true, privacy_notice_pending: false });
   }
   if (path === "/account/recovery-code") {
     const session = await requireSession(request);

@@ -16,8 +16,13 @@ export default function PrivacyPage() {
       <h1 style={{ fontSize: "clamp(2.7rem,7vw,5rem)" }}>
         Seus registros, suas escolhas.
       </h1>
-      <p className="lead">Versão de 8 de outubro de 2026.</p>
+      <p className="lead">Versão de 14 de novembro de 2026.</p>
       <section className="panel stack">
+        <h2>Quem é responsável</h2>
+        <p>
+          Mateus Ribeiro Marcos, psicólogo, CRP 08/38930, é o responsável por
+          este espaço e pelas decisões sobre os dados guardados nele.
+        </p>
         <h2>O que este espaço guarda</h2>
         <p>
           Ao criar uma conta, são guardados um identificador técnico do seu
@@ -90,12 +95,30 @@ export default function PrivacyPage() {
           os filtros que utilizou. Essas informações não aparecem no painel
           profissional e não entram na cópia dos seus dados.
         </p>
-        <h2>Onde e por quanto tempo</h2>
+        <h2>Onde os dados ficam</h2>
         <p>
-          Os dados são processados em infraestrutura de nuvem, que pode envolver
-          armazenamento fora do Brasil. A conta e os registros permanecem enquanto
-          você mantiver a conta. Logs técnicos sem o conteúdo clínico são mantidos
-          por até 180 dias.
+          Os dados são guardados em serviços de nuvem da empresa Cloudflare, que
+          podem armazená-los fora do Brasil. A conexão com este espaço é
+          protegida. Senhas e códigos de recuperação são guardados de um modo que
+          não permite a leitura, e o e-mail não é guardado em texto legível.
+        </p>
+        <p>
+          Os textos dos registros, das revisões, do “Meu mapa” e dos avisos ficam
+          guardados em formato legível no banco de dados. No uso normal, Mateus
+          só vê o que você compartilha, como descrito acima. Como administrador
+          técnico do sistema, porém, ele tem meios de acessar o banco de dados
+          para manutenção. Ele se compromete a não usar esse acesso para ler
+          conteúdo que você não compartilhou.
+        </p>
+        <h2>Por quanto tempo</h2>
+        <p>
+          A conta e os registros permanecem guardados enquanto a conta existir,
+          inclusive depois de o acesso ser desativado, porque o acompanhamento
+          pode ser retomado. Eles são apagados quando você exclui a conta, quando
+          pede a exclusão a Mateus ou quando ele decide excluí-la. Depois de uma
+          exclusão, cópias automáticas de segurança do banco de dados podem manter
+          os dados por até 30 dias, até serem descartadas. Logs técnicos sem o
+          conteúdo clínico são mantidos por até 180 dias.
         </p>
         <h2>Seus controles</h2>
         <p>
@@ -137,6 +160,12 @@ export default function PrivacyPage() {
           pedido é sobre a Área do paciente. Para evitar que dados sejam entregues ou
           alterados para outra pessoa, Mateus poderá confirmar sua identidade antes
           de atender ao pedido.
+        </p>
+        <h2>Mudanças neste aviso</h2>
+        <p>
+          Quando este aviso mudar, a Área do paciente mostra um comunicado na sua
+          página inicial, com a data da nova versão. A versão anterior era de 8 de
+          outubro de 2026.
         </p>
         <h2>Limites importantes</h2>
         <p>

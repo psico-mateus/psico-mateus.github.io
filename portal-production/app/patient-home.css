@@ -457,3 +457,33 @@
   .patient-record-finder .patient-entry-toolbar button.active { border: 2px solid Highlight; }
   .patient-dashboard .patient-view-summary.viewed .patient-view-summary-marker { border: 1px solid currentColor; }
 }
+
+.privacy-notice-update {
+  margin: 0 0 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #eef2f0;
+}
+.privacy-notice-update h2 {
+  margin: 0 0 .35rem;
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.privacy-notice-update p { margin: 0; max-width: 62ch; }
+.privacy-notice-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1.25rem;
+  margin-top: .8rem;
+}
+.privacy-notice-update-actions a {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+.privacy-notice-update-actions .secondary-button { min-height: 44px; }
+.privacy-notice-update-error { margin-top: .7rem !important; color: #7a2f29; }

@@ -81,6 +81,7 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     pendingRefresh = false,
     name = "Paciente Sintético",
     viewport = { width: 1366, height: 900 },
+    privacyNoticePending,
   } = {}) {
     const context = await browser.newContext({
       viewport,
@@ -142,6 +143,9 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
       }
       if (request.method() !== "GET") {
         controls.mutations.push(`${request.method()} ${path}`);
+        if (privacyNoticePending && request.method() === "POST" && path === "/account/privacy-notice") {
+          return respond({ ok: true, privacy_notice_pending: false });
+        }
         return respond({ error: "Este teste não permite gravações." }, 405);
       }
       if (path === "/config") return respond({
@@ -151,7 +155,10 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
         care_url: "https://psico-mateus.github.io/cuidados/",
       });
       if (path === "/session") return respond({
-        user: { id: "synthetic-home-patient", name, role: "patient" },
+        user: {
+          id: "synthetic-home-patient", name, role: "patient",
+          ...(privacyNoticePending === undefined ? {} : { privacy_notice_pending: privacyNoticePending }),
+        },
         csrf: "synthetic-home-csrf",
       });
       if (path === "/entries") {
@@ -258,6 +265,39 @@ describe("patient home — isolated mocked API only", { skip: !baseUrl }, () => 
     assert.deepEqual(violations, [], "Automated accessibility checks.");
     await page.screenshot({ path: resolve(outputDir, `${label}-${browserName}.png`), fullPage: false });
   }
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 900 }]) {
+    test(`privacy notice update ${viewport.width}px: shown once, readable, and acknowledged only by the explicit action`, async () => {
+      const fixture = await openHome({ privacyNoticePending: true, viewport });
+      const { page, controls } = fixture;
+      const banner = page.locator(".privacy-notice-update");
+      await expect(banner).toHaveCount(1);
+      await expect(banner).toBeInViewport();
+      assert.equal(await banner.evaluate((node) => {
+        const workspace = document.querySelector(".patient-home-workspace");
+        return Boolean(workspace && (node.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING));
+      }), true, "The update notice must come before the home workspace in reading order.");
+      await expect(banner.getByRole("heading", { level: 2 })).toHaveText("O aviso de privacidade foi atualizado");
+      await expect(banner).toContainText("14 de novembro de 2026");
+      await expect(banner).toContainText("Nada mudou em quem pode ver seus registros.");
+      const link = banner.getByRole("link", { name: /Ler o aviso/u });
+      await expect(link).toHaveAttribute("href", "/privacidade/");
+      await expect(link).toHaveAttribute("target", "_blank");
+      assert.deepEqual(controls.mutations, [], "Opening the home must not acknowledge the notice.");
+      await checkHealthy(fixture, `home-privacy-notice-update-${viewport.width}`);
+      await banner.getByRole("button", { name: "Entendi", exact: true }).click();
+      await expect(banner).toHaveCount(0);
+      assert.deepEqual(controls.mutations, ["POST /account/privacy-notice"]);
+      assert.deepEqual(controls.unexpected, []);
+      assert.deepEqual(controls.runtimeErrors, []);
+    });
+  }
+
+  test("privacy notice update stays hidden when nothing changed for this patient", async () => {
+    const fixture = await openHome({ privacyNoticePending: false });
+    await expect(fixture.page.locator(".privacy-notice-update")).toHaveCount(0);
+    await checkHealthy(fixture, "home-privacy-notice-current");
+  });
 
   test("pending entries never masquerade as zero records or zero private records", async () => {
     const fixture = await openHome({ pendingEntries: true });

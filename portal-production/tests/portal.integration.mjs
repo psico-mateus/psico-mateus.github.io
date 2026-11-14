@@ -911,9 +911,35 @@ const patientA = registeredA.patient;
 const recoveryA = registeredA.result.payload.recovery_code;
 assert.equal(
   await storedPrivacyVersion(patientA.user.id),
-  "2026-10-08",
+  "2026-11-14",
   "novo cadastro deve registrar a versão atual do aviso de privacidade",
 );
+assert.equal(
+  registeredA.result.payload.user.privacy_notice_pending,
+  false,
+  "cadastro novo não tem mudança de aviso pendente",
+);
+const privacySession = await api("/session", { auth: patientA });
+expectStatus(privacySession, 200, "sessão informa o estado do aviso");
+assert.equal(privacySession.payload.user.privacy_notice_pending, false);
+expectStatus(
+  await api("/account/privacy-notice", { method: "POST", body: {} }),
+  401,
+  "ciência do aviso sem sessão",
+);
+expectStatus(
+  await api("/account/privacy-notice", {
+    method: "POST", body: {}, auth: patientA, includeCsrf: false,
+  }),
+  403,
+  "ciência do aviso sem CSRF",
+);
+const privacyAcknowledged = await api("/account/privacy-notice", {
+  method: "POST", body: {}, auth: patientA,
+});
+expectStatus(privacyAcknowledged, 200, "ciência do aviso de privacidade");
+assert.equal(privacyAcknowledged.payload.privacy_notice_pending, false);
+assert.equal(await storedPrivacyVersion(patientA.user.id), "2026-11-14");
 
 const duplicateEmail = await registerPatient({
   invitationCode: invitationForDuplicateEmail.code,
@@ -3830,7 +3856,7 @@ for (const secretValue of [
 console.log(
   JSON.stringify({
     ok: true,
-    checks: 309,
+    checks: 318,
     data: "synthetic-only",
     production_requests: 0,
   }),

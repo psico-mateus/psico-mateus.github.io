@@ -1099,8 +1099,8 @@ test("privacy notice explains account closure and data-rights requests", async (
 
   assert.match(app, /Código atual do autenticador/);
   assert.match(app, /aguarde o número exibido mudar/);
-  assert.match(portal, /PRIVACY_VERSION = "2026-10-08"/);
-  assert.match(privacy, /Versão de 8 de outubro de 2026/);
+  assert.match(portal, /PRIVACY_VERSION = "2026-11-14"/);
+  assert.match(privacy, /Versão de 14 de novembro de 2026/);
   assert.match(privacy, /não\s+apaga automaticamente a conta nem os registros/u);
   assert.match(privacy, /Mateus deixa de acessar também os registros/);
   assert.match(privacy, /Como exercer seus direitos/);
@@ -2050,4 +2050,50 @@ test("aviso de crise cita 192 e 188 e leva à página de cuidados", async () => 
   assert.doesNotMatch(editor, /draft\.[a-z]+[^\n]*entry-safety-note/u);
 
   assert.match(app, /new URL\("cuidados\/", config\.public_site_url\)/u);
+});
+
+test("aviso de privacidade de 14/11/2026 declara responsável, nuvem, acesso técnico e cópias", async () => {
+  const privacy = (await readFile(
+    new URL("../app/privacidade/page.tsx", import.meta.url), "utf8",
+  )).replace(/\s+/gu, " ");
+  assert.match(privacy, /CRP 08\/38930/u);
+  assert.match(privacy, /Cloudflare/u);
+  assert.match(privacy, /formato legível no banco de dados/u);
+  assert.match(privacy, /administrador técnico/u);
+  assert.match(privacy, /inclusive depois de o acesso ser desativado/u);
+  assert.match(privacy, /cópias automáticas de segurança[^.]*até 30 dias/u);
+  assert.match(privacy, /Mudanças neste aviso/u);
+  // O que já era prometido continua escrito.
+  assert.match(privacy, /Cada novo registro nasce privado/u);
+  assert.match(privacy, /por até 180 dias/u);
+});
+
+test("mudança do aviso de privacidade é comunicada só a pacientes com versão anterior", async () => {
+  const { privacyNoticePending } = await import("../lib/privacy-notice.ts");
+  assert.equal(privacyNoticePending("patient", "2026-10-08", "2026-11-14"), true);
+  assert.equal(privacyNoticePending("patient", "2026-11-14", "2026-11-14"), false);
+  assert.equal(privacyNoticePending("therapist", "2026-10-08", "2026-11-14"), false);
+  assert.equal(privacyNoticePending("patient", null, "2026-11-14"), true);
+
+  const [route, portal, app, banner] = await Promise.all([
+    readFile(new URL("../app/api/portal/[...segments]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/portal.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/PrivacyNoticeUpdate.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(portal, /users\.privacy_version AS privacyVersion/u);
+  assert.match(route, /privacy_notice_pending/u);
+  const handler = route.slice(route.indexOf('if (path === "/account/privacy-notice")'));
+  assert.notEqual(handler.length, route.length, "rota de ciência do aviso");
+  const block = handler.slice(0, 900);
+  assert.match(block, /requireSession\(request, "patient"\)/u);
+  assert.match(block, /requireCsrf\(request, session\)/u);
+  assert.match(block, /UPDATE users SET privacy_version = \? WHERE id = \?/u);
+  assert.match(block, /acknowledge_privacy_notice/u);
+  assert.match(app, /<PrivacyNoticeUpdate/u);
+  assert.match(banner, /O aviso de privacidade foi atualizado/u);
+  assert.match(banner, /href="\/privacidade\/"/u);
+  assert.match(banner, /Entendi/u);
+  // Ciência do aviso não é guardada no aparelho.
+  assert.doesNotMatch(banner, /localStorage|sessionStorage/u);
 });

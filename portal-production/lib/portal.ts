@@ -15,7 +15,7 @@ export {
   sessionCookie,
 } from "@/lib/session-cookie";
 
-export const PRIVACY_VERSION = "2026-10-08";
+export const PRIVACY_VERSION = "2026-11-14";
 
 export class PortalError extends Error {
   status: number;
@@ -34,6 +34,7 @@ export interface SessionUser {
   role: "patient" | "therapist";
   status: "active";
   expiresAt: string;
+  privacyVersion: string;
 }
 
 export interface UserRow {
@@ -206,7 +207,8 @@ export async function currentSession(request: Request): Promise<SessionUser | nu
   const row = await DB.prepare(
     `SELECT sessions.token_hash AS tokenHash, sessions.csrf_token AS csrfToken,
             sessions.expires_at AS expiresAt, users.id AS userId,
-            users.display_name AS name, users.role AS role, users.status AS status
+            users.display_name AS name, users.role AS role, users.status AS status,
+            users.privacy_version AS privacyVersion
      FROM sessions
      JOIN users ON users.id = sessions.user_id
      WHERE sessions.token_hash = ? AND sessions.expires_at > ? AND users.status = 'active'`,

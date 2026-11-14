@@ -14,6 +14,7 @@ import {
 } from "react";
 import { AppUpdateManager } from "./AppUpdateManager";
 import { PatientNotices } from "./PatientNotices";
+import { PrivacyNoticeUpdate } from "./PrivacyNoticeUpdate";
 import { PatientHomeActions, PatientQuickRecordAction } from "./PatientHomeActions";
 import "./patient-home.css";
 import "./patient-record-editor.css";
@@ -72,7 +73,7 @@ import {
 } from "./portal-client";
 
 type Role = "patient" | "therapist";
-type User = { id: string; name: string; role: Role };
+type User = { id: string; name: string; role: Role; privacy_notice_pending?: boolean };
 type Config = {
   configured: boolean;
   pending: boolean;
@@ -1821,6 +1822,7 @@ function PatientDashboard({
       ? patientRouteFromHash("")
       : patientRouteFromHash(window.location.hash),
   );
+  const [privacyNoticeAcknowledged, setPrivacyNoticeAcknowledged] = useState(false);
   const [area, setArea] = useState<PatientArea>(initialPatientRoute.area);
   const [resourceView, setResourceView] = useState<PatientResourceView>(
     initialPatientRoute.resourceView,
@@ -2764,6 +2766,9 @@ function PatientDashboard({
             <PatientQuickRecordAction hasDraft={Boolean(editing)} onRecord={openNewRecord} />
           </section>
 
+          {user.privacy_notice_pending && !privacyNoticeAcknowledged ? (
+            <PrivacyNoticeUpdate csrf={csrf} onAcknowledged={() => setPrivacyNoticeAcknowledged(true)} />
+          ) : null}
           <div className="patient-home-workspace">
           <PatientNotices patientId={user.id} csrf={csrf} onSessionLost={onSessionLost} />
           <PatientHomeActions hasDraft={Boolean(editing)} onRecord={openNewRecord} onHistory={openRecordHistory} onMap={() => changeArea("map")} onResources={openResourceIndex} />
