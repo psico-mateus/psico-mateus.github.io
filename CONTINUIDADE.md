@@ -6,6 +6,33 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 
 ## 1. Comece aqui
 
+### Avaliação geral e imagem de prévia — 13/11/2026, Claude Code no Mac
+
+- O Matt pediu uma nota e uma opinião independente. Avaliação: geral **8,5**;
+  site 8, Guia 9, Área do paciente 8,5. Decisões dele: **sem valor da sessão no
+  site**, **nenhum gasto** (descarta domínio próprio) e **manter o histórico**
+  deste arquivo, que pode ser reescrito com mais clareza, mas sem perder
+  conteúdo, para permitir troca de IA no futuro.
+- **Retratado:** o botão flutuante do WhatsApp parecia cobrir o texto no topo
+  do celular. Era defeito do painel de navegador do app. Playwright Chromium e
+  WebKit, local e no ar, mostram o botão escondido no topo e visível ao rolar,
+  como projetado. Sem mudança.
+- **Branch `tarefa/mac-ajustes-whatsapp-previa-20261113`:**
+  `assets/images/social-preview-registros.png` de 2,1 MB (1672×941) para
+  **323 KB** (1200×675, PNG com paleta, mesmo nome e mesma proporção), para a
+  prévia do link da Área do paciente aparecer no WhatsApp. `layout.tsx` passa
+  a declarar 1200×675; isso só vai ao ar no próximo deploy do portal (a
+  diferença até lá é inofensiva, porque a proporção é a mesma). Testes: raiz
+  163/59 skips/0 falhas; portal lint ok e 327/327.
+- Sugestões registradas, sem decisão: enxugar a repetição Guia/Área na página
+  inicial; dividir `PortalApp.tsx` (4.180 linhas), `ProfessionalDashboard.tsx`
+  (2.716) e `app/api/portal/[...segments]/route.ts` (2.436) quando houver motivo
+  para mexer; tirar da `main` os manifestos antigos que geram os 45 alertas;
+  decidir o aviso de privacidade ou criptografia dos registros no D1.
+- Segurança: o PC Windows usado neste projeto teve suspeita de roubo de senhas
+  em 10–11/11 e foi formatado. Recomendado revisar sessões, tokens e 2FA do
+  GitHub e do Cloudflare. Não confirmado como invasão.
+
 ### Publicação do lote acumulado pelo Mac — 13/11/2026
 
 - Primeira sessão do Claude Code no Mac (o Mateus migrou do ChatGPT Work).

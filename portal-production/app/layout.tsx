@@ -28,8 +28,8 @@ export const metadata: Metadata = {
     type: "website",
     images: [{
       url: "https://psico-mateus.github.io/assets/images/social-preview-registros.png",
-      width: 1672,
-      height: 941,
+      width: 1200,
+      height: 675,
       alt: "Caderno verde e caneta sobre fundo claro",
     }],
   },
