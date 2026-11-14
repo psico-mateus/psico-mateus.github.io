@@ -99,6 +99,22 @@ Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
 
+#### 13/11/2026 — Mac, Claude Code: aviso de crise no portal (item 1 do plano)
+
+- Branch `tarefa/mac-aviso-crise-portal-20261113`. Rodapé do portal passa a
+  dizer "ligue 192 (SAMU)" e a citar o CVV 188, com link "Cuidados e ajuda
+  imediata" para a página `cuidados/` do site. No editor de registro, uma nota
+  fixa logo abaixo de "Para salvar, bastam dois campos". Redação aprovada pelo
+  Matt no chat. Sem mudança de API, banco ou sessão.
+- Teste novo em `tests/portal.test.mjs`, que falhava antes. As telas pegaram
+  dois erros da primeira versão, corrigidos sem alterar teste: link sem
+  sublinhado (axe `link-in-text-block`) e nota entre o erro de salvar e os
+  botões finais (o erro precisa ficar colado em `.form-finish`).
+- Depois: lint ok; **328/328**; telas **253/253 Chromium e 253/253 WebKit**;
+  recuperação MFA 4/4. Captura em 390 px conferida.
+- **PREPARADO, NÃO PUBLICADO.** Vai ao ar no próximo deploy do portal (seção 9),
+  junto com a declaração 1200×675 de `layout.tsx`. Falta o "sim" do Matt.
+
 #### 13/11/2026 — Mac, Claude Code: revisão do núcleo do portal e plano do mês
 
 - A pedido do Matt, leitura do núcleo de segurança do portal e do aviso de
@@ -172,7 +188,9 @@ a 13/11 estão no arquivo de histórico.
 
 ### Preparado, mas NÃO publicado
 
-Nada relevante. Só a declaração de tamanho da imagem em `layout.tsx` (seção 1).
+- Aviso de crise com 192, CVV 188 e link de cuidados, no rodapé e no editor de
+  registro (13/11, validado; ver registro das sessões).
+- Declaração de tamanho da imagem de prévia em `layout.tsx`.
 
 ### Produção conferida em 13/11/2026
 

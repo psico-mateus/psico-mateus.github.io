@@ -1589,6 +1589,10 @@ function EntryForm({
         <p className="form-requirements-note">
           <strong>Para salvar, bastam dois campos:</strong> “Título breve” e “O que aconteceu?”. O restante é opcional.
         </p>
+        <p className="entry-safety-note">
+          Este registro não é lido em tempo real. Em risco imediato, ligue 192. Para apoio emocional, o CVV atende pelo 188.{" "}
+          <a href={careHref} target="_blank" rel="noopener noreferrer">Cuidados e ajuda imediata<span className="sr-status"> (abre em nova aba)</span></a>
+        </p>
         {guidance ? (
           <p className="education-entry-guidance" id="education-entry-guidance">
             {guidance}
@@ -1755,10 +1759,6 @@ function EntryForm({
       </section>
 
       {message && saveErrorLocation === "final" ? <Notice tone="error" message={message} /> : null}
-      <p className="entry-safety-note">
-        Este registro não é lido em tempo real. Em risco imediato, ligue 192. Para apoio emocional, o CVV atende pelo 188.{" "}
-        <a href={careHref} target="_blank" rel="noopener noreferrer">Cuidados e ajuda imediata<span className="sr-status"> (abre em nova aba)</span></a>
-      </p>
       <div className={`form-finish ${remainsShared ? "shared" : "private"}`}>
         <div className="form-finish-copy">
           <span aria-hidden="true" />

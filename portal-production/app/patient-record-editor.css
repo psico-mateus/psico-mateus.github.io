@@ -210,8 +210,9 @@
 
 .patient-entry-form .entry-safety-note {
   max-width: 760px;
-  margin: 1.25rem 0 .9rem;
+  margin: .65rem 0 0;
+  padding-left: 2rem;
   color: var(--muted);
   font-size: .9rem;
 }
-.patient-entry-form .entry-safety-note a { color: var(--ink); }
+.patient-entry-form .entry-safety-note a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: .15em; }
