@@ -4215,3 +4215,6 @@ body.recovery-codes-open{overflow:hidden}
     font-size:.8rem;
   }
 }
+
+.delete-patient-confirmation{display:flex;gap:.6rem;align-items:flex-start;font-weight:700}
+.delete-patient-confirmation input{width:1.25rem;height:1.25rem;flex:0 0 auto;margin-top:.15rem}

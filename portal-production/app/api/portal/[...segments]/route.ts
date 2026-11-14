@@ -208,6 +208,10 @@ function technicalRoute(path: string): string {
       "/professional/patients/:patientId/recovery-code",
     ],
     [
+      /^\/professional\/patients\/[A-Za-z0-9_-]+\/delete-account$/u,
+      "/professional/patients/:patientId/delete-account",
+    ],
+    [
       /^\/professional\/patients\/[A-Za-z0-9_-]+\/access$/u,
       "/professional/patients/:patientId/access",
     ],
@@ -292,6 +296,93 @@ async function consumeActiveTherapistTotpCounter(
     .bind(counter, user.id, user.last_totp_counter, user.password_hash, user.totp_secret)
     .run();
   return result.meta.changes === 1;
+}
+
+/**
+ * Exclusão definitiva de uma conta de paciente pelo profissional.
+ *
+ * Só vale para conta já desativada e vinculada a este profissional, depois de
+ * senha e autenticador. A exclusão e o registro de auditoria ficam na mesma
+ * transação; as chaves estrangeiras apagam registros, mapa, avisos e sessões.
+ */
+async function deletePatientAccount(
+  request: Request,
+  session: { userId: string },
+  input: Input,
+  patientId: string,
+): Promise<Response> {
+  const { DB, APP_SECRET } = getPortalEnv();
+  await checkRateLimit(request, "delete-patient-account", session.userId, {
+    limit: 8,
+    windowSeconds: 60 * 60,
+  });
+  const therapist = (await DB.prepare("SELECT * FROM users WHERE id = ?")
+    .bind(session.userId)
+    .first<UserRow>()) as UserRow;
+  if (
+    !(await passwordMatches(
+      String(input.current_password ?? ""),
+      therapist.password_salt,
+      therapist.password_hash,
+      therapist.password_iterations,
+    ))
+  ) {
+    throw new PortalError(400, "A senha profissional não confere.");
+  }
+  if (!therapist.totp_secret || !therapist.totp_enabled) {
+    throw new PortalError(400, "O MFA profissional não está configurado.");
+  }
+  const totpError =
+    "O código do autenticador não confere. Se acabou de entrar, aguarde o próximo código.";
+  const verification = await verifyTotp(
+    await decrypt(APP_SECRET, therapist.totp_secret),
+    String(input.totp ?? ""),
+    therapist.last_totp_counter,
+  );
+  if (!verification.valid || verification.counter === null) {
+    throw new PortalError(400, totpError);
+  }
+  const patient = await DB.prepare(
+    `SELECT users.id, users.status
+     FROM patient_links
+     JOIN users ON users.id = patient_links.patient_id
+     WHERE patient_links.therapist_id = ? AND patient_links.patient_id = ?
+       AND users.role = 'patient'`,
+  )
+    .bind(session.userId, patientId)
+    .first<{ id: string; status: string }>();
+  if (!patient) throw new PortalError(404, "Paciente não encontrado.");
+  if (patient.status !== "disabled") {
+    throw new PortalError(409, "Revogue o acesso desta pessoa antes de excluir a conta.");
+  }
+  if (!(await consumeActiveTherapistTotpCounter(therapist, verification.counter))) {
+    throw new PortalError(400, totpError);
+  }
+  const results = await DB.batch([
+    DB.prepare(
+      `INSERT INTO access_logs (id, user_id, action, resource_type, resource_id, created_at)
+       SELECT ?, ?, 'delete_patient_account', 'patient_account', users.id, ?
+       FROM users
+       JOIN patient_links ON patient_links.patient_id = users.id
+       WHERE users.id = ? AND users.role = 'patient' AND users.status = 'disabled'
+         AND patient_links.therapist_id = ?`,
+    ).bind(identifier("log"), session.userId, now(), patient.id, session.userId),
+    DB.prepare(
+      `DELETE FROM users
+       WHERE id = ? AND role = 'patient' AND status = 'disabled'
+         AND EXISTS (
+           SELECT 1 FROM patient_links
+           WHERE patient_links.patient_id = users.id AND patient_links.therapist_id = ?
+         )`,
+    ).bind(patient.id, session.userId),
+  ]);
+  if (results[1]?.meta.changes !== 1) {
+    throw new PortalError(
+      409,
+      "A conta mudou enquanto a exclusão era confirmada. Atualize a lista e tente novamente.",
+    );
+  }
+  return json({ ok: true });
 }
 
 async function professionalMfaRecoveryCodeStatus(
@@ -1842,6 +1933,15 @@ async function handlePost(request: Request, path: string): Promise<Response> {
     );
     return json({ viewed_at: viewedAt });
   }
+  const patientDeletion = path.match(
+    /^\/professional\/patients\/([A-Za-z0-9_-]+)\/delete-account$/u,
+  );
+  if (patientDeletion) {
+    const session = await requireSession(request, "therapist");
+    requireCsrf(request, session);
+    return deletePatientAccount(request, session, input, patientDeletion[1]);
+  }
+
   const assistedRecovery = path.match(
     /^\/professional\/patients\/([A-Za-z0-9_-]+)\/recovery-code$/u,
   );

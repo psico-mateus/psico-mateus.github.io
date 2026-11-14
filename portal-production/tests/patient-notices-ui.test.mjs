@@ -182,6 +182,16 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       }
       if (path === "/invitations" && method === "GET") return respond({ invitations: [] });
       if (path === "/logout" && method === "POST") return respond({ ok: true });
+      const deletionMatch = path.match(/^\/professional\/patients\/([^/]+)\/delete-account$/u);
+      if (deletionMatch && method === "POST" && controls.accesses) {
+        if (controls.deleteFailure) {
+          const status = controls.deleteFailure;
+          controls.deleteFailure = 0;
+          return respond({ error: "Falha sintética ao excluir a conta." }, status);
+        }
+        controls.accesses = controls.accesses.filter((patient) => patient.patient_id !== deletionMatch[1]);
+        return respond({ ok: true });
+      }
       controls.unexpected.push(`${method} ${path}`);
       return respond({ error: "Rota não simulada; nenhuma requisição foi encaminhada ao servidor." }, 500);
     });
@@ -766,6 +776,54 @@ describe("rendered notices — mocked API only (Browser plugin not available)", 
       await expect(panel.getByRole("status")).toHaveText("Aviso removido do portal.");
       await expect(panel.getByRole("heading", { name: `Avisos para ${firstPatientName}` })).toBeFocused();
       await checkHealthy(page, controls, `professional-notices-${label}`);
+    });
+  }
+
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    test(`professional ${viewport.width}px: only a revoked account can be deleted, after explicit confirmation, password and authenticator`, async () => {
+      const revokedName = "Paciente Sintético Revogado";
+      const accesses = [
+        { patient_id: firstPatientId, patient_name: firstPatientName, access_status: "active", created_at: timestamp, revoked_at: null, last_login_at: null, shared_count: 0 },
+        { patient_id: "synthetic-revoked", patient_name: revokedName, access_status: "revoked", created_at: timestamp, revoked_at: timestamp, last_login_at: null, shared_count: 2 },
+      ];
+      const { page, controls } = await openPortal("therapist", viewport, { accesses });
+      await page.getByRole("button", { name: /^Acessos de pacientes/u }).click();
+      await expect(page.getByRole("button", { name: `Excluir conta de ${firstPatientName}`, exact: true })).toHaveCount(0);
+      const trigger = page.getByRole("button", { name: `Excluir conta de ${revokedName}`, exact: true });
+      await expect(trigger).toHaveCount(1);
+      await trigger.click();
+      const dialog = page.getByRole("dialog", { name: `Excluir a conta de ${revokedName}`, exact: true });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText("Não é possível desfazer");
+      assert.equal(controls.mutations.length, 0, "Opening the confirmation deletes nothing.");
+      await checkHealthy(page, controls, `professional-delete-dialog-${viewport.width}`);
+
+      const submit = dialog.getByRole("button", { name: "Excluir definitivamente", exact: true });
+      await dialog.getByLabel("Sua senha profissional").fill("SenhaSinteticaProfissional1");
+      await dialog.getByLabel("Código atual do autenticador").fill("123456");
+      await submit.click();
+      await expect(dialog).toBeVisible();
+      assert.equal(controls.mutations.length, 0, "Without the explicit checkbox nothing is sent.");
+
+      await dialog.getByLabel("Entendo que a exclusão é definitiva.").check();
+      controls.deleteFailure = 400;
+      await submit.click();
+      await expect(dialog.getByRole("alert")).toContainText("Falha sintética ao excluir a conta.");
+      await expect(dialog).toBeVisible();
+      await expect(page.getByRole("heading", { level: 3, name: revokedName, exact: true })).toHaveCount(1);
+
+      await submit.click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByText(`Conta de ${revokedName} excluída definitivamente.`)).toBeVisible();
+      await expect(page.getByRole("heading", { level: 3, name: revokedName, exact: true })).toHaveCount(0);
+      await expect(page.getByRole("heading", { level: 3, name: firstPatientName, exact: true })).toHaveCount(1);
+      assert.deepEqual(controls.mutations, [1, 2].map(() => ({
+        path: "/professional/patients/synthetic-revoked/delete-account",
+        method: "POST",
+        payload: { current_password: "SenhaSinteticaProfissional1", totp: "123456" },
+        csrf: "synthetic-csrf",
+      })));
+      assert.deepEqual(controls.unexpected, []);
     });
   }
 

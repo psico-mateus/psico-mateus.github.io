@@ -35,6 +35,7 @@ import { copyText } from "./copy-text";
 import { formatDate, portalRequest, PortalRequestError } from "./portal-client";
 import { ThoughtReviewReadOnly } from "./ThoughtReview";
 import { ProfessionalPatientNotices } from "./ProfessionalPatientNotices";
+import { ProfessionalDeletePatientDialog } from "./ProfessionalDeletePatientDialog";
 
 type User = { id: string; name: string; role: "therapist" };
 type NoticeTone = "info" | "error" | "success";
@@ -1246,6 +1247,7 @@ function PatientAccessView({
   onRefresh,
   onChangeAccess,
   onGenerateRecovery,
+  onDeleteAccount,
 }: {
   patients: PatientAccess[];
   csrf: string;
@@ -1263,6 +1265,7 @@ function PatientAccessView({
     patient: PatientAccess,
     trigger: HTMLButtonElement,
   ) => void;
+  onDeleteAccount: (patient: PatientAccess) => void;
 }) {
   const [noticePatientId, setNoticePatientId] = useState<string | null>(null);
   const [visiblePatientLimit, setVisiblePatientLimit] = useState(
@@ -1327,7 +1330,8 @@ function PatientAccessView({
         <p>
           O login é bloqueado e as sessões abertas são encerradas imediatamente.
           Os registros não são apagados e o acesso pode ser restaurado se o
-          acompanhamento recomeçar.
+          acompanhamento recomeçar. Para apagar tudo de forma definitiva, use
+          “Excluir conta” em um acesso já revogado.
         </p>
       </div>
 
@@ -1469,6 +1473,17 @@ function PatientAccessView({
                         ? "Revogar acesso"
                         : "Restaurar acesso"}
                   </button>
+                  {!active ? (
+                    <button
+                      className="danger-button"
+                      type="button"
+                      aria-label={`Excluir conta de ${accessiblePatientName}`}
+                      onClick={() => onDeleteAccount(patient)}
+                      disabled={updating || loading}
+                    >
+                      Excluir conta
+                    </button>
+                  ) : null}
                 </div>
               </article>
               {active && noticePatientId === patient.patient_id ? (
@@ -1805,6 +1820,10 @@ export function ProfessionalDashboard({
   const [recoveryPatient, setRecoveryPatient] = useState<PatientAccess | null>(null);
   const [issuingRecovery, setIssuingRecovery] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
+  const [deletionPatient, setDeletionPatient] = useState<PatientAccess | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deletionError, setDeletionError] = useState("");
+  const deletionRequestLock = useRef(false);
   const [issuedRecovery, setIssuedRecovery] = useState<IssuedRecovery | null>(null);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [invitationsLoaded, setInvitationsLoaded] = useState(false);
@@ -2356,6 +2375,42 @@ export function ProfessionalDashboard({
     }
   }
 
+  async function deletePatientAccount(currentPassword: string, totp: string) {
+    if (!deletionPatient || deletionRequestLock.current) return;
+    deletionRequestLock.current = true;
+    setDeletingAccount(true);
+    setDeletionError("");
+    try {
+      await portalRequest(
+        `/professional/patients/${encodeURIComponent(deletionPatient.patient_id)}/delete-account`,
+        {
+          method: "POST",
+          body: JSON.stringify({ current_password: currentPassword, totp }),
+        },
+        csrf,
+      );
+      const patientName = displayedPatientName(deletionPatient.patient_name);
+      setDeletionPatient(null);
+      setNotice({
+        tone: "success",
+        message: `Conta de ${patientName} excluída definitivamente.`,
+      });
+      await Promise.all([loadPatientAccesses(), loadPatients(true)]);
+      document.getElementById("patient-access-title")?.focus();
+    } catch (error) {
+      if (!isSessionError(error)) {
+        setDeletionError(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível excluir a conta.",
+        );
+      }
+    } finally {
+      deletionRequestLock.current = false;
+      setDeletingAccount(false);
+    }
+  }
+
   async function issuePatientRecovery(currentPassword: string, totp: string) {
     if (!recoveryPatient || recoveryRequestLock.current) return;
     recoveryRequestLock.current = true;
@@ -2666,6 +2721,11 @@ export function ProfessionalDashboard({
             setIssuedRecovery(null);
             setRecoveryPatient(patient);
           }}
+          onDeleteAccount={(patient) => {
+            if (!confirmNoticeDraftDiscard()) return;
+            setDeletionError("");
+            setDeletionPatient(patient);
+          }}
         />
       ) : (
         <InvitationsView
@@ -2686,6 +2746,22 @@ export function ProfessionalDashboard({
       )}
 
       {accountPanel}
+      {deletionPatient ? (
+        <ProfessionalDeletePatientDialog
+          patientName={displayedPatientName(deletionPatient.patient_name)}
+          busy={deletingAccount}
+          error={deletionError}
+          onClose={() => {
+            if (deletingAccount) return;
+            setDeletionPatient(null);
+            setDeletionError("");
+            document.getElementById("patient-access-title")?.focus();
+          }}
+          onSubmit={(currentPassword, totp) =>
+            void deletePatientAccount(currentPassword, totp)
+          }
+        />
+      ) : null}
       {recoveryPatient ? (
         <RecoveryAuthorizationDialog
           patient={recoveryPatient}
