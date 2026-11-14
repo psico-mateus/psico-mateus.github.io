@@ -6,6 +6,42 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
 
 ## 1. Comece aqui
 
+### Publicação do lote acumulado pelo Mac — 13/11/2026
+
+- Primeira sessão do Claude Code no Mac (o Mateus migrou do ChatGPT Work).
+  Node 24.22.1 instalado sem sudo a partir do tarball oficial (checksum
+  conferido) em `~/.local/opt/node-v24.22.1-darwin-arm64`, com pnpm 11.25.0.
+  **Não está no PATH do Terminal:** a trava recusou editar `~/.zprofile`; usar
+  `export PATH="$HOME/.local/opt/node-v24.22.1-darwin-arm64/bin:$PATH"`.
+- **Validação local em `ff1cede`:** raiz 163 aprovados/59 skips/0 falhas
+  (Chromium e WebKit); portal lint ok, **327/327**, integração isolada **309**,
+  restauração 15 tabelas, build sanitizado. **Telas do portal: 253/253 Chromium e
+  253/253 WebKit** (conta 28, início 21, mapa 38, avisos 38, registros 73,
+  recursos 13, histórico profissional 38, visualizações 4) + recuperação MFA 4/4.
+  Audit: raiz 0; portal `--prod` 0; completo 1 moderado de desenvolvimento
+  (minimatch 10.2.5, cadeia do ESLint), o mesmo já triado.
+- **PUBLICADO com aprovação do Mateus no chat ("sim"):** lote de 28/10, 04/11,
+  `c1a1243`/`cbe3c43` e React 19.2.9. Sem migração, segredo ou mudança de
+  banco/bindings (`git diff 7f7f7c2` sem migração/schema/wrangler). Snapshot só
+  com `dist/` e as duas configurações, sem `.env`, bancos ou symlinks; dry-runs ok.
+  Build **`fcc3bdd6d83ef315`**, fonte `ff1cede`.
+
+  | Worker | Antes (rollback) | Agora |
+  | --- | --- | --- |
+  | `registros` (legado, primeiro) | `4f4b37f6-0108-4a72-8fe9-e97426511417` | `96f8e168-a34a-48be-bde0-3fb60bb5c4b1` |
+  | `area-do-paciente` (oficial) | `149496d9-421d-42cd-878a-1b758cae545b` | `816bc297-e98f-4d24-8342-451314e2b19a` |
+
+  Depois: `/`, `/api/portal/session` (anônimo `{"user":null}`) e `/sw.js` HTTP
+  200 nos dois links, SW com o build novo; `test:smoke-public` ok, zero escrita.
+  Não houve teste autenticado em produção nem em celular físico.
+- **Site em `main`:** `c708a7e..d62ebb0`, somente `assets/js/main.js` (cópia do
+  link do Guia) e `?v=20261113-guide-copy` em `index.html`, `cuidados/` e
+  `privacidade/`. Testes da árvore da `main`: 136 aprovados/59 skips/0 falhas.
+  Guia sem mudança pública pendente. A branch de trabalho recebeu o mesmo `?v=`.
+- Pendente: o Mateus conferir o portal no próprio celular; texto do aviso de
+  privacidade sobre acesso administrativo ao D1 (item 2 abaixo); lote da cadeia
+  de lint (minimatch); alertas antigos da `main` no GitHub.
+
 ### Sessão do Claude Code na nuvem — configuração e correção do React, 13/11/2026
 
 - Primeira sessão com o Claude Code. Base `7626f24`, clone novo em Linux na
@@ -332,6 +368,10 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   de exportação/recuperação após sair/trocar conta (`7f7f7c2`).
 
 ### Preparado, mas NÃO publicado
+
+> **Atualização de 13/11/2026:** todos os itens desta lista foram **publicados**
+> (Workers `96f8e168`/`816bc297`, `main` em `d62ebb0`), conforme a seção 1.
+> A lista abaixo fica como histórico do conteúdo do lote.
 
 - Lote de 04/11: foco na exportação/exclusão e cópia acessível do link do Guia,
   com regressões reproduzidas e testes descritos na seção 1. Não repetir no Windows.
