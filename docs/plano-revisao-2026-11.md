@@ -30,7 +30,9 @@ Nada aqui foi implementado. Cada item precisa do "sim" do Matt antes de começar
    tem a orientação completa. O aviso também só aparece no rodapé. Proposta:
    citar 188 e 192, ligar à página "Cuidados" e repetir uma linha curta perto do
    botão de salvar registro. O texto é clínico: o Matt aprova a redação.
-2. **Aviso de privacidade.** Pontos que hoje não estão ditos:
+2. **FEITO e publicado em 14/11/2026** (build `f6067844ef8da627`): aviso de
+   14/11/2026 e comunicado aos pacientes. Texto original do item:
+   **Aviso de privacidade.** Pontos que hoje não estão ditos:
    - os registros ficam em texto legível no banco, e quem administra a conta do
      Cloudflare (o próprio Matt) tem acesso técnico a ele;
    - o fornecedor de nuvem é a Cloudflare;
@@ -39,7 +41,9 @@ Nada aqui foi implementado. Cada item precisa do "sim" do Matt antes de começar
    - conta desativada fica guardada sem prazo.
    Hoje a versão aceita fica gravada só no cadastro; não existe tela de "o aviso
    mudou". Publicar versão nova pede também esse aviso simples ao entrar.
-3. **Prazo para conta desativada.** Decisão do Matt: por quanto tempo guardar os
+3. **DECIDIDO e publicado em 14/11/2026:** contas desativadas ficam sem prazo;
+   o Matt pode excluí-las pelo painel (botão "Excluir conta" em acesso
+   revogado). Texto original do item: **Prazo para conta desativada.** Decisão do Matt: por quanto tempo guardar os
    registros de quem encerrou o acompanhamento (por exemplo, 6 meses) e se a
    exclusão é automática. Hoje ficam para sempre, e a pessoa não consegue entrar
    para apagar.
@@ -55,7 +59,8 @@ aprovação específica do Matt para a migração remota. Sem custo.
 
 ## Prioridade 3 — rede de proteção automática
 
-4. **Testes automáticos no GitHub a cada envio** (GitHub Actions, gratuito para
+4. **FEITO em 14/11/2026** (`.github/workflows/testes.yml`). Texto original:
+   **Testes automáticos no GitHub a cada envio** (GitHub Actions, gratuito para
    repositório público). Só testa; nunca publica. Protege contra erro de qualquer
    assistente ou computador.
 5. Tirar da `main` os manifestos antigos que geram os 45 alertas.

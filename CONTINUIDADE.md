@@ -30,12 +30,14 @@ Três sites do psicólogo Mateus Ribeiro Marcos (Matt), CRP 08/38930:
 - Commit e push na branch de trabalho servem à continuidade. **Publicar é outra
   ação** e exige aprovação explícita do Matt (seção 9).
 
-### Estado em 13/11/2026: tudo o que estava pronto foi publicado
+### Estado em 14/11/2026: tudo o que estava pronto foi publicado
 
 - **Área do paciente:** no ar com o lote acumulado (dependências de 28/10,
   refinos de foco de 04/11, `c1a1243`/`cbe3c43`, React 19.2.9) e com o aviso de
-  crise 192/CVV 188. Build `9b070ada831f7784`, fonte `e6e52e4`. Versões e
-  rollback na seção 2.
+  crise 192/CVV 188. Desde 14/11, também com o aviso de privacidade de
+  14/11/2026, o comunicado da mudança aos pacientes e a exclusão de conta pelo
+  profissional. Build `f6067844ef8da627`, fonte `3aaae45`. Versões e rollback na
+  seção 2.
 - **Site profissional:** `main` em `0d17335`, com a cópia acessível do link do
   Guia (`main.js?v=20261113-guide-copy`) e a imagem de prévia da Área do paciente
   reduzida para 323 KB.
@@ -60,19 +62,23 @@ Três sites do psicólogo Mateus Ribeiro Marcos (Matt), CRP 08/38930:
 
 Dependem do Matt:
 
-1. **Aviso de privacidade:** ele diz que o Matt só vê o que foi compartilhado.
-   Isso vale para o painel profissional. Os registros ficam em texto no D1 e a
-   conta administradora do Cloudflare tem acesso técnico ao banco. Decidir se o
-   texto menciona isso ou se vale um projeto de criptografia dos registros.
-2. Teste humano no iPhone/Safari (o Matt faz; roteiro curto a preparar). Ele não
+1. Teste humano no iPhone/Safari (o Matt faz; roteiro curto a preparar). Ele não
    tem Android: essa plataforma fica sem teste físico. WebKit automatizado não
-   é iPhone.
-3. **Plano de revisão do mês:** [`docs/plano-revisao-2026-11.md`](docs/plano-revisao-2026-11.md).
-   O Matt reservou cerca de um mês para melhorar o projeto. Cada item do plano
-   espera o "sim" dele; nada foi implementado.
+   é iPhone. Conferir também, logado, a nota de crise no editor e o comunicado
+   do aviso de privacidade, que nenhum assistente vê em produção.
+2. **Plano de revisão do mês:** [`docs/plano-revisao-2026-11.md`](docs/plano-revisao-2026-11.md).
+   Itens 1, 2, 3 e 4 feitos e publicados. O próximo grande é a criptografia dos
+   registros no banco (prioridade 2); cada item espera o "sim" do Matt.
 
 Técnicas, sem urgência:
 
+3. **Dois testes instáveis do Guia** (falharam 1 vez em 6 rodadas cada, local, e
+   derrubaram a parte "Site e Guia" do GitHub Actions em 14/11):
+   `tests/guide-scroll.spec.mjs:85` (mobile-webkit, "Explorar emoções: marcador
+   não bloqueia a rolagem") e `tests/guide-flow.spec.mjs:117` (desktop-chromium,
+   "ações dos detalhes permanecem visíveis sem cobrir o fim da leitura"). O Guia
+   não mudou; a instabilidade é anterior. Estabilizar sem aumentar timeout nem
+   pular o teste.
 4. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
    ESLint/typescript-estree). A correção 11.0.1 é major; fazer em lote próprio,
    sem `audit fix --force` nem override major.
@@ -90,12 +96,57 @@ Técnicas, sem urgência:
    na página inicial; dividir `PortalApp.tsx` (4.180 linhas),
    `ProfessionalDashboard.tsx` (2.716) e `app/api/portal/[...segments]/route.ts`
    (2.436) quando houver motivo para mexer neles.
+10. As actions do workflow (`actions/checkout@v4`, `setup-node@v4`,
+   `pnpm/action-setup@v4`) usam Node 20, que o GitHub já força para Node 24 com
+   aviso. Atualizar as versões quando houver releases estáveis com Node 24.
 
 ### Registro das sessões
 
 Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
+
+#### 14/11/2026 — Mac, Claude Code: testes no GitHub, aviso de privacidade e exclusão de conta
+
+- **Decisões do Matt no chat:** aprova a atualização do aviso de privacidade;
+  contas desativadas ficam guardadas sem prazo, "a não ser que eu decida
+  apagar"; pediu a exclusão pelo profissional e a publicação.
+- **Testes automáticos** (`.github/workflows/testes.yml`): a cada envio a
+  `trabalho/**` ou `tarefa/**`, roda site e Guia (Chromium e WebKit) e o portal
+  (lint, `pnpm test`, integração isolada, restauração e build sanitizado). Só
+  testa; sem segredos, sem Cloudflare, sem publicação. Gratuito (repositório
+  público). Sem login do GitHub no Mac, o registro de falhas não é legível por
+  aqui: a página pede login.
+- **Aviso de privacidade 2026-11-14** (`app/privacidade/page.tsx`,
+  `PRIVACY_VERSION`): nomeia o responsável (CRP), a Cloudflare, o texto legível
+  no banco e o acesso técnico do administrador com compromisso de não ler o que
+  não foi compartilhado, contas desativadas guardadas sem prazo, cópias
+  automáticas por até 30 dias (Time Travel do D1; 30 dias no plano pago, 7 no
+  gratuito: o texto usa o máximo) e a seção "Mudanças neste aviso".
+- **Comunicado da mudança** (`app/PrivacyNoticeUpdate.tsx`,
+  `lib/privacy-notice.ts`, `POST /account/privacy-notice`): pacientes com versão
+  anterior veem um aviso no topo do início, com link e "Entendi". A ciência grava
+  a versão em `users.privacy_version`, com auditoria; nada no aparelho.
+  `/session` e o login informam `privacy_notice_pending`.
+- **Exclusão definitiva pelo profissional** (`POST
+  /professional/patients/:id/delete-account`, `deletePatientAccount`,
+  `app/ProfessionalDeletePatientDialog.tsx`): só para conta já revogada e
+  vinculada, com senha, autenticador consumido e marcação "Entendo que a
+  exclusão é definitiva". Auditoria e `DELETE` na mesma transação; as chaves
+  estrangeiras apagam registros, revisões, mapa, avisos, visualizações e sessões;
+  convite usado fica com `patient_id` nulo.
+- **Testes:** primeiro falhando, depois aprovados. `tests/professional-delete-patient.test.mjs`
+  (6, com SQL e migrações reais), dois em `portal.test.mjs`, telas novas em
+  `patient-home-ui` e `patient-notices-ui`, 9 verificações novas na integração.
+  Final: lint ok; **336/336**; integração **318**; restauração 15 tabelas;
+  telas **258/258 Chromium e 258/258 WebKit**; MFA 4/4; site 163/59 skips em três
+  repetições. GitHub Actions no commit combinado: portal aprovado; "Site e Guia"
+  falhou por um dos dois testes instáveis do Guia (pendência 3).
+- **PUBLICADO** com o "sim" do Matt: seção 9, versões anteriores anotadas,
+  snapshot limpo, dry-runs, legado primeiro. Build `f6067844ef8da627`, fonte
+  `3aaae45`. Os dois links: HTTP 200, sessão anônima, SW novo, `/config` com
+  `privacy_version` 2026-11-14, `/privacidade` com a nova data e
+  `delete-account` sem sessão responde 401. `smoke-public` ok. Sem migração.
 
 #### 13/11/2026 — Mac, Claude Code: aviso de crise no portal (item 1 do plano)
 
@@ -193,7 +244,7 @@ a 13/11 estão no arquivo de histórico.
 
 Nada. Tudo o que está na branch de trabalho está no ar.
 
-### Produção conferida em 13/11/2026
+### Produção conferida em 14/11/2026
 
 | Ambiente | Estado / versão |
 | --- | --- |
@@ -203,15 +254,16 @@ Nada. Tudo o que está na branch de trabalho está no ar.
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
 | GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
 | `origin/main` | `0d17335` |
-| Worker oficial `area-do-paciente` | `b4d5f0e5-13ee-48ce-bade-b0700ff2d139`, 100% |
-| Worker legado/API `registros` | `810130e2-0c03-42a5-ad3f-49e65456e506`, 100% |
-| SW dos dois portais | HTTP 200, ID `9b070ada831f7784` |
+| Worker oficial `area-do-paciente` | `336934a6-674c-49b5-a8dc-f1ab85362a89`, 100% |
+| Worker legado/API `registros` | `67451734-6987-417b-9a3e-9e44bdfbb85c`, 100% |
+| SW dos dois portais | HTTP 200, ID `f6067844ef8da627` |
 
 Versões anteriores, para rollback de código/assets: oficial
-`816bc297-e98f-4d24-8342-451314e2b19a`, legado
-`96f8e168-a34a-48be-bde0-3fb60bb5c4b1` (primeiro envio de 13/11, build
-`fcc3bdd6d83ef315`, fonte `ff1cede`). Antes delas: oficial `149496d9-…`, legado
-`4f4b37f6-…` (22/10, fonte `7f7f7c2`).
+`b4d5f0e5-13ee-48ce-bade-b0700ff2d139`, legado
+`810130e2-0c03-42a5-ad3f-49e65456e506` (aviso de crise, 13/11, build
+`9b070ada831f7784`, fonte `e6e52e4`). Antes delas: `816bc297-…`/`96f8e168-…`
+(13/11, `ff1cede`) e `149496d9-…`/`4f4b37f6-…` (22/10, `7f7f7c2`). Um retorno
+de código não desfaz a ciência do aviso já gravada nem devolve conta excluída.
 Consultar de novo as versões ativas antes de qualquer publicação ou retorno.
 O workflow remoto `pages-build-deployment` pertence ao Pages e executa em
 `main`; não há workflow de deploy versionado. Não configurar CI que publique
