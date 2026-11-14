@@ -23,7 +23,9 @@ Nada aqui foi implementado. Cada item precisa do "sim" do Matt antes de começar
 
 ## Prioridade 1 — segurança do paciente e transparência
 
-1. **Aviso de crise incompleto no portal.** O rodapé diz para ligar 192 em risco
+1. **FEITO e publicado em 13/11/2026** (build `9b070ada831f7784`; a nota do
+   editor ficou no início do formulário). Texto original do item:
+   **Aviso de crise incompleto no portal.** O rodapé diz para ligar 192 em risco
    imediato, mas não cita o CVV 188 nem leva à página "Cuidados" do site, que já
    tem a orientação completa. O aviso também só aparece no rodapé. Proposta:
    citar 188 e 192, ligar à página "Cuidados" e repetir uma linha curta perto do

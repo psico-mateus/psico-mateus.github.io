@@ -33,15 +33,13 @@ Três sites do psicólogo Mateus Ribeiro Marcos (Matt), CRP 08/38930:
 ### Estado em 13/11/2026: tudo o que estava pronto foi publicado
 
 - **Área do paciente:** no ar com o lote acumulado (dependências de 28/10,
-  refinos de foco de 04/11, `c1a1243`/`cbe3c43` e React 19.2.9). Build
-  `fcc3bdd6d83ef315`, fonte `ff1cede`. Versões e rollback na seção 2.
+  refinos de foco de 04/11, `c1a1243`/`cbe3c43`, React 19.2.9) e com o aviso de
+  crise 192/CVV 188. Build `9b070ada831f7784`, fonte `e6e52e4`. Versões e
+  rollback na seção 2.
 - **Site profissional:** `main` em `0d17335`, com a cópia acessível do link do
   Guia (`main.js?v=20261113-guide-copy`) e a imagem de prévia da Área do paciente
   reduzida para 323 KB.
 - **Guia de Emoções:** sem mudança pendente; o que está no ar é a versão atual.
-- **Só no código, aguardando o próximo deploy do portal:** `layout.tsx` declara a
-  imagem de prévia como 1200×675 (hoje o ar declara 1672×941, mesma proporção,
-  sem efeito prático).
 - O Matt abriu o portal no próprio celular após a publicação e relatou que "a
   princípio" funciona. Não houve teste autenticado em produção por assistente.
 
@@ -112,8 +110,13 @@ a 13/11 estão no arquivo de histórico.
   botões finais (o erro precisa ficar colado em `.form-finish`).
 - Depois: lint ok; **328/328**; telas **253/253 Chromium e 253/253 WebKit**;
   recuperação MFA 4/4. Captura em 390 px conferida.
-- **PREPARADO, NÃO PUBLICADO.** Vai ao ar no próximo deploy do portal (seção 9),
-  junto com a declaração 1200×675 de `layout.tsx`. Falta o "sim" do Matt.
+- **PUBLICADO no mesmo dia, com o "sim" do Matt:** integração isolada 309 antes;
+  procedimento da seção 9 (versões anotadas, snapshot limpo, dry-runs, legado
+  primeiro). Build `9b070ada831f7784`, fonte `e6e52e4`. Os dois links com HTTP
+  200, sessão anônima e SW novo; `smoke-public` ok; texto novo conferido nos
+  arquivos servidos. Foi junto a declaração 1200×675 de `layout.tsx`. Uma
+  primeira tentativa do deploy do legado falhou antes de enviar (Node fora do
+  PATH no comando) e não alterou nada.
 
 #### 13/11/2026 — Mac, Claude Code: revisão do núcleo do portal e plano do mês
 
@@ -188,9 +191,7 @@ a 13/11 estão no arquivo de histórico.
 
 ### Preparado, mas NÃO publicado
 
-- Aviso de crise com 192, CVV 188 e link de cuidados, no rodapé e no editor de
-  registro (13/11, validado; ver registro das sessões).
-- Declaração de tamanho da imagem de prévia em `layout.tsx`.
+Nada. Tudo o que está na branch de trabalho está no ar.
 
 ### Produção conferida em 13/11/2026
 
@@ -202,13 +203,15 @@ a 13/11 estão no arquivo de histórico.
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
 | GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
 | `origin/main` | `0d17335` |
-| Worker oficial `area-do-paciente` | `816bc297-e98f-4d24-8342-451314e2b19a`, 100% |
-| Worker legado/API `registros` | `96f8e168-a34a-48be-bde0-3fb60bb5c4b1`, 100% |
-| SW dos dois portais | HTTP 200, ID `fcc3bdd6d83ef315` |
+| Worker oficial `area-do-paciente` | `b4d5f0e5-13ee-48ce-bade-b0700ff2d139`, 100% |
+| Worker legado/API `registros` | `810130e2-0c03-42a5-ad3f-49e65456e506`, 100% |
+| SW dos dois portais | HTTP 200, ID `9b070ada831f7784` |
 
 Versões anteriores, para rollback de código/assets: oficial
-`149496d9-421d-42cd-878a-1b758cae545b`, legado
-`4f4b37f6-0108-4a72-8fe9-e97426511417` (envio de 22/10, fonte `7f7f7c2`).
+`816bc297-e98f-4d24-8342-451314e2b19a`, legado
+`96f8e168-a34a-48be-bde0-3fb60bb5c4b1` (primeiro envio de 13/11, build
+`fcc3bdd6d83ef315`, fonte `ff1cede`). Antes delas: oficial `149496d9-…`, legado
+`4f4b37f6-…` (22/10, fonte `7f7f7c2`).
 Consultar de novo as versões ativas antes de qualquer publicação ou retorno.
 O workflow remoto `pages-build-deployment` pertence ao Pages e executa em
 `main`; não há workflow de deploy versionado. Não configurar CI que publique
