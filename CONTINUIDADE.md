@@ -38,7 +38,9 @@ O código é a fonte principal; documentos antigos não substituem esta conferê
   link do Guia) e `?v=20261113-guide-copy` em `index.html`, `cuidados/` e
   `privacidade/`. Testes da árvore da `main`: 136 aprovados/59 skips/0 falhas.
   Guia sem mudança pública pendente. A branch de trabalho recebeu o mesmo `?v=`.
-- Pendente: o Mateus conferir o portal no próprio celular; texto do aviso de
+- O Mateus abriu o portal no próprio celular após a publicação e relatou que
+  "a princípio" está funcionando. Conferência informal, sem roteiro de teste.
+- Pendente: texto do aviso de
   privacidade sobre acesso administrativo ao D1 (item 2 abaixo); lote da cadeia
   de lint (minimatch); alertas antigos da `main` no GitHub.
 
