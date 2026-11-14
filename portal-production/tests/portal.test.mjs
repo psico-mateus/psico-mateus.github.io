@@ -2027,3 +2027,27 @@ test("Meu mapa sharing is explicit, revocable and read-only for the professional
   assert.match(professionalUi, /Somente leitura/u);
   assert.match(professionalUi, /Concluir visualização/u);
 });
+
+test("aviso de crise cita 192 e 188 e leva à página de cuidados", async () => {
+  const app = await readFile(new URL("../app/PortalApp.tsx", import.meta.url), "utf8");
+  const footer = app.slice(app.indexOf("function EmergencyFooter"));
+  assert.match(footer, /não é acompanhado em tempo real/iu);
+  assert.match(footer, /ligue 192/u);
+  assert.match(footer, /CVV[\s\S]{0,80}188/u);
+  assert.match(footer, /careUrl\(config\)/u);
+  assert.match(footer, /Cuidados e ajuda imediata/u);
+
+  const editor = app.slice(
+    app.indexOf("function EntryForm"),
+    app.indexOf("function EntryDetails"),
+  );
+  assert.match(editor, /entry-safety-note/u);
+  assert.match(editor, /não é lido em tempo real/iu);
+  assert.match(editor, /192/u);
+  assert.match(editor, /188/u);
+  assert.match(editor, /Cuidados e ajuda imediata/u);
+  // O aviso é fixo: não depende do que a pessoa escreveu.
+  assert.doesNotMatch(editor, /draft\.[a-z]+[^\n]*entry-safety-note/u);
+
+  assert.match(app, /new URL\("cuidados\/", config\.public_site_url\)/u);
+});

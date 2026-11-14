@@ -1501,6 +1501,7 @@ function EntryForm({
   draft,
   guidance,
   guideUrl,
+  careHref,
   onSave,
   onCancel,
   onDraftChange,
@@ -1510,6 +1511,7 @@ function EntryForm({
   draft: EntryDraft;
   guidance?: string;
   guideUrl: string;
+  careHref: string;
   onSave: (entry: EntryDraft) => Promise<void>;
   onCancel: () => void;
   onDraftChange: (draft: EntryDraft) => void;
@@ -1753,6 +1755,10 @@ function EntryForm({
       </section>
 
       {message && saveErrorLocation === "final" ? <Notice tone="error" message={message} /> : null}
+      <p className="entry-safety-note">
+        Este registro não é lido em tempo real. Em risco imediato, ligue 192. Para apoio emocional, o CVV atende pelo 188.{" "}
+        <a href={careHref} target="_blank" rel="noopener noreferrer">Cuidados e ajuda imediata<span className="sr-status"> (abre em nova aba)</span></a>
+      </p>
       <div className={`form-finish ${remainsShared ? "shared" : "private"}`}>
         <div className="form-finish-copy">
           <span aria-hidden="true" />
@@ -2850,6 +2856,7 @@ function PatientDashboard({
               initial={editing === "new" ? undefined : editing}
               draft={entryDraft ?? entryDraftFrom(editing === "new" ? undefined : editing)}
               guideUrl={config.guide_url}
+              careHref={careUrl(config)}
               guidance={entryGuidance}
               onSave={save}
               onCancel={cancelEntry}
@@ -3973,8 +3980,16 @@ function AccountPanel({
   );
 }
 
+function careUrl(config: Config): string {
+  try {
+    return new URL("cuidados/", config.public_site_url).toString();
+  } catch {
+    return "https://psico-mateus.github.io/cuidados/";
+  }
+}
+
 function EmergencyFooter({ config }: { config: Config }) {
-  return <footer className="site-footer"><div><strong>Este espaço não é acompanhado em tempo real.</strong><p>Não use os registros para pedir ajuda urgente. Em risco imediato, procure um serviço de emergência da sua região ou ligue 192.</p></div><nav aria-label="Links do rodapé"><a href={config.public_site_url} target="_blank" rel="noopener noreferrer">Site profissional<span className="sr-status"> (abre em nova aba)</span></a><a href={config.guide_url} target="_blank" rel="noopener noreferrer">Guia de Emoções<span className="sr-status"> (abre em nova aba)</span></a><a href="/privacidade/">Privacidade</a></nav></footer>;
+  return <footer className="site-footer"><div><strong>Este espaço não é acompanhado em tempo real.</strong><p>Não use os registros para pedir ajuda urgente. Em risco imediato, ligue 192 (SAMU) ou procure um serviço de emergência da sua região. Para apoio emocional, o CVV atende pelo 188, 24 horas por dia.</p></div><nav aria-label="Links do rodapé"><a href={careUrl(config)} target="_blank" rel="noopener noreferrer">Cuidados e ajuda imediata<span className="sr-status"> (abre em nova aba)</span></a><a href={config.public_site_url} target="_blank" rel="noopener noreferrer">Site profissional<span className="sr-status"> (abre em nova aba)</span></a><a href={config.guide_url} target="_blank" rel="noopener noreferrer">Guia de Emoções<span className="sr-status"> (abre em nova aba)</span></a><a href="/privacidade/">Privacidade</a></nav></footer>;
 }
 
 function scrollPageToTop() {
