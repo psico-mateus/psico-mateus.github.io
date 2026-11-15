@@ -95,6 +95,25 @@ Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
 
+#### 15/11/2026 — Mac, Claude Code: foco do menu em aparelho lento
+
+- Os avisos de falha do GitHub Actions (commits `87728dd` e `97cbf13`, só
+  documentação) eram de `tests/public-focus.spec.mjs` em mobile-webkit: o foco
+  não chegava ao primeiro link do menu. Lidos pelas anotações do relator
+  `github`, sem login.
+- **Causa real:** `openMenu` em `assets/js/main.js` tentava mover o foco uma
+  única vez, 180 ms depois de abrir. Em aparelho lento o menu ainda não estava
+  visível e o foco ficava no botão. Agora tenta de novo a cada 50 ms por até
+  1,5 s, sem roubar foco de quem já navegou. `main.js?v=20261115-menu-focus` em
+  `index.html`, `cuidados/` e `privacidade/`.
+- Teste novo "em aparelho lento, o foco chega ao menu..." (atrasa a visibilidade
+  do menu em 450 ms): falhava nos 3 projetos antes; depois, `public-focus` 10×
+  com 210 aprovados.
+- `tests/guide-resilience.spec.mjs:183` clicava antes de o Guia terminar de
+  recarregar; passou a esperar `.guide-filter-label`, como `openSummary`.
+- Branch `tarefa/mac-foco-menu-lento-20261115`. **Não está na `main`:** o
+  menu no ar ainda tem o problema. Suíte 8× estava rodando ao encerrar.
+
 #### 15/11/2026 — Mac, Claude Code: limpeza da `main`
 
 - A `main` carregava `portal-production/` (93 arquivos, cópia de outubro do

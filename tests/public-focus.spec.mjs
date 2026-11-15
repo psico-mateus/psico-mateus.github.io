@@ -53,6 +53,24 @@ test("menu restaura atributos prévios e foco ao fechar ou voltar", async ({ pag
   await expect(toggle).toBeFocused();
 });
 
+test("em aparelho lento, o foco chega ao menu quando ele termina de aparecer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Simula um aparelho lento: o menu só fica visível 450 ms depois de aberto.
+  await page.addInitScript(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = '.primary-nav[data-open="true"]{transition:visibility 0s linear 450ms!important}';
+      document.head.append(style);
+    });
+  });
+  await page.goto("/");
+  const toggle = page.locator("[data-menu-toggle]");
+  await toggle.click();
+  await expect(page.locator("[data-menu] a").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(toggle).toBeFocused();
+});
+
 test("ampliar a tela não deixa o teclado no botão de menu oculto", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

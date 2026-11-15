@@ -184,6 +184,8 @@ test("resumo não corta palavras longas e preserva as quebras do texto escrito",
   await page.setViewportSize({ width: 320, height: 844 });
   await openSummary(page);
   await page.reload();
+  // Como em openSummary: só clicar depois que o Guia terminou de carregar.
+  await page.locator(".guide-filter-label").waitFor();
   const text = `Texto fictício com uma referência longa:\nhttps://exemplo.test/${"a".repeat(180)}\nSegunda linha preservada.`;
   await page.getByRole("textbox", { name: "O que aconteceu?", exact: true }).fill(text);
   for (let index = 0; index < 6; index++) await page.locator(".record-actions button").last().click();
