@@ -477,9 +477,9 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(navigationScript).toContain(
     'immediateHelpLink.textContent = "Ver contatos de ajuda imediata"',
   );
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v32"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v33"');
   expect(serviceWorker).toContain(
-    '"/assets/css/guide-brand.css?v=20261014-guide-resilience"',
+    '"/assets/css/guide-brand.css?v=20261114-guide-nav-space"',
   );
   expect(serviceWorker).toContain(
     '"/assets/js/guide-navigation.js?v=20261015-focus-navigation"',

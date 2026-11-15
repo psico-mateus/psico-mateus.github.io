@@ -480,6 +480,15 @@ main .urgent-care .urgent-care-link:hover {
     --guide-nav-height: 56px;
   }
 
+  /*
+   * A barra de atalhos só é inserida depois que o Guia termina de carregar.
+   * Até lá, o cabeçalho reserva a mesma altura para que os botões não mudem de
+   * lugar no momento em que a pessoa vai tocar neles.
+   */
+  main .site-header:not(:has(+ .guide-mobile-nav)) {
+    margin-bottom: calc(var(--guide-nav-height, 56px) + 1px);
+  }
+
   main .guide-mobile-nav {
     position: sticky;
     z-index: 35;
