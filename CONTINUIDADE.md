@@ -72,13 +72,8 @@ Dependem do Matt:
 
 Técnicas, sem urgência:
 
-3. **Dois testes instáveis do Guia** (falharam 1 vez em 6 rodadas cada, local, e
-   derrubaram a parte "Site e Guia" do GitHub Actions em 14/11):
-   `tests/guide-scroll.spec.mjs:85` (mobile-webkit, "Explorar emoções: marcador
-   não bloqueia a rolagem") e `tests/guide-flow.spec.mjs:117` (desktop-chromium,
-   "ações dos detalhes permanecem visíveis sem cobrir o fim da leitura"). O Guia
-   não mudou; a instabilidade é anterior. Estabilizar sem aumentar timeout nem
-   pular o teste.
+3. **Correção do pulo da barra do Guia no celular: no código, aguardando o
+   "sim" do Matt para ir à `main`** (ver registro de 14/11, testes estáveis).
 4. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
    ESLint/typescript-estree). A correção 11.0.1 é major; fazer em lote próprio,
    sem `audit fix --force` nem override major.
@@ -105,6 +100,27 @@ Técnicas, sem urgência:
 Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
+
+#### 14/11/2026 — Mac, Claude Code: testes estáveis do Guia e pulo da barra no celular
+
+- Branch `tarefa/mac-testes-guia-estaveis-20261114`. Antes: suíte do site 8×
+  com 3 falhas (`guide-flow.spec.mjs:117` duas vezes, `guide-scroll.spec.mjs:85`
+  uma), e a parte "Site e Guia" do GitHub Actions caiu por isso.
+- **Problema real achado:** em telas até 980 px, `guide-navigation.js` insere
+  a barra de atalhos (57 px) só depois da hidratação + 250 ms, empurrando os
+  botões do topo. Um toque nesse intervalo caía no vazio. Teste novo em
+  `guide-scroll.spec.mjs` mede a posição do botão do carregamento até a barra
+  existir: falhava com 57 px nos dois projetos móveis.
+- **Correção só de CSS** (`assets/css/guide-brand.css`): enquanto a barra não
+  existe, `main .site-header:not(:has(+ .guide-mobile-nav))` reserva a mesma
+  altura. Navegadores sem `:has` ficam como antes. `?v=20261114-guide-nav-space`
+  em `guia-emocoes/index.html` e `CORE_ASSETS`; `CACHE_NAME` v33; testes que
+  conferem esses valores atualizados.
+- `guide-flow.spec.mjs:117`: o teste media antes de a janela de detalhes terminar
+  de rolar. Agora leva a leitura até o fim e espera 5 quadros estáveis antes de
+  medir. Sem aumento de timeout e sem pular teste.
+- Depois: teste do pulo 20/20; suíte do site 8× com **1.320 aprovados e 0
+  falhas**. **Não está na `main`:** o Guia no ar ainda tem o pulo.
 
 #### 14/11/2026 — Mac, Claude Code: testes no GitHub, aviso de privacidade e exclusão de conta
 

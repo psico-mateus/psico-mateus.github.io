@@ -129,12 +129,26 @@ test("ações dos detalhes permanecem visíveis sem cobrir o fim da leitura", as
     const lastAlert = dialog.locator(".detail-alerts section").last();
     await lastAlert.scrollIntoViewIfNeeded();
     await expect(actions).toBeInViewport();
-    await page.evaluate(() => {
-      const modal = document.querySelector(".emotion-modal");
-      const backdrop = document.querySelector(".modal-backdrop");
-      modal.scrollTop = modal.scrollHeight;
-      backdrop.scrollTop = backdrop.scrollHeight;
-    });
+    // Leva a leitura até o fim e espera a janela parar de mudar. Se o conteúdo
+    // ainda estiver terminando de abrir, a altura cresce e a rolagem acompanha;
+    // medir antes disso compara um passo intermediário, não o fim da leitura.
+    await page.evaluate(() => new Promise((resolve) => {
+      const scrollers = [".emotion-modal", ".modal-backdrop"].map((selector) => document.querySelector(selector));
+      let previous = "";
+      let stableFrames = 0;
+      const check = () => {
+        for (const element of scrollers) element.scrollTop = element.scrollHeight;
+        const current = scrollers
+          .map((element) => `${Math.round(element.scrollTop)}/${element.scrollHeight}/${element.clientHeight}`)
+          .join(",");
+        const atEnd = scrollers.every((element) => element.scrollTop + element.clientHeight >= element.scrollHeight - 1);
+        stableFrames = current === previous && atEnd ? stableFrames + 1 : 0;
+        previous = current;
+        if (stableFrames >= 5) resolve();
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }));
     const finalBounds = await actions.boundingBox();
     const alertBounds = await lastAlert.boundingBox();
     expect(alertBounds.y + alertBounds.height).toBeLessThanOrEqual(finalBounds.y + 1);

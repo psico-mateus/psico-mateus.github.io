@@ -78,6 +78,32 @@ async function waitForScrollToSettle(page) {
   );
 }
 
+test("no celular, a barra de atalhos não empurra os botões depois que a página aparece", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile"), "A barra de atalhos existe só em telas estreitas.");
+
+  await page.addInitScript(() => {
+    window.__guideButtonPositions = [];
+    const started = performance.now();
+    const sample = () => {
+      const link = [...document.querySelectorAll('a[href="#registrar"]')]
+        .find((element) => /Ainda não sei o que sinto/u.test(element.textContent));
+      if (link) window.__guideButtonPositions.push(Math.round(link.getBoundingClientRect().top + window.scrollY));
+      if (performance.now() - started < 6000 && !window.__guideStopSampling) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+
+  await page.goto(guidePath);
+  await expect(page.locator("main .guide-mobile-nav")).toBeVisible();
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 300)));
+  const positions = await page.evaluate(() => {
+    window.__guideStopSampling = true;
+    return window.__guideButtonPositions;
+  });
+  expect(positions.length).toBeGreaterThan(0);
+  expect(Math.max(...positions) - Math.min(...positions)).toBeLessThanOrEqual(2);
+});
+
 for (const flow of [
   { label: "Explorar emoções", target: "#explorar" },
   { label: "Ainda não sei o que sinto", target: "#registrar" },
@@ -477,9 +503,9 @@ test("artefatos mantêm a correção de foco, rolagem e atualização do PWA", a
   expect(navigationScript).toContain(
     'immediateHelpLink.textContent = "Ver contatos de ajuda imediata"',
   );
-  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v32"');
+  expect(serviceWorker).toContain('CACHE_NAME = "guia-emocoes-scoped-v33"');
   expect(serviceWorker).toContain(
-    '"/assets/css/guide-brand.css?v=20261014-guide-resilience"',
+    '"/assets/css/guide-brand.css?v=20261114-guide-nav-space"',
   );
   expect(serviceWorker).toContain(
     '"/assets/js/guide-navigation.js?v=20261015-focus-navigation"',
