@@ -119,10 +119,20 @@
     menuToggle.focus({ preventScroll: true });
     setMenuBackgroundInert(true);
     // Aguarda a transição de visibilidade sem roubar foco de quem já navegou.
-    menuFocusTimer = window.setTimeout(() => {
+    // Em aparelhos lentos o menu pode demorar a aparecer: tenta de novo por um
+    // curto período em vez de desistir na primeira tentativa.
+    const startedAt = performance.now();
+    const focusFirstMenuLink = () => {
+      menuFocusTimer = undefined;
       if (menuToggle.getAttribute("aria-expanded") !== "true" || document.activeElement !== menuToggle) return;
-      menuFocusable().find((element) => element !== menuToggle)?.focus({ preventScroll: true });
-    }, 180);
+      const target = menuFocusable().find((element) => element !== menuToggle);
+      if (target) {
+        target.focus({ preventScroll: true });
+      } else if (performance.now() - startedAt < 1500) {
+        menuFocusTimer = window.setTimeout(focusFirstMenuLink, 50);
+      }
+    };
+    menuFocusTimer = window.setTimeout(focusFirstMenuLink, 180);
   };
 
   if (menuToggle && menu) {
