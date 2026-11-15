@@ -72,26 +72,24 @@ Dependem do Matt:
 
 Técnicas, sem urgência:
 
-3. **Correção do pulo da barra do Guia no celular: no código, aguardando o
-   "sim" do Matt para ir à `main`** (ver registro de 14/11, testes estáveis).
-4. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
+3. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
    ESLint/typescript-estree). A correção 11.0.1 é major; fazer em lote próprio,
    sem `audit fix --force` nem override major.
-5. A `main` mostra 45 alertas no GitHub (10 críticos, 17 altos, 13 moderados,
+4. A `main` mostra 45 alertas no GitHub (10 críticos, 17 altos, 13 moderados,
    5 baixos). Vêm de manifestos antigos guardados nessa branch, não do site no ar
    nem do portal publicado. Limpar em lote próprio, sem mesclar a história do portal.
-6. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
+5. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
    completa lá depende de WSL2, bloqueado pela virtualização desligada no
    firmware (seção 10).
-7. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
+6. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
    revisar e integrar só se útil, comparando com a redação atual.
-8. Idempotência do POST de novo registro após perda de resposta: projeto próprio
+7. Idempotência do POST de novo registro após perda de resposta: projeto próprio
    (servidor, esquema e concorrência), não ajuste visual.
-9. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
+8. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
    na página inicial; dividir `PortalApp.tsx` (4.180 linhas),
    `ProfessionalDashboard.tsx` (2.716) e `app/api/portal/[...segments]/route.ts`
    (2.436) quando houver motivo para mexer neles.
-10. As actions do workflow (`actions/checkout@v4`, `setup-node@v4`,
+9. As actions do workflow (`actions/checkout@v4`, `setup-node@v4`,
    `pnpm/action-setup@v4`) usam Node 20, que o GitHub já força para Node 24 com
    aviso. Atualizar as versões quando houver releases estáveis com Node 24.
 
@@ -120,7 +118,19 @@ a 13/11 estão no arquivo de histórico.
   de rolar. Agora leva a leitura até o fim e espera 5 quadros estáveis antes de
   medir. Sem aumento de timeout e sem pular teste.
 - Depois: teste do pulo 20/20; suíte do site 8× com **1.320 aprovados e 0
-  falhas**. **Não está na `main`:** o Guia no ar ainda tem o pulo.
+  falhas**. O workflow passou a usar `--reporter=github,line` no site, para cada
+  falha virar anotação legível sem login (`b808ce0`); a rodada seguinte na
+  branch de trabalho passou nos dois trabalhos.
+- **Publicado na `main` com o "sim" do Matt:** `3e4860d..f5c478c`, somente
+  `guide-brand.css`, `guia-emocoes/index.html`, `guia-emocoes/sw.js` e as
+  versões nos três testes que as conferem. Árvore da `main` testada 3×: 408
+  aprovados, 0 falhas. No ar: CSS `?v=20261114-guide-nav-space`, SW
+  `guia-emocoes-scoped-v33`; pulo do botão medido no Guia publicado: **0 px** em
+  WebKit e Chromium móveis.
+- A `main` tinha recebido antes `3e4860d` ("Adiciona currículo em PDF"), feito
+  por outra sessão do Claude na nuvem: só `curriculo.pdf`, preservado.
+- Notas: a API do GitHub sem login aceita 60 consultas por hora; esperar o
+  Actions consultando no máximo uma vez por minuto.
 
 #### 14/11/2026 — Mac, Claude Code: testes no GitHub, aviso de privacidade e exclusão de conta
 
@@ -157,7 +167,7 @@ a 13/11 estão no arquivo de histórico.
   Final: lint ok; **336/336**; integração **318**; restauração 15 tabelas;
   telas **258/258 Chromium e 258/258 WebKit**; MFA 4/4; site 163/59 skips em três
   repetições. GitHub Actions no commit combinado: portal aprovado; "Site e Guia"
-  falhou por um dos dois testes instáveis do Guia (pendência 3).
+  falhou por um dos dois testes instáveis do Guia (estabilizados no mesmo dia).
 - **PUBLICADO** com o "sim" do Matt: seção 9, versões anteriores anotadas,
   snapshot limpo, dry-runs, legado primeiro. Build `f6067844ef8da627`, fonte
   `3aaae45`. Os dois links: HTTP 200, sessão anônima, SW novo, `/config` com
@@ -269,7 +279,7 @@ Nada. Tudo o que está na branch de trabalho está no ar.
 | Área oficial | `https://area-do-paciente.psico-mateus.workers.dev/` |
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
 | GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
-| `origin/main` | `0d17335` |
+| `origin/main` | `f5c478c` (inclui `curriculo.pdf`, de outra sessão) |
 | Worker oficial `area-do-paciente` | `336934a6-674c-49b5-a8dc-f1ab85362a89`, 100% |
 | Worker legado/API `registros` | `67451734-6987-417b-9a3e-9e44bdfbb85c`, 100% |
 | SW dos dois portais | HTTP 200, ID `f6067844ef8da627` |
@@ -307,7 +317,7 @@ todas as branches.
   automaticamente**: `arquivo/auditoria-final-portal` (`bf8583d`),
   `arquivo/sites-portal-release` (`34b3b84`, raiz independente) e
   `arquivo/site-local-mac-20261027` (`6cb6ac0`, três alterações editoriais em
-  `index.html`, `cuidados/` e `privacidade/`; ver pendência 7).
+  `index.html`, `cuidados/` e `privacidade/`; ver pendência 6).
 - O inventário completo de 27/10 (27 branches locais, 72 commits inéditos,
   checkouts antigos do Mac) está na seção 3 do arquivo de histórico.
 - O código e os históricos arquivados foram verificados por caminhos e padrões
@@ -564,7 +574,7 @@ Telas por família, em cada motor: conta 28, início 21, mapa 38, avisos 38,
 registros 73, recursos 13, histórico profissional 38, visualizações versionadas 4.
 
 Audit de 13/11: raiz 0; portal `--prod` 0; portal completo 1 moderado de
-desenvolvimento (pendência 4 da seção 1). Audit não é pentest: não declarar o
+desenvolvimento (pendência 3 da seção 1). Audit não é pentest: não declarar o
 portal "sem vulnerabilidades".
 
 Resultados anteriores (22/10, 27/10, 28/10, 30/10, 04/11 e a sessão na nuvem de
