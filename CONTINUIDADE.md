@@ -62,10 +62,9 @@ Três sites do psicólogo Mateus Ribeiro Marcos (Matt), CRP 08/38930:
 
 Dependem do Matt:
 
-1. Teste humano no iPhone/Safari (o Matt faz; roteiro curto a preparar). Ele não
-   tem Android: essa plataforma fica sem teste físico. WebKit automatizado não
-   é iPhone. Conferir também, logado, a nota de crise no editor e o comunicado
-   do aviso de privacidade, que nenhum assistente vê em produção.
+1. **iPhone testado pelo Matt em 14/11**, depois da publicação do aviso de
+   privacidade, da nota de crise e da exclusão de conta. Ele não tem Android:
+   essa plataforma fica sem teste físico.
 2. **Plano de revisão do mês:** [`docs/plano-revisao-2026-11.md`](docs/plano-revisao-2026-11.md).
    Itens 1, 2, 3 e 4 feitos e publicados. O próximo grande é a criptografia dos
    registros no banco (prioridade 2); cada item espera o "sim" do Matt.
@@ -75,21 +74,18 @@ Técnicas, sem urgência:
 3. Cadeia de lint: 1 alerta moderado só de desenvolvimento (minimatch 10.2.5 via
    ESLint/typescript-estree). A correção 11.0.1 é major; fazer em lote próprio,
    sem `audit fix --force` nem override major.
-4. A `main` mostra 45 alertas no GitHub (10 críticos, 17 altos, 13 moderados,
-   5 baixos). Vêm de manifestos antigos guardados nessa branch, não do site no ar
-   nem do portal publicado. Limpar em lote próprio, sem mesclar a história do portal.
-5. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
+4. Windows: o PC foi formatado; refazer clone e ambiente pela seção 5. A suíte
    completa lá depende de WSL2, bloqueado pela virtualização desligada no
    firmware (seção 10).
-6. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
+5. Diff editorial arquivado `6cb6ac0` (branch `arquivo/site-local-mac-20261027`):
    revisar e integrar só se útil, comparando com a redação atual.
-7. Idempotência do POST de novo registro após perda de resposta: projeto próprio
+6. Idempotência do POST de novo registro após perda de resposta: projeto próprio
    (servidor, esquema e concorrência), não ajuste visual.
-8. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
+7. Sugestões da avaliação de 13/11, sem decisão: enxugar a repetição Guia/Área
    na página inicial; dividir `PortalApp.tsx` (4.180 linhas),
    `ProfessionalDashboard.tsx` (2.716) e `app/api/portal/[...segments]/route.ts`
    (2.436) quando houver motivo para mexer neles.
-9. As actions do workflow (`actions/checkout@v4`, `setup-node@v4`,
+8. As actions do workflow (`actions/checkout@v4`, `setup-node@v4`,
    `pnpm/action-setup@v4`) usam Node 20, que o GitHub já força para Node 24 com
    aviso. Atualizar as versões quando houver releases estáveis com Node 24.
 
@@ -98,6 +94,25 @@ Técnicas, sem urgência:
 Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
+
+#### 15/11/2026 — Mac, Claude Code: limpeza da `main`
+
+- A `main` carregava `portal-production/` (93 arquivos, cópia de outubro do
+  portal) e `portal-prototipo/` (11). Nenhuma página usava; os arquivos ficavam
+  acessíveis pelo endereço público (ex.: `portal-production/README.md` respondia
+  200) e eram a fonte dos 45 alertas de dependências da `main`.
+- `749501d` na `main`: removidos os 103 arquivos; mantido só
+  `portal-prototipo/public/index.html`, que redireciona links antigos para a Área
+  do paciente (conferido no `tests/site-audit.spec.mjs`). `package.json` da
+  `main` perdeu os scripts `portal`/`test:portal` e ganhou `packageManager`.
+  Lockfile da raiz igual ao da branch de trabalho (audit 0).
+- Testes da árvore da `main` 3×: 408 aprovados, 0 falhas. No ar: arquivos antigos
+  404; site, Guia, cuidados, privacidade, `curriculo.pdf` e `main.js` 200;
+  redirecionamento do protótipo intacto.
+- A contagem de alertas do GitHub só é vista com login ou no aviso do próximo
+  `git push`; o aviso deste envio ainda mostrava 45, calculado antes da
+  reanálise. Conferir no próximo envio.
+- O portal continua inteiro na branch de trabalho e no Cloudflare; nada nele mudou.
 
 #### 14/11/2026 — Mac, Claude Code: testes estáveis do Guia e pulo da barra no celular
 
@@ -279,7 +294,7 @@ Nada. Tudo o que está na branch de trabalho está no ar.
 | Área oficial | `https://area-do-paciente.psico-mateus.workers.dev/` |
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
 | GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
-| `origin/main` | `f5c478c` (inclui `curriculo.pdf`, de outra sessão) |
+| `origin/main` | `749501d` (só site, Guia, testes, `curriculo.pdf` e o redirecionamento do protótipo) |
 | Worker oficial `area-do-paciente` | `336934a6-674c-49b5-a8dc-f1ab85362a89`, 100% |
 | Worker legado/API `registros` | `67451734-6987-417b-9a3e-9e44bdfbb85c`, 100% |
 | SW dos dois portais | HTTP 200, ID `f6067844ef8da627` |
@@ -317,7 +332,7 @@ todas as branches.
   automaticamente**: `arquivo/auditoria-final-portal` (`bf8583d`),
   `arquivo/sites-portal-release` (`34b3b84`, raiz independente) e
   `arquivo/site-local-mac-20261027` (`6cb6ac0`, três alterações editoriais em
-  `index.html`, `cuidados/` e `privacidade/`; ver pendência 6).
+  `index.html`, `cuidados/` e `privacidade/`; ver pendência 5).
 - O inventário completo de 27/10 (27 branches locais, 72 commits inéditos,
   checkouts antigos do Mac) está na seção 3 do arquivo de histórico.
 - O código e os históricos arquivados foram verificados por caminhos e padrões
