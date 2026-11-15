@@ -33,7 +33,8 @@ jobs:
           node-version-file: .nvmrc
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
-      - run: pnpm test
+      # O relator "github" publica cada falha como anotação legível sem login.
+      - run: pnpm exec playwright test --reporter=github,line
 
   portal:
     name: Área do paciente
