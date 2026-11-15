@@ -111,8 +111,14 @@ a 13/11 estão no arquivo de histórico.
   com 210 aprovados.
 - `tests/guide-resilience.spec.mjs:183` clicava antes de o Guia terminar de
   recarregar; passou a esperar `.guide-filter-label`, como `openSummary`.
-- Branch `tarefa/mac-foco-menu-lento-20261115`. **Não está na `main`:** o
-  menu no ar ainda tem o problema. Suíte 8× estava rodando ao encerrar.
+- Branch `tarefa/mac-foco-menu-lento-20261115`. Suíte do site 8×: **1.344
+  aprovados, 0 falhas**.
+- **Publicado na `main` com o "sim" do Matt:** `749501d..5e19372`, só
+  `assets/js/main.js` e o `?v=` nas três páginas; árvore da `main` testada 2×
+  (272 aprovados, 0 falhas). No ar: as três páginas servem
+  `main.js?v=20261115-menu-focus` com a nova lógica.
+- O `git push` para a `main` não mostrou mais o aviso de alertas de
+  dependências: os 45 alertas fecharam depois da limpeza de `749501d`.
 
 #### 15/11/2026 — Mac, Claude Code: limpeza da `main`
 
@@ -313,7 +319,7 @@ Nada. Tudo o que está na branch de trabalho está no ar.
 | Área oficial | `https://area-do-paciente.psico-mateus.workers.dev/` |
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
 | GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
-| `origin/main` | `749501d` (só site, Guia, testes, `curriculo.pdf` e o redirecionamento do protótipo) |
+| `origin/main` | `5e19372` (só site, Guia, testes, `curriculo.pdf` e o redirecionamento do protótipo) |
 | Worker oficial `area-do-paciente` | `336934a6-674c-49b5-a8dc-f1ab85362a89`, 100% |
 | Worker legado/API `registros` | `67451734-6987-417b-9a3e-9e44bdfbb85c`, 100% |
 | SW dos dois portais | HTTP 200, ID `f6067844ef8da627` |
