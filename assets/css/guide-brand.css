@@ -641,3 +641,15 @@ main .urgent-care .urgent-care-link:hover {
     transition: none;
   }
 }
+
+/* Rodapé em telas médias: o título do guia não fica espremido em uma coluna estreita. */
+@media (min-width: 681px) and (max-width: 1120px) {
+  footer {
+    grid-template-columns: minmax(220px, 1fr) auto;
+  }
+
+  footer .footer-links {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
