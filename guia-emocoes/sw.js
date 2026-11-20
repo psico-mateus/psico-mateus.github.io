@@ -1,4 +1,4 @@
-const CACHE_NAME = "guia-emocoes-scoped-v34";
+const CACHE_NAME = "guia-emocoes-scoped-v35";
 const CACHE_PREFIX = "guia-emocoes-scoped-";
 const GUIDE_PATH = "/guia-emocoes/";
 const GUIDE_ASSET_PATHS = new Set([
@@ -28,7 +28,12 @@ const CORE_ASSETS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)),
+    caches
+      .open(CACHE_NAME)
+      .then((cache) =>
+        // "reload" ignora o cache HTTP do navegador: cada versão nova guarda os arquivos atuais.
+        cache.addAll(CORE_ASSETS.map((url) => new Request(url, { cache: "reload" }))),
+      ),
   );
   self.skipWaiting();
 });
