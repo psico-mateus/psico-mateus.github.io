@@ -95,6 +95,17 @@ Novas entradas datadas entram aqui, a mais recente primeiro. Se o estado, as
 decisões ou as pendências acima mudarem, atualize-os também. Sessões anteriores
 a 13/11 estão no arquivo de histórico.
 
+#### 20/11/2026 — Mac, Claude Code: verificação do Google Search Console
+
+- A pedido do Matt, `google0f0fe8b865368e10.html` (conteúdo exato baixado do
+  Google, 53 bytes) foi colocado na raiz da `main` em `bd7c7f2` e também nesta
+  branch. **Não remover:** o Google exige que o arquivo continue no site para
+  manter a verificação.
+- A `main` já tinha `e702971` ("Site diz que o atendimento on-line vale para
+  qualquer cidade"), feito por outra sessão e ainda ausente desta branch;
+  preservado. Antes de mexer em `index.html` nesta branch, trazer esse texto da
+  `main` para não desfazê-lo numa publicação futura.
+
 #### 15/11/2026 — Mac, Claude Code: foco do menu em aparelho lento
 
 - Os avisos de falha do GitHub Actions (commits `87728dd` e `97cbf13`, só
@@ -319,7 +330,7 @@ Nada. Tudo o que está na branch de trabalho está no ar.
 | Área oficial | `https://area-do-paciente.psico-mateus.workers.dev/` |
 | Link antigo compatível | `https://registros.psico-mateus.workers.dev/` |
 | GitHub Pages | fonte `main`, `/`, build `legacy` (conferido em 27/10) |
-| `origin/main` | `5e19372` (só site, Guia, testes, `curriculo.pdf` e o redirecionamento do protótipo) |
+| `origin/main` | `bd7c7f2` (site, Guia, testes, `curriculo.pdf`, verificação do Google e o redirecionamento do protótipo) |
 | Worker oficial `area-do-paciente` | `336934a6-674c-49b5-a8dc-f1ab85362a89`, 100% |
 | Worker legado/API `registros` | `67451734-6987-417b-9a3e-9e44bdfbb85c`, 100% |
 | SW dos dois portais | HTTP 200, ID `f6067844ef8da627` |
