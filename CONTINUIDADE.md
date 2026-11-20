@@ -102,9 +102,11 @@ a 13/11 estão no arquivo de histórico.
   branch. **Não remover:** o Google exige que o arquivo continue no site para
   manter a verificação.
 - A `main` já tinha `e702971` ("Site diz que o atendimento on-line vale para
-  qualquer cidade"), feito por outra sessão e ainda ausente desta branch;
-  preservado. Antes de mexer em `index.html` nesta branch, trazer esse texto da
-  `main` para não desfazê-lo numa publicação futura.
+  qualquer cidade": título, descrição, dados estruturados e meta de verificação
+  do Google, feito por outra sessão) e `3e4860d` (`curriculo.pdf`). Com o "pode
+  mudar" do Matt, os dois foram trazidos para esta branch (cherry-pick de
+  `e702971` e o PDF da `main`). Agora os arquivos públicos desta branch são
+  iguais aos da `main`. Site 2×: 336 aprovados, 0 falhas.
 
 #### 15/11/2026 — Mac, Claude Code: foco do menu em aparelho lento
 
