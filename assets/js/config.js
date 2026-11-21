@@ -15,6 +15,8 @@
       "Olá, Mateus. Encontrei seu site e gostaria de saber sobre a disponibilidade para atendimento psicológico on-line particular.",
     inPerson:
       "Olá, Mateus. Encontrei seu site e gostaria de saber sobre a disponibilidade para atendimento psicológico presencial pela Unimed.",
+    abroad:
+      "Olá, Mateus. Moro fora do Brasil, encontrei seu site e gostaria de saber sobre horários para terapia on-line.",
   };
 
   const whatsappWithMessage = (message) =>
@@ -27,6 +29,7 @@
       generalWhatsapp: whatsappWithMessage(messages.general),
       onlineWhatsapp: whatsappWithMessage(messages.online),
       inPersonWhatsapp: whatsappWithMessage(messages.inPerson),
+      abroadWhatsapp: whatsappWithMessage(messages.abroad),
       instagram: professionalLinks.instagram,
       linkedin: professionalLinks.linkedin,
       email: professionalLinks.email,
